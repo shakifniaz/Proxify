@@ -10,9 +10,6 @@ import {
     CalendarPlus,
 } from 'lucide-vue-next';
 
-// Props mirror exactly what a future DashboardController would pass to
-// Inertia::render('Dashboard', [...]) — swapping the route closure for a
-// real controller later requires zero changes to this file.
 const props = defineProps({
     alerts: { type: Array, default: () => [] },
     routineSummary: { type: Object, default: () => ({}) },
@@ -25,8 +22,6 @@ const props = defineProps({
     quickActions: { type: Array, default: () => [] },
 });
 
-// Literal Tailwind class strings per color key — required so the JIT
-// scanner can find them; never interpolate color names into class names.
 const colorClasses = {
     emerald: { text: 'text-emerald-400', dot: 'bg-emerald-400', bar: 'bg-emerald-500', ring: 'border-emerald-500/30' },
     rose: { text: 'text-rose-400', dot: 'bg-rose-400', bar: 'bg-rose-500', ring: 'border-rose-500/30' },
