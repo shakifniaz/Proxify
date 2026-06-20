@@ -300,6 +300,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
             'availableTeachers' => ['Mr. Sarkar', 'Mrs. Akter', 'Mr. Talukder', 'Ms. Nasrin', 'Mr. Rahman'],
         ]);
     })->name('proxy-manager.index');
+
     Route::get('/exam-schedule', function () {
         return Inertia::render('ExamSchedule/Index', [
             'session' => [
@@ -351,6 +352,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ],
         ]);
     })->name('exam-schedule.index');
+
     Route::get('/leave-requests', function () {
         return Inertia::render('LeaveRequests/Index', [
             'requests' => [
@@ -387,10 +389,45 @@ Route::middleware(['auth', 'verified'])->group(function () {
             'year' => 2026,
         ]);
     })->name('leave-requests.index');
+
     Route::get('/noticeboard', fn () => Inertia::render('Noticeboard/Index'))->name('noticeboard.index');
     Route::get('/staff-room', fn () => Inertia::render('StaffRoom/Index'))->name('staff-room.index');
     Route::get('/classrooms', fn () => Inertia::render('Classrooms/Index'))->name('classrooms.index');
-    Route::get('/analytics', fn () => Inertia::render('Analytics/Index'))->name('analytics.index');
+
+    Route::get('/analytics', function () {
+        return Inertia::render('Analytics/Index', [
+            'stats' => [
+                'totalAbsences' => ['value' => 47, 'delta' => '+12% vs last month'],
+                'proxyClasses' => ['value' => 183, 'delta' => '35 this week'],
+                'unresolved' => ['value' => 7, 'delta' => 'avg 0.4/day'],
+                'ackRate' => ['value' => 91, 'delta' => '+5% improvement'],
+            ],
+            'rangeOptions' => ['This week', 'This month', 'This term', 'Custom range'],
+            'chartLabel' => 'Daily absences — June 2026',
+            'dailyAbsences' => [
+                ['day' => 'Mon', 'count' => 4],
+                ['day' => 'Tue', 'count' => 7],
+                ['day' => 'Wed', 'count' => 3],
+                ['day' => 'Thu', 'count' => 6],
+                ['day' => 'Fri', 'count' => 9],
+                ['day' => 'Mon', 'count' => 5],
+                ['day' => 'Tue', 'count' => 8],
+            ],
+            'proxyLoad' => [
+                ['teacher' => 'Ms. Islam', 'count' => 14],
+                ['teacher' => 'Mr. Rahman', 'count' => 11],
+                ['teacher' => 'Mr. Hossain', 'count' => 8],
+                ['teacher' => 'Ms. Karim', 'count' => 5],
+            ],
+            'heatmapDays' => ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+            'heatmap' => [
+                ['teacher' => 'Mr. Rahman', 'values' => [0, 1, 2, 0, 2, 1]],
+                ['teacher' => 'Ms. Karim', 'values' => [1, 2, 0, 1, 2, 2]],
+                ['teacher' => 'Mr. Ahmed', 'values' => [3, 3, 2, 0, 3, 3]],
+            ],
+        ]);
+    })->name('analytics.index');
+    
     Route::get('/teachers', fn () => Inertia::render('Teachers/Index'))->name('teachers.index');
     Route::get('/settings', fn () => Inertia::render('Settings/Index'))->name('settings.index');
 });
