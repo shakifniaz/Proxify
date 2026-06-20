@@ -111,7 +111,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ['subject' => 'History', 'color' => 'indigo'],
             ['subject' => 'Physics', 'color' => 'cyan'],
             ['subject' => 'Bangla', 'color' => 'rose'],
+            
         ];
+
+        
 
         $teacherSets = [
             // 1. Main Routine — fully built, Active, proxy engine already ran
@@ -249,13 +252,141 @@ Route::middleware(['auth', 'verified'])->group(function () {
             'days' => $days[$id] ?? $days[1],
             'periods' => $periods,
             'legend' => $legend,
+            'classOptions' => [
+                'Class 6A', 'Class 6B', 'Class 7A', 'Class 7B', 'Class 7C',
+                'Class 8A', 'Class 8B', 'Class 8C', 'Class 9A', 'Class 9B', 'Class 9C',
+                'Class 10A', 'Class 10B', 'Class XI A', 'Class XI B',
+            ],
             'teachers' => $teacherData,
         ]);
     })->name('routines.show');
 
-    Route::get('/proxy-manager', fn () => Inertia::render('ProxyManager/Index'))->name('proxy-manager.index');
-    Route::get('/exam-schedule', fn () => Inertia::render('ExamSchedule/Index'))->name('exam-schedule.index');
-    Route::get('/leave-requests', fn () => Inertia::render('LeaveRequests/Index'))->name('leave-requests.index');
+    Route::get('/proxy-manager', function () {
+        return Inertia::render('ProxyManager/Index', [
+            'summary' => [
+                'routineName' => 'Main Routine', 'absentTeachers' => 3, 'availableTeachers' => 9, 'proxyClassesTomorrow' => 11,
+            ],
+            'markDate' => 'Wed 12 Jun',
+            'teacherOptions' => [
+                ['id' => 1, 'name' => 'Mr. Rahman', 'subject' => 'Mathematics', 'periodsToday' => 4, 'present' => false],
+                ['id' => 2, 'name' => 'Ms. Karim', 'subject' => 'English', 'periodsToday' => 3, 'present' => false],
+                ['id' => 3, 'name' => 'Mr. Hossain', 'subject' => 'Physics', 'periodsToday' => 2, 'present' => true],
+                ['id' => 4, 'name' => 'Ms. Islam', 'subject' => 'History', 'periodsToday' => 3, 'present' => true],
+                ['id' => 5, 'name' => 'Mr. Ahmed', 'subject' => 'Bangla', 'periodsToday' => 2, 'present' => true],
+            ],
+            'subjectOptions' => [
+                'English 1st Paper', 'English 2nd Paper', 'Mathematics', 'Higher Mathematics',
+                'Physics', 'Chemistry', 'Biology', 'History', 'Bangla 1st Paper', 'Bangla 2nd Paper',
+            ],
+            'classOptions' => ['6', '7', '8', '9', '10', 'XI (A)', 'XI (B)'],
+            'periodOptions' => ['1st Pd', '2nd Pd', '3rd Pd', '4th Pd', '5th Pd', '6th Pd', '7th Pd'],
+            'proxyGroups' => [
+                [
+                    'period' => 'P1', 'label' => '1st Period',
+                    'items' => [
+                        ['class' => 'Class 6', 'subject' => 'Bangla 1st Paper', 'absentTeacher' => 'Mr. Ahmed', 'status' => 'resolved', 'assignedTeacher' => 'Ms. Sultana'],
+                        ['class' => 'Class 7', 'subject' => 'Biology 1st Paper', 'absentTeacher' => 'Mr. Hossain', 'status' => 'resolved', 'assignedTeacher' => 'Mr. Talukder'],
+                        ['class' => 'Class 11 (Section A)', 'subject' => 'Higher Mathematics', 'absentTeacher' => 'Ms. Karim', 'status' => 'resolved', 'assignedTeacher' => 'Mr. Sarkar'],
+                    ],
+                ],
+                [
+                    'period' => 'P2', 'label' => '2nd Period',
+                    'items' => [
+                        ['class' => 'Class 11 (Section A)', 'subject' => 'English 1st Paper', 'absentTeacher' => 'Shakif Niaz', 'status' => 'resolved', 'assignedTeacher' => 'Mrs. Akter'],
+                        ['class' => 'Class 11 (B)', 'subject' => 'Higher Mathematics', 'absentTeacher' => null, 'status' => 'unresolved', 'assignedTeacher' => null],
+                    ],
+                ],
+            ],
+            'availableTeachers' => ['Mr. Sarkar', 'Mrs. Akter', 'Mr. Talukder', 'Ms. Nasrin', 'Mr. Rahman'],
+        ]);
+    })->name('proxy-manager.index');
+    Route::get('/exam-schedule', function () {
+        return Inertia::render('ExamSchedule/Index', [
+            'session' => [
+                'title' => 'Exam Schedule — June 2026',
+                'subtitle' => 'Mid-term exams',
+                'dateLabel' => 'Monday, June 23',
+            ],
+            'halls' => [
+                ['name' => 'Hall A', 'capacity' => 40],
+                ['name' => 'Hall B', 'capacity' => 35],
+                ['name' => 'Hall C', 'capacity' => 30],
+            ],
+            'timeSlots' => [
+                ['key' => 'slot1', 'label' => '9:00–11:00', 'startLabel' => '9:00'],
+                ['key' => 'slot2', 'label' => '11:30–1:30', 'startLabel' => '11:30'],
+                ['key' => 'slot3', 'label' => '2:00–4:00', 'startLabel' => '2:00'],
+            ],
+            'subjectOptions' => [
+                'Mathematics', 'Higher Mathematics', 'English', 'Physics', 'Chemistry',
+                'Biology', 'History', 'Bangla', 'Science',
+            ],
+            'classOptions' => [
+                'Class 6A', 'Class 7A', 'Class 7B', 'Class 8A', 'Class 8B',
+                'Class 9A', 'Class 9B', 'Class 10A', 'Class 10B', 'Class 11A', 'Class 11B',
+            ],
+            'invigilatorOptions' => [
+                'Mr. Chowdhury', 'Ms. Begum', 'Mr. Ali', 'Ms. Khatun', 'Ms. Islam',
+                'Mr. Rahman', 'Ms. Karim', 'Mr. Ahmed', 'Mr. Hossain',
+            ],
+            // Mr. Chowdhury is double-booked at slot2 (11:30) in both Hall A and
+            // Hall B — the conflict banner and duty list below are computed live
+            // from this, not hardcoded, so resolving it in the UI clears them.
+            'examGrid' => [
+                'Hall A' => [
+                    'slot1' => ['subject' => 'Mathematics', 'classLabel' => 'Class 9A', 'invigilator' => 'Mr. Chowdhury'],
+                    'slot2' => ['subject' => 'English', 'classLabel' => 'Class 10A', 'invigilator' => 'Mr. Chowdhury'],
+                    'slot3' => null,
+                ],
+                'Hall B' => [
+                    'slot1' => ['subject' => 'Physics', 'classLabel' => 'Class 10B', 'invigilator' => 'Mr. Ali'],
+                    'slot2' => ['subject' => 'Bangla', 'classLabel' => 'Class 7B', 'invigilator' => 'Mr. Chowdhury'],
+                    'slot3' => ['subject' => 'History', 'classLabel' => 'Class 8A', 'invigilator' => 'Ms. Khatun'],
+                ],
+                'Hall C' => [
+                    'slot1' => ['subject' => 'Science', 'classLabel' => 'Class 9B', 'invigilator' => 'Ms. Begum'],
+                    'slot2' => null,
+                    'slot3' => ['subject' => 'Higher Mathematics', 'classLabel' => 'Class 11A', 'invigilator' => 'Ms. Islam'],
+                ],
+            ],
+        ]);
+    })->name('exam-schedule.index');
+    Route::get('/leave-requests', function () {
+        return Inertia::render('LeaveRequests/Index', [
+            'requests' => [
+                [
+                    'id' => 1, 'teacherName' => 'Mr. Ahmed', 'initials' => 'NA', 'avatarColor' => 'emerald',
+                    'type' => 'Sick leave', 'dateRange' => 'Jun 15–17', 'days' => 3, 'status' => 'pending',
+                    'reason' => 'High fever — doctor advised 3 days rest. Medical certificate attached.',
+                    'attachment' => 'medical_cert.pdf',
+                ],
+                [
+                    'id' => 2, 'teacherName' => 'Ms. Begum', 'initials' => 'PB', 'avatarColor' => 'violet',
+                    'type' => 'Casual leave', 'dateRange' => 'Jun 18', 'days' => 1, 'status' => 'pending',
+                    'reason' => 'Family function.', 'attachment' => null,
+                ],
+                [
+                    'id' => 3, 'teacherName' => 'Ms. Karim', 'initials' => 'SK', 'avatarColor' => 'sky',
+                    'type' => 'Annual leave', 'dateRange' => 'Jun 5–6', 'days' => 2, 'status' => 'approved',
+                    'reason' => '', 'attachment' => null,
+                ],
+                [
+                    'id' => 4, 'teacherName' => 'Ms. Islam', 'initials' => 'FI', 'avatarColor' => 'amber',
+                    'type' => 'Sick leave', 'dateRange' => 'Jun 1', 'days' => 1, 'status' => 'approved',
+                    'reason' => '', 'attachment' => null,
+                ],
+            ],
+            'leaveBalances' => [
+                ['teacher' => 'Mr. Rahman', 'sick' => 10, 'casual' => 7, 'annual' => 15, 'used' => 5],
+                ['teacher' => 'Ms. Karim', 'sick' => 10, 'casual' => 7, 'annual' => 15, 'used' => 2],
+                ['teacher' => 'Mr. Ahmed', 'sick' => 10, 'casual' => 7, 'annual' => 15, 'used' => 8],
+                ['teacher' => 'Ms. Islam', 'sick' => 10, 'casual' => 7, 'annual' => 15, 'used' => 1],
+                ['teacher' => 'Mr. Hossain', 'sick' => 10, 'casual' => 7, 'annual' => 15, 'used' => 3],
+            ],
+            'typeOptions' => ['Sick leave', 'Casual leave', 'Annual leave', 'Emergency leave'],
+            'year' => 2026,
+        ]);
+    })->name('leave-requests.index');
     Route::get('/noticeboard', fn () => Inertia::render('Noticeboard/Index'))->name('noticeboard.index');
     Route::get('/staff-room', fn () => Inertia::render('StaffRoom/Index'))->name('staff-room.index');
     Route::get('/classrooms', fn () => Inertia::render('Classrooms/Index'))->name('classrooms.index');

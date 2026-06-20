@@ -1,18 +1,21 @@
 <script setup>
-import { computed, ref, watch } from 'vue';
+import { computed, ref } from 'vue';
 import { Link } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
-import { ChevronLeft, ChevronRight, AlertTriangle, Repeat } from 'lucide-vue-next';
+import { ChevronLeft, ChevronRight, AlertTriangle, Repeat, Pencil } from 'lucide-vue-next';
 
+// Shape mirrors a future RoutineController@show response.
 const props = defineProps({
     routine: { type: Object, default: () => ({}) },
     days: { type: Array, default: () => [] },
     periods: { type: Array, default: () => [] },
     legend: { type: Array, default: () => [] },
     teachers: { type: Array, default: () => [] },
+    classOptions: { type: Array, default: () => [] },
 });
 
-
+// Literal Tailwind class strings per subject color — required so the JIT
+// scanner can find them; never interpolate color names into class names.
 const cellColors = {
     blue: { bg: 'bg-blue-500/15', border: 'border-blue-400', text: 'text-blue-300', pill: 'bg-blue-500/15 text-blue-300 border border-blue-500/30' },
     amber: { bg: 'bg-amber-500/15', border: 'border-amber-400', text: 'text-amber-300', pill: 'bg-amber-500/15 text-amber-300 border border-amber-500/30' },
@@ -22,16 +25,13 @@ const cellColors = {
     rose: { bg: 'bg-rose-500/15', border: 'border-rose-400', text: 'text-rose-300', pill: 'bg-rose-500/15 text-rose-300 border border-rose-500/30' },
 };
 
-const grid = ref(JSON.parse(JSON.stringify(props.teachers)));
-
-watch(
-    () => props.teachers,
-    (next) => {
-        grid.value = JSON.parse(JSON.stringify(next));
-    }
-);
+// Local, mutable copy of the grid — drag/drop and the edit popup operate on
+// this, never on props directly. Once the backend exists, each mutation
+// below is exactly where a PATCH request to persist the change would go.
+const gridTeachers = ref(props.teachers.map((t) => ({ ...t, cells: { ...t.cells } })));
 
 const selectedDay = ref(props.days[0] ?? 'Sun');
+const dayNames = { Sun: 'Sunday', Mon: 'Monday', Tue: 'Tuesday', Wed: 'Wednesday', Thu: 'Thursday', Fri: 'Friday', Sat: 'Saturday' };
 
 function selectDay(day) {
     selectedDay.value = day;
@@ -61,128 +61,96 @@ function cellClasses(cell) {
     return `border-l-2 ${c.border} ${c.bg}`;
 }
 
-const dragSource = ref(null);
-const dragOverTarget = ref(null);
+/* ---------------- Drag and drop: move into empty slot, or swap ---------------- */
 
-function onDragStart(tIndex, key, event) {
-    const cell = grid.value[tIndex].cells[key];
-    if (!cell || cell.type === 'empty') {
-        event.preventDefault();
-        return;
-    }
-    dragSource.value = { tIndex, key };
-    event.dataTransfer.effectAllowed = 'move';
-    event.dataTransfer.setData('text/plain', `${tIndex}:${key}`);
+const dragSource = ref(null); // { teacherIndex, periodKey }
+const dragOverKey = ref(null);
+
+function cellKey(teacherIndex, periodKey) {
+    return `${teacherIndex}-${periodKey}`;
 }
 
-function onDragEnter(tIndex, key) {
-    if (!dragSource.value) return;
-    dragOverTarget.value = { tIndex, key };
+function onDragStart(teacherIndex, periodKey, event) {
+    dragSource.value = { teacherIndex, periodKey };
+    event.dataTransfer?.setData?.('text/plain', cellKey(teacherIndex, periodKey));
+    if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
 }
 
-function onDragLeave(tIndex, key) {
-    if (dragOverTarget.value && dragOverTarget.value.tIndex === tIndex && dragOverTarget.value.key === key) {
-        dragOverTarget.value = null;
-    }
-}
-
-function onDrop(tIndex, key, event) {
+function onDragOverCell(teacherIndex, periodKey, event) {
     event.preventDefault();
-    dragOverTarget.value = null;
-    const source = dragSource.value;
-    dragSource.value = null;
-    if (!source) return;
-    if (source.tIndex === tIndex && source.key === key) return;
+    dragOverKey.value = cellKey(teacherIndex, periodKey);
+}
 
-    const sourceCell = grid.value[source.tIndex].cells[source.key];
-    const targetCell = grid.value[tIndex].cells[key];
-    grid.value[tIndex].cells[key] = sourceCell;
-    grid.value[source.tIndex].cells[source.key] = targetCell;
+function onDragLeaveCell() {
+    dragOverKey.value = null;
+}
+
+function onDrop(teacherIndex, periodKey, event) {
+    event.preventDefault();
+    dragOverKey.value = null;
+
+    const from = dragSource.value;
+    dragSource.value = null;
+    if (!from) return;
+
+    const to = { teacherIndex, periodKey };
+    if (from.teacherIndex === to.teacherIndex && from.periodKey === to.periodKey) return;
+
+    const fromCell = gridTeachers.value[from.teacherIndex].cells[from.periodKey];
+    const toCell = gridTeachers.value[to.teacherIndex].cells[to.periodKey];
+
+    // Same swap covers both cases: dropping on an empty slot just moves the
+    // period there (the source becomes empty); dropping on a filled slot
+    // exchanges the two periods.
+    gridTeachers.value[from.teacherIndex].cells[from.periodKey] = toCell;
+    gridTeachers.value[to.teacherIndex].cells[to.periodKey] = fromCell;
 }
 
 function onDragEnd() {
     dragSource.value = null;
-    dragOverTarget.value = null;
+    dragOverKey.value = null;
 }
 
-function isDropTarget(tIndex, key) {
-    return !!dragOverTarget.value && dragOverTarget.value.tIndex === tIndex && dragOverTarget.value.key === key;
+/* ---------------------------- Edit / Add popup ---------------------------- */
+
+const editing = ref(null); // { teacherIndex, periodKey, subject, classLabel, isNew }
+
+function subjectColor(subject) {
+    return props.legend.find((item) => item.subject === subject)?.color ?? 'blue';
 }
 
-function isDragging(tIndex, key) {
-    return !!dragSource.value && dragSource.value.tIndex === tIndex && dragSource.value.key === key;
+function openEditor(teacherIndex, periodKey) {
+    const cell = gridTeachers.value[teacherIndex].cells[periodKey];
+    editing.value = {
+        teacherIndex,
+        periodKey,
+        subject: cell.subject ?? '',
+        classLabel: cell.classLabel ?? '',
+        isNew: cell.type === 'empty',
+    };
 }
 
-function cellWrapperClasses(tIndex, key) {
-    const cell = grid.value[tIndex].cells[key];
-    const classes = [cellClasses(cell)];
-    if (cell && cell.type !== 'empty') classes.push('cursor-grab active:cursor-grabbing');
-    if (isDragging(tIndex, key)) classes.push('opacity-40');
-    if (isDropTarget(tIndex, key)) classes.push('ring-2 ring-emerald-400');
-    return classes.join(' ');
-}
-
-/* ---------------- Edit popup: add or edit a period ---------------- */
-
-const editing = ref(null);
-const editSubject = ref('');
-const editClass = ref('');
-
-const classOptions = [
-    '6A', '6B', '7A', '7B', '7C', '8A', '8B', '8C',
-    '9A', '9B', '9C', '10A', '10B', 'XI A', 'XI B',
-];
-
-const subjectColorMap = computed(() => {
-    const map = {};
-    props.legend.forEach((item) => {
-        map[item.subject] = item.color;
-    });
-    return map;
-});
-
-const editingCell = computed(() => {
-    if (!editing.value) return null;
-    return grid.value[editing.value.tIndex].cells[editing.value.key];
-});
-
-const editIsEmpty = computed(() => !editingCell.value || editingCell.value.type === 'empty');
-
-const editingTeacherName = computed(() => (editing.value ? grid.value[editing.value.tIndex].name : ''));
-
-const editingPeriodLabel = computed(() => {
-    if (!editing.value) return '';
-    const period = props.periods.find((p) => p.key === editing.value.key);
-    return period ? `${period.label}${period.time ? ' · ' + period.time : ''}` : '';
-});
-
-function openEdit(tIndex, key) {
-    const cell = grid.value[tIndex].cells[key];
-    editing.value = { tIndex, key };
-    if (cell && cell.type !== 'empty') {
-        editSubject.value = cell.subject ?? '';
-        editClass.value = (cell.classLabel ?? '').replace('Class ', '');
-    } else {
-        editSubject.value = '';
-        editClass.value = '';
-    }
-}
-
-function closeEdit() {
+function closeEditor() {
     editing.value = null;
 }
 
-function saveEdit() {
-    if (!editing.value || !editSubject.value || !editClass.value) return;
-    const { tIndex, key } = editing.value;
-    grid.value[tIndex].cells[key] = {
+function saveEditor() {
+    if (!editing.value || !editing.value.subject || !editing.value.classLabel) return;
+    const { teacherIndex, periodKey, subject, classLabel } = editing.value;
+    gridTeachers.value[teacherIndex].cells[periodKey] = {
         type: 'class',
-        subject: editSubject.value,
-        classLabel: `Class ${editClass.value}`,
-        color: subjectColorMap.value[editSubject.value] ?? 'blue',
+        subject,
+        classLabel,
+        color: subjectColor(subject),
     };
-    closeEdit();
+    closeEditor();
 }
+
+const editingTeacherName = computed(() => (editing.value ? gridTeachers.value[editing.value.teacherIndex].name : ''));
+const editingPeriodLabel = computed(() => {
+    if (!editing.value) return '';
+    return props.periods.find((p) => p.key === editing.value.periodKey)?.label ?? '';
+});
 </script>
 
 <template>
@@ -227,7 +195,7 @@ function saveEdit() {
                 </button>
 
                 <p class="flex-1 text-center text-base font-bold uppercase tracking-widest text-emerald-400">
-                    {{ selectedDay === 'Sun' ? 'Sunday' : selectedDay === 'Mon' ? 'Monday' : selectedDay === 'Tue' ? 'Tuesday' : selectedDay === 'Wed' ? 'Wednesday' : 'Thursday' }}
+                    {{ dayNames[selectedDay] ?? selectedDay }}
                 </p>
 
                 <button
@@ -294,7 +262,7 @@ function saveEdit() {
 
                     <!-- Teacher rows -->
                     <div
-                        v-for="(teacher, tIndex) in grid"
+                        v-for="(teacher, ti) in gridTeachers"
                         :key="teacher.name"
                         class="grid border-b border-slate-800 last:border-b-0"
                         :style="gridStyle"
@@ -315,17 +283,22 @@ function saveEdit() {
                             <button
                                 v-else
                                 type="button"
-                                class="flex h-full w-full flex-col items-start justify-center gap-0.5 rounded-lg px-3 py-2 text-left transition-colors"
-                                :class="cellWrapperClasses(tIndex, p.key)"
-                                :draggable="teacher.cells[p.key]?.type !== 'empty'"
-                                @click="openEdit(tIndex, p.key)"
-                                @dragstart="onDragStart(tIndex, p.key, $event)"
+                                :draggable="teacher.cells[p.key].type !== 'empty'"
+                                class="group relative flex h-full w-full flex-col items-start justify-center gap-0.5 rounded-lg px-3 py-2 text-left transition-colors"
+                                :class="[
+                                    cellClasses(teacher.cells[p.key]),
+                                    dragOverKey === cellKey(ti, p.key) ? 'ring-2 ring-emerald-400' : '',
+                                    dragSource && dragSource.teacherIndex === ti && dragSource.periodKey === p.key ? 'opacity-40' : '',
+                                ]"
+                                @click="openEditor(ti, p.key)"
+                                @dragstart="onDragStart(ti, p.key, $event)"
                                 @dragend="onDragEnd"
-                                @dragover.prevent
-                                @dragenter.prevent="onDragEnter(tIndex, p.key)"
-                                @dragleave="onDragLeave(tIndex, p.key)"
-                                @drop="onDrop(tIndex, p.key, $event)"
+                                @dragover="onDragOverCell(ti, p.key, $event)"
+                                @dragleave="onDragLeaveCell"
+                                @drop="onDrop(ti, p.key, $event)"
                             >
+                                <Pencil class="absolute right-1.5 top-1.5 h-3 w-3 text-slate-500 opacity-0 transition-opacity group-hover:opacity-100" />
+
                                 <template v-if="teacher.cells[p.key].type === 'empty'">
                                     <span class="text-xs text-slate-600">+ Add</span>
                                 </template>
@@ -362,34 +335,31 @@ function saveEdit() {
             <div
                 v-if="editing"
                 class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4"
-                @click.self="closeEdit"
+                @click.self="closeEditor"
             >
                 <div class="w-full max-w-sm rounded-xl border border-slate-800 bg-slate-900 p-5 shadow-xl">
-                    <p class="text-sm font-semibold text-white">{{ editIsEmpty ? 'Add Period' : 'Edit Period' }}</p>
+                    <h3 class="text-base font-semibold text-white">{{ editing.isNew ? 'Add Period' : 'Edit Period' }}</h3>
                     <p class="mt-1 text-xs text-slate-500">{{ editingTeacherName }} &middot; {{ editingPeriodLabel }}</p>
 
                     <div class="mt-4 space-y-3">
                         <div>
-                            <label class="mb-1 block text-xs font-medium text-slate-400">Subject</label>
+                            <label class="text-xs font-medium text-slate-400">Subject</label>
                             <select
-                                v-model="editSubject"
-                                class="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-200 focus:border-emerald-500 focus:outline-none"
+                                v-model="editing.subject"
+                                class="mt-1 w-full rounded-lg border border-slate-800 bg-slate-800/60 px-3 py-2 text-sm text-slate-100 focus:border-emerald-500 focus:outline-none"
                             >
                                 <option value="" disabled>Select subject</option>
-                                <option v-for="item in legend" :key="item.subject" :value="item.subject">
-                                    {{ item.subject }}
-                                </option>
+                                <option v-for="item in legend" :key="item.subject" :value="item.subject">{{ item.subject }}</option>
                             </select>
                         </div>
-
                         <div>
-                            <label class="mb-1 block text-xs font-medium text-slate-400">Class</label>
+                            <label class="text-xs font-medium text-slate-400">Class</label>
                             <select
-                                v-model="editClass"
-                                class="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-200 focus:border-emerald-500 focus:outline-none"
+                                v-model="editing.classLabel"
+                                class="mt-1 w-full rounded-lg border border-slate-800 bg-slate-800/60 px-3 py-2 text-sm text-slate-100 focus:border-emerald-500 focus:outline-none"
                             >
                                 <option value="" disabled>Select class</option>
-                                <option v-for="c in classOptions" :key="c" :value="c">Class {{ c }}</option>
+                                <option v-for="c in classOptions" :key="c" :value="c">{{ c }}</option>
                             </select>
                         </div>
                     </div>
@@ -398,15 +368,15 @@ function saveEdit() {
                         <button
                             type="button"
                             class="rounded-lg border border-slate-800 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-slate-800/50"
-                            @click="closeEdit"
+                            @click="closeEditor"
                         >
                             Cancel
                         </button>
                         <button
                             type="button"
                             class="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40"
-                            :disabled="!editSubject || !editClass"
-                            @click="saveEdit"
+                            :disabled="!editing.subject || !editing.classLabel"
+                            @click="saveEditor"
                         >
                             Save
                         </button>
@@ -416,5 +386,3 @@ function saveEdit() {
         </Teleport>
     </AppLayout>
 </template>
-VUEEOF
-echo "written"
