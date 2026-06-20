@@ -390,7 +390,30 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ]);
     })->name('leave-requests.index');
 
-    Route::get('/noticeboard', fn () => Inertia::render('Noticeboard/Index'))->name('noticeboard.index');
+    Route::get('/noticeboard', function () {
+        return Inertia::render('Noticeboard/Index', [
+            'notices' => [
+                [
+                    'id' => 1, 'title' => 'Staff meeting — mandatory attendance',
+                    'message' => 'All teaching staff must attend the departmental meeting this Friday at 2:00 PM in the conference hall. Attendance will be marked.',
+                    'urgency' => 'Urgent', 'postedBy' => 'Admin', 'postedDate' => 'Jun 12', 'readCount' => 12, 'totalStaff' => 18,
+                ],
+                [
+                    'id' => 2, 'title' => 'Mid-term exam schedule published',
+                    'message' => 'The mid-term exam schedule for June 2026 has been finalized. Please review your invigilator duties in the Exam Schedule section.',
+                    'urgency' => 'Important', 'postedBy' => 'Admin', 'postedDate' => 'Jun 11', 'readCount' => 18, 'totalStaff' => 18,
+                ],
+                [
+                    'id' => 3, 'title' => 'Updated academic calendar 2026',
+                    'message' => 'The updated academic calendar with revised holiday dates has been uploaded to the resource library.',
+                    'urgency' => 'Normal', 'postedBy' => 'Admin', 'postedDate' => 'Jun 9', 'readCount' => 18, 'totalStaff' => 18,
+                ],
+            ],
+            'urgencyOptions' => ['Normal', 'Important', 'Urgent'],
+            'audienceOptions' => ['All staff', 'Mathematics Department', 'English Department', 'Science Department', 'Individual teacher'],
+            'totalStaff' => 18,
+        ]);
+    })->name('noticeboard.index');
     Route::get('/staff-room', fn () => Inertia::render('StaffRoom/Index'))->name('staff-room.index');
     Route::get('/classrooms', fn () => Inertia::render('Classrooms/Index'))->name('classrooms.index');
 
@@ -428,7 +451,21 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ]);
     })->name('analytics.index');
     
-    Route::get('/teachers', fn () => Inertia::render('Teachers/Index'))->name('teachers.index');
+    Route::get('/teachers', function () {
+        return Inertia::render('Teachers/Index', [
+            'teachers' => [
+                ['id' => 1, 'name' => 'Mr. Rahman', 'phone' => '+8801711000001', 'initials' => 'MR', 'avatarColor' => 'emerald', 'subject' => 'Mathematics', 'proxyLoadThisMonth' => 5, 'leaveUsedDays' => 5, 'status' => 'Active'],
+                ['id' => 2, 'name' => 'Ms. Karim', 'phone' => '+8801711000002', 'initials' => 'SK', 'avatarColor' => 'amber', 'subject' => 'English', 'proxyLoadThisMonth' => 3, 'leaveUsedDays' => 2, 'status' => 'Active'],
+                ['id' => 3, 'name' => 'Mr. Ahmed', 'phone' => '+8801711000003', 'initials' => 'NA', 'avatarColor' => 'rose', 'subject' => 'Bangla', 'proxyLoadThisMonth' => 1, 'leaveUsedDays' => 8, 'status' => 'On leave'],
+                ['id' => 4, 'name' => 'Mr. Hossain', 'phone' => '+8801711000004', 'initials' => 'AH', 'avatarColor' => 'sky', 'subject' => 'Physics', 'proxyLoadThisMonth' => 4, 'leaveUsedDays' => 3, 'status' => 'Active'],
+                ['id' => 5, 'name' => 'Ms. Islam', 'phone' => '+8801711000005', 'initials' => 'FI', 'avatarColor' => 'violet', 'subject' => 'History', 'proxyLoadThisMonth' => 2, 'leaveUsedDays' => 1, 'status' => 'Active'],
+            ],
+            'subjectOptions' => [
+                'Mathematics', 'Higher Mathematics', 'English', 'Physics', 'Chemistry',
+                'Biology', 'History', 'Bangla', 'Science',
+            ],
+        ]);
+    })->name('teachers.index');
     Route::get('/settings', fn () => Inertia::render('Settings/Index'))->name('settings.index');
 });
 
