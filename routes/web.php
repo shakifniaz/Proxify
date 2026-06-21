@@ -76,7 +76,24 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ]);
     })->name('routines.index');
 
-    Route::get('/routines/create', fn () => Inertia::render('Routines/Create'))->name('routines.create');
+    Route::get('/routines/create', function () {
+        return Inertia::render('Routines/Create', [
+            'classesConfig' => ['numberOfClasses' => 3, 'maxPeriodsPerDay' => 7],
+            'classes' => [
+                ['id' => 1, 'name' => 'Class 1', 'sections' => ['Section A', 'Section B'], 'subjects' => ['English 1st Paper', 'Bangla 1st Paper', 'Mathematics', 'Science']],
+                ['id' => 2, 'name' => 'Class 2', 'sections' => [], 'subjects' => []],
+                ['id' => 3, 'name' => 'Class 3', 'sections' => [], 'subjects' => []],
+            ],
+            'teachersConfig' => ['numberOfTeachers' => 5],
+            'teachers' => [
+                ['id' => 1, 'name' => 'Mr. Rahman', 'phone' => '+8801711000001', 'subjects' => ['Mathematics']],
+                ['id' => 2, 'name' => 'Ms. Karim', 'phone' => '+8801711000002', 'subjects' => ['English']],
+                ['id' => 3, 'name' => 'Mr. Ahmed', 'phone' => '+8801711000003', 'subjects' => ['Bangla']],
+                ['id' => 4, 'name' => 'Mr. Hossain', 'phone' => '+8801711000004', 'subjects' => ['Physics']],
+                ['id' => 5, 'name' => 'Ms. Islam', 'phone' => '+8801711000005', 'subjects' => ['History']],
+            ],
+        ]);
+    })->name('routines.create');
 
     // Routines — grid view (3 distinct mock datasets, keyed by id)
     Route::get('/routines/{routine}', function ($routine) {
