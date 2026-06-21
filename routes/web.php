@@ -483,7 +483,37 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ],
         ]);
     })->name('teachers.index');
-    Route::get('/settings', fn () => Inertia::render('Settings/Index'))->name('settings.index');
+    Route::get('/settings', function () {
+        return Inertia::render('Settings/Index', [
+            'general' => [
+                'schoolName' => 'Metropolitan School',
+                'contactPhone' => '+8801711000000',
+                'contactEmail' => 'admin@metroschool.edu.bd',
+                'termLabel' => 'Term 1 — 2025/26',
+                'weekStartDay' => 'Sunday',
+                'academicYear' => '2025/26',
+            ],
+            'periods' => [
+                ['id' => 1, 'label' => 'P1', 'startTime' => '08:00', 'endTime' => '08:45', 'locked' => false],
+                ['id' => 2, 'label' => 'P2', 'startTime' => '08:45', 'endTime' => '09:30', 'locked' => false],
+                ['id' => 3, 'label' => 'BREAK', 'startTime' => '09:30', 'endTime' => '09:45', 'locked' => true],
+                ['id' => 4, 'label' => 'P3', 'startTime' => '09:45', 'endTime' => '10:30', 'locked' => false],
+                ['id' => 5, 'label' => 'P4', 'startTime' => '10:30', 'endTime' => '11:15', 'locked' => false],
+                ['id' => 6, 'label' => 'P5', 'startTime' => '11:15', 'endTime' => '12:00', 'locked' => false],
+                ['id' => 7, 'label' => 'LUNCH', 'startTime' => '12:00', 'endTime' => '13:00', 'locked' => true],
+                ['id' => 8, 'label' => 'P6', 'startTime' => '13:00', 'endTime' => '13:45', 'locked' => false],
+                ['id' => 9, 'label' => 'P7', 'startTime' => '13:45', 'endTime' => '14:30', 'locked' => false],
+            ],
+            'notifications' => [
+                ['key' => 'whatsapp', 'label' => 'WhatsApp Notifications', 'description' => 'Send automatic WhatsApp messages for proxy assignments and leave updates.', 'enabled' => true],
+                ['key' => 'email_digest', 'label' => 'Daily Email Digest', 'description' => 'Send admins a daily summary of absences, proxies, and pending approvals.', 'enabled' => false],
+                ['key' => 'urgent_confirm', 'label' => 'Urgent Broadcast Confirmation', 'description' => 'Require a confirmation step before broadcasting an urgent notice.', 'enabled' => true],
+                ['key' => 'leave_alerts', 'label' => 'Leave Approval Alerts', 'description' => 'Notify teachers immediately when their leave request is approved or rejected.', 'enabled' => true],
+                ['key' => 'unresolved_alerts', 'label' => 'Unresolved Period Alerts', 'description' => "Alert admins when a proxy period can't be auto-resolved.", 'enabled' => true],
+            ],
+            'weekStartOptions' => ['Sunday', 'Monday'],
+        ]);
+    })->name('settings.index');
 });
 
 Route::middleware('auth')->group(function () {
