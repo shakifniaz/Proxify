@@ -424,8 +424,179 @@ Route::middleware(['auth', 'verified'])->group(function () {
             'totalStaff' => 18,
         ]);
     })->name('noticeboard.index');
-    Route::get('/staff-room', fn () => Inertia::render('StaffRoom/Index'))->name('staff-room.index');
-    Route::get('/classrooms', fn () => Inertia::render('Classrooms/Index'))->name('classrooms.index');
+
+    Route::get('/staff-room', function () {
+        return Inertia::render('StaffRoom/Index', [
+            'boards' => [
+                [
+                    'id' => 'handovers',
+                    'name' => 'Class Handovers',
+                    'description' => 'Context notes for the next teacher stepping into a classroom today.',
+                    'notes' => [
+                        [
+                            'id' => 1,
+                            'author' => 'Mrs. Ananya (English)',
+                            'target' => 'Class 10-A',
+                            'time' => '10 mins ago',
+                            'content' => 'Started the presentation late. They need exactly 5 minutes at the start of the next period to shut down their laptop slides.',
+                            'tag' => 'Urgent Context',
+                            'color' => 'rose'
+                        ],
+                        [
+                            'id' => 2,
+                            'author' => 'Mr. Zayan (Chemistry)',
+                            'target' => 'Class 9-B',
+                            'time' => '2 hours ago',
+                            'content' => 'Distributed standard carbon compounds sheets. Remind them they must write in blue ink for their in-person submission.',
+                            'tag' => 'Task Reminder',
+                            'color' => 'violet'
+                        ]
+                    ]
+                ],
+                [
+                    'id' => 'resources',
+                    'name' => 'Shared Equipment & Labs',
+                    'description' => 'Coordination notes regarding science apparatus, keys, and facility usage settings.',
+                    'notes' => [
+                        [
+                            'id' => 3,
+                            'author' => 'Dr. Lisa Roy (Physics)',
+                            'target' => 'Science Lab B',
+                            'time' => '1 hour ago',
+                            'content' => 'Left the circuit calibration meters wired on row 3 for the 6th period labs. Kindly let them sit undisturbed.',
+                            'tag' => 'Lab Layout',
+                            'color' => 'amber'
+                        ]
+                    ]
+                ],
+                [
+                    'id' => 'favors',
+                    'name' => 'Internal Swap Requests',
+                    'description' => 'Peer-level schedule trade discussions before logging formal proxy absences.',
+                    'notes' => [
+                        [
+                            'id' => 4,
+                            'author' => 'Ms. Khan',
+                            'target' => 'Friday Period 5 Swap',
+                            'time' => '3 hours ago',
+                            'content' => 'Looking to trade my Friday afternoon 5th block for any morning session due to an external conference alignment.',
+                            'tag' => 'Swap Request',
+                            'color' => 'sky'
+                        ]
+                    ]
+                ]
+            ]
+        ]);
+    })->name('staff-room.index');
+
+    Route::get('/classrooms', function () {
+        return Inertia::render('Classrooms/Index', [
+            'classrooms' => [
+                [
+                    'id' => 1,
+                    'name' => 'Class 10-A',
+                    'room' => 'Science Block — Room 402',
+                    'advisor' => 'Dr. Lisa Roy',
+                    'proxyUpdates' => [
+                        [
+                            'id' => 201,
+                            'period' => '3rd Period (11:00 AM)',
+                            'originalTeacher' => 'Dr. Lisa Roy (Physics)',
+                            'proxyTeacher' => 'Mr. Ahmed',
+                            'note' => 'Please bring your standard physics workbooks. Session will proceed inside Room 402.'
+                        ]
+                    ],
+                    'subjects' => [
+                        [
+                            'id' => 11,
+                            'name' => 'Physics',
+                            'teacher' => 'Dr. Lisa Roy',
+                            'syllabus' => 'Chapter 5: Electromagnetism & Field Induction Theories.',
+                            'homework' => 'Solve textbook back-exercises 5.1 to 5.12 inside your workspace logbooks.',
+                            'assignment' => [
+                                'title' => 'Induction Lab Writeup',
+                                'deadline' => 'Thursday, June 25',
+                                'instruction' => 'Complete calibration calculations on metric graph paper.'
+                            ]
+                        ],
+                        [
+                            'id' => 12,
+                            'name' => 'Mathematics',
+                            'teacher' => 'Mr. Rahman',
+                            'syllabus' => 'Chapter 9: Differential Geometries and Limits.',
+                            'homework' => 'Attempt Section 9C problems 1 through 7 before Sunday morning.',
+                            'assignment' => null
+                        ]
+                    ],
+                    'announcements' => [
+                        [
+                            'id' => 301,
+                            'subject' => 'Mathematics',
+                            'type' => 'Test Announcement',
+                            'date' => 'June 22',
+                            'author' => 'Mr. Rahman',
+                            'content' => 'Class evaluation test on matrix algebraic equations will take place this Thursday. Bring your scientific calculators.'
+                        ],
+                        [
+                            'id' => 302,
+                            'subject' => 'Physics',
+                            'type' => 'Assignment Announcement',
+                            'date' => 'June 20',
+                            'author' => 'Dr. Lisa Roy',
+                            'content' => 'Submissions for the electromagnetic induction project close this week. Submit via the lab inbox.'
+                        ],
+                        [
+                            'id' => 303,
+                            'subject' => 'General Classroom Sync',
+                            'type' => 'General',
+                            'date' => 'June 19',
+                            'author' => 'Admin Desk',
+                            'content' => 'Reminder: The cleaning rotation slots for the science cabinet have been updated on the front notice board.'
+                        ]
+                    ]
+                ],
+                [
+                    'id' => 2,
+                    'name' => 'Class 9-B',
+                    'room' => 'Main Academic Block — Room 204',
+                    'advisor' => 'Mr. Zayan',
+                    'proxyUpdates' => [], // Clear schedule status simulation
+                    'subjects' => [
+                        [
+                            'id' => 13,
+                            'name' => 'Chemistry',
+                            'teacher' => 'Mr. Zayan',
+                            'syllabus' => 'Chapter 3: Carbon Compounds & Polymer Bonding Structures.',
+                            'homework' => 'Draw structural formulas for the first 5 alkanes into notes.',
+                            'assignment' => null
+                        ],
+                        [
+                            'id' => 14,
+                            'name' => 'English Lit',
+                            'teacher' => 'Mrs. Ananya',
+                            'syllabus' => 'Romantic Era poetry analyses.',
+                            'homework' => 'Read structural verses 4 to 8 of the assigned reading packet.',
+                            'assignment' => [
+                                'title' => 'Poetry Critical Review',
+                                'deadline' => 'Monday, June 29',
+                                'instruction' => 'Write a short 500-word critical evaluation essay.'
+                            ]
+                        ]
+                    ],
+                    'announcements' => [
+                        [
+                            'id' => 304,
+                            'subject' => 'Chemistry',
+                            'type' => 'Test Announcement',
+                            'date' => 'June 21',
+                            'author' => 'Mr. Zayan',
+                            'content' => 'Pop quiz on functional compound groups coming up sometime this week. Keep your organic study summary materials ready.'
+                        ]
+                    ]
+                ]
+            ]
+        ]);
+    })->name('classrooms.index');
 
     Route::get('/analytics', function () {
         return Inertia::render('Analytics/Index', [
