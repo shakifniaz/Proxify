@@ -5,7 +5,7 @@ import { Search, Plus, Pencil } from 'lucide-vue-next';
 
 // Shape mirrors a future TeacherController@index response.
 const props = defineProps({
-    teachers: { type: Array, default: () => [] }, // [{ id, name, phone, initials, avatarColor, subject, proxyLoadThisMonth, leaveUsedDays, status }]
+    teachers: { type: Array, default: () => [] }, // [{ id, name, phone, initials, avatarColor, subject, proxyLoadThisMonth, leaveUsedDays, status, role }]
     subjectOptions: { type: Array, default: () => [] },
 });
 
@@ -27,6 +27,12 @@ const statusBadge = {
 };
 const statusOptions = ['Active', 'On leave', 'Inactive'];
 
+const roleBadge = {
+    Teacher: 'bg-slate-800 text-slate-400',
+    Admin: 'bg-violet-500/15 text-violet-400',
+};
+const roleOptions = ['Teacher', 'Admin'];
+
 // Local, mutable copy — add/edit operates on this, never on props directly.
 const localTeachers = ref(props.teachers.map((t) => ({ ...t })));
 
@@ -45,7 +51,7 @@ function proxyLoadBadgeClass(teacher) {
 
 /* ---------------------------- Add / Edit popup ---------------------------- */
 
-const editing = ref(null); // { id, name, phone, subject, status, isNew }
+const editing = ref(null); // { id, name, phone, subject, status, role, isNew }
 
 function initialsFor(name) {
     return name
@@ -57,11 +63,19 @@ function initialsFor(name) {
 }
 
 function openAdd() {
-    editing.value = { id: null, name: '', phone: '', subject: '', status: 'Active', isNew: true };
+    editing.value = { id: null, name: '', phone: '', subject: '', status: 'Active', role: 'Teacher', isNew: true };
 }
 
 function openEdit(teacher) {
-    editing.value = { id: teacher.id, name: teacher.name, phone: teacher.phone, subject: teacher.subject, status: teacher.status, isNew: false };
+    editing.value = {
+        id: teacher.id,
+        name: teacher.name,
+        phone: teacher.phone,
+        subject: teacher.subject,
+        status: teacher.status,
+        role: teacher.role ?? 'Teacher',
+        isNew: false,
+    };
 }
 
 function closeEditor() {
@@ -70,7 +84,7 @@ function closeEditor() {
 
 function saveEditor() {
     if (!editing.value) return;
-    const { id, name, phone, subject, status, isNew } = editing.value;
+    const { id, name, phone, subject, status, role, isNew } = editing.value;
     if (!name || !phone || !subject) return;
 
     if (isNew) {
@@ -82,6 +96,7 @@ function saveEditor() {
             phone,
             subject,
             status,
+            role,
             initials: initialsFor(name),
             avatarColor: color,
             proxyLoadThisMonth: 0,
@@ -94,6 +109,7 @@ function saveEditor() {
             teacher.phone = phone;
             teacher.subject = subject;
             teacher.status = status;
+            teacher.role = role;
             teacher.initials = initialsFor(name);
         }
     }
@@ -135,6 +151,7 @@ function saveEditor() {
                         <thead>
                             <tr class="text-xs uppercase tracking-wider text-slate-500">
                                 <th class="px-5 py-3 font-medium">Teacher</th>
+                                <th class="px-3 py-3 font-medium">Role</th>
                                 <th class="px-3 py-3 font-medium">Subjects</th>
                                 <th class="px-3 py-3 font-medium">Proxy Load</th>
                                 <th class="px-3 py-3 font-medium">Leave Used</th>
@@ -157,6 +174,11 @@ function saveEditor() {
                                             <p class="text-xs text-slate-500">{{ t.phone }}</p>
                                         </div>
                                     </div>
+                                </td>
+                                <td class="px-3 py-3.5">
+                                    <span class="rounded-full px-2.5 py-1 text-xs font-semibold" :class="roleBadge[t.role ?? 'Teacher']">
+                                        {{ t.role ?? 'Teacher' }}
+                                    </span>
                                 </td>
                                 <td class="px-3 py-3.5 text-slate-300">{{ t.subject }}</td>
                                 <td class="px-3 py-3.5">
@@ -240,6 +262,16 @@ function saveEditor() {
                             >
                                 <option v-for="s in statusOptions" :key="s" :value="s">{{ s }}</option>
                             </select>
+                        </div>
+                        <div>
+                            <label class="text-xs font-medium text-slate-400">Role / Permissions</label>
+                            <select
+                                v-model="editing.role"
+                                class="mt-1 w-full rounded-lg border border-slate-800 bg-slate-800/60 px-3 py-2 text-sm text-slate-100 focus:border-emerald-500 focus:outline-none"
+                            >
+                                <option v-for="r in roleOptions" :key="r" :value="r">{{ r }}</option>
+                            </select>
+                            <p class="mt-1 text-xs text-slate-500">Admin gets full access to every module, same as Super Admin.</p>
                         </div>
                     </div>
 

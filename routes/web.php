@@ -471,11 +471,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/teachers', function () {
         return Inertia::render('Teachers/Index', [
             'teachers' => [
-                ['id' => 1, 'name' => 'Mr. Rahman', 'phone' => '+8801711000001', 'initials' => 'MR', 'avatarColor' => 'emerald', 'subject' => 'Mathematics', 'proxyLoadThisMonth' => 5, 'leaveUsedDays' => 5, 'status' => 'Active'],
-                ['id' => 2, 'name' => 'Ms. Karim', 'phone' => '+8801711000002', 'initials' => 'SK', 'avatarColor' => 'amber', 'subject' => 'English', 'proxyLoadThisMonth' => 3, 'leaveUsedDays' => 2, 'status' => 'Active'],
-                ['id' => 3, 'name' => 'Mr. Ahmed', 'phone' => '+8801711000003', 'initials' => 'NA', 'avatarColor' => 'rose', 'subject' => 'Bangla', 'proxyLoadThisMonth' => 1, 'leaveUsedDays' => 8, 'status' => 'On leave'],
-                ['id' => 4, 'name' => 'Mr. Hossain', 'phone' => '+8801711000004', 'initials' => 'AH', 'avatarColor' => 'sky', 'subject' => 'Physics', 'proxyLoadThisMonth' => 4, 'leaveUsedDays' => 3, 'status' => 'Active'],
-                ['id' => 5, 'name' => 'Ms. Islam', 'phone' => '+8801711000005', 'initials' => 'FI', 'avatarColor' => 'violet', 'subject' => 'History', 'proxyLoadThisMonth' => 2, 'leaveUsedDays' => 1, 'status' => 'Active'],
+                ['id' => 1, 'name' => 'Mr. Rahman', 'phone' => '+8801711000001', 'initials' => 'MR', 'avatarColor' => 'emerald', 'subject' => 'Mathematics', 'proxyLoadThisMonth' => 5, 'leaveUsedDays' => 5, 'status' => 'Active', 'role' => 'Teacher'],
+                ['id' => 2, 'name' => 'Ms. Karim', 'phone' => '+8801711000002', 'initials' => 'SK', 'avatarColor' => 'amber', 'subject' => 'English', 'proxyLoadThisMonth' => 3, 'leaveUsedDays' => 2, 'status' => 'Active', 'role' => 'Admin'],
+                ['id' => 3, 'name' => 'Mr. Ahmed', 'phone' => '+8801711000003', 'initials' => 'NA', 'avatarColor' => 'rose', 'subject' => 'Bangla', 'proxyLoadThisMonth' => 1, 'leaveUsedDays' => 8, 'status' => 'On leave', 'role' => 'Teacher'],
+                ['id' => 4, 'name' => 'Mr. Hossain', 'phone' => '+8801711000004', 'initials' => 'AH', 'avatarColor' => 'sky', 'subject' => 'Physics', 'proxyLoadThisMonth' => 4, 'leaveUsedDays' => 3, 'status' => 'Active', 'role' => 'Teacher'],
+                ['id' => 5, 'name' => 'Ms. Islam', 'phone' => '+8801711000005', 'initials' => 'FI', 'avatarColor' => 'violet', 'subject' => 'History', 'proxyLoadThisMonth' => 2, 'leaveUsedDays' => 1, 'status' => 'Active', 'role' => 'Teacher'],
             ],
             'subjectOptions' => [
                 'Mathematics', 'Higher Mathematics', 'English', 'Physics', 'Chemistry',

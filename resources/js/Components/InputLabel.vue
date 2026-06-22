@@ -1,14 +1,12 @@
 <script setup>
 defineProps({
-    value: {
-        type: String,
-    },
+    value: { type: String, default: null },
 });
 </script>
 
 <template>
-    <label class="block text-sm font-medium text-gray-700">
-        <span v-if="value">{{ value }}</span>
-        <span v-else><slot /></span>
+    <label class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+        <slot v-if="!value" />
+        <template v-else>{{ value }}</template>
     </label>
 </template>
