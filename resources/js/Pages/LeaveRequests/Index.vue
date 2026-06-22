@@ -3,7 +3,6 @@ import { computed, ref } from 'vue';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { Paperclip, Download } from 'lucide-vue-next';
 
-// Shape mirrors a future LeaveRequestController@index response.
 const props = defineProps({
     requests: { type: Array, default: () => [] }, // [{ id, teacherName, initials, avatarColor, type, dateRange, days, status, reason, attachment }]
     leaveBalances: { type: Array, default: () => [] }, // [{ teacher, sick, casual, annual, used }]
@@ -11,8 +10,6 @@ const props = defineProps({
     year: { type: [String, Number], default: '' },
 });
 
-// Literal Tailwind class strings per avatar color — required so the JIT
-// scanner can find them; never interpolate color names into class names.
 const avatarColors = {
     emerald: 'bg-emerald-500/20 text-emerald-300',
     sky: 'bg-sky-500/20 text-sky-300',
@@ -39,8 +36,6 @@ const approvedRequests = computed(() =>
 const showPending = computed(() => statusFilter.value === 'All status' || statusFilter.value === 'Pending');
 const showApproved = computed(() => statusFilter.value === 'All status' || statusFilter.value === 'Approved');
 
-/* ------------------------------ Approve / Reject ------------------------------ */
-
 const decision = ref(null); // { request, action: 'approve' | 'reject', note }
 
 function startDecision(request, action) {
@@ -56,8 +51,6 @@ function confirmDecision() {
     request.decisionNote = decision.value.note;
     decision.value = null;
 }
-
-/* ------------------------------ Leave balances ------------------------------ */
 
 function usedBadgeClass(used) {
     if (used >= 6) return 'bg-rose-500/15 text-rose-400';

@@ -3,7 +3,6 @@ import { Link } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { CalendarDays, Upload, Plus, MoreVertical } from 'lucide-vue-next';
 
-// Shape mirrors a future RoutineController@index response.
 const props = defineProps({
     routines: { type: Array, default: () => [] },
 });

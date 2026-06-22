@@ -3,7 +3,6 @@ import { computed, ref } from 'vue';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { CheckCircle2, AlertTriangle, X } from 'lucide-vue-next';
 
-// Shape mirrors a future ProxyManagerController@index response.
 const props = defineProps({
     summary: { type: Object, default: () => ({}) },
     markDate: { type: String, default: '' },
@@ -21,8 +20,6 @@ const steps = [
     { label: 'Finalize' },
     { label: 'Send WhatsApp' },
 ];
-
-/* ------------------------------- Mark absences ------------------------------- */
 
 const durations = ['Full day', 'Morning', 'Afternoon'];
 const duration = ref('Full day');
@@ -58,7 +55,6 @@ const markedIds = ref(new Set(props.teacherOptions.filter((t) => !t.present).map
 function toggleTeacher(id) {
     if (markedIds.value.has(id)) markedIds.value.delete(id);
     else markedIds.value.add(id);
-    // re-assign so Vue's reactivity picks up the Set mutation
     markedIds.value = new Set(markedIds.value);
 }
 const filteredTeachers = computed(() => {
@@ -67,9 +63,7 @@ const filteredTeachers = computed(() => {
     return props.teacherOptions.filter((t) => t.name.toLowerCase().includes(q) || t.subject.toLowerCase().includes(q));
 });
 
-/* --------------------------- Tomorrow's proxy classes --------------------------- */
 
-// Local, mutable copy — the override flow mutates this, never props directly.
 const localGroups = ref(props.proxyGroups.map((g) => ({ ...g, items: g.items.map((it) => ({ ...it })) })));
 
 const resolvedCount = computed(() =>
@@ -79,7 +73,7 @@ const unresolvedCount = computed(() =>
     localGroups.value.reduce((sum, g) => sum + g.items.filter((it) => it.status === 'unresolved').length, 0)
 );
 
-const overrideTarget = ref(null); // the item object currently being overridden
+const overrideTarget = ref(null);
 const overrideChoice = ref('');
 
 function openOverride(item) {

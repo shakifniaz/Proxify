@@ -3,7 +3,6 @@ import { computed, ref } from 'vue';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { FileDown } from 'lucide-vue-next';
 
-// Shape mirrors a future AnalyticsController@index response.
 const props = defineProps({
     stats: { type: Object, default: () => ({}) }, // { totalAbsences, proxyClasses, unresolved, ackRate } each { value, delta }
     rangeOptions: { type: Array, default: () => [] },
@@ -30,8 +29,6 @@ function proxyLabelColor(count) {
     return 'text-emerald-400';
 }
 
-// Literal Tailwind class strings for heat intensity — required so the JIT
-// scanner can find them; never interpolate computed values into class names.
 const heatClasses = ['bg-slate-800/60', 'bg-indigo-500/30', 'bg-indigo-500/60', 'bg-rose-500/70'];
 function heatClass(value) {
     return heatClasses[Math.min(value, heatClasses.length - 1)];

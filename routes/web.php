@@ -14,7 +14,6 @@ Route::get('/', function () {
 });
 
 Route::middleware(['auth', 'verified'])->group(function () {
-    // Dashboard — mock data shaped exactly like the future controller response
     Route::get('/dashboard', function () {
         return Inertia::render('Dashboard', [
             'alerts' => [
@@ -95,7 +94,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ]);
     })->name('routines.create');
 
-    // Routines — grid view (3 distinct mock datasets, keyed by id)
     Route::get('/routines/{routine}', function ($routine) {
         $meta = [
             1 => ['name' => 'Main Routine', 'term' => '2025/26', 'status' => 'Active'],
@@ -134,7 +132,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
         
 
         $teacherSets = [
-            // 1. Main Routine — fully built, Active, proxy engine already ran
             1 => [
                 [
                     'name' => 'Mr. Rahman', 'subject' => 'Mathematics',
@@ -198,7 +195,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
                 ],
             ],
 
-            // 2. New Routine Draft 1 — partially built, no unresolved periods yet
             2 => [
                 [
                     'name' => 'Mr. Sarkar', 'subject' => 'Mathematics',
@@ -250,7 +246,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
                 ],
             ],
 
-            // 3. Exam Routine — brand-new draft, nothing assigned yet (0 classes)
             3 => [
                 ['name' => 'Mr. Rahman', 'subject' => 'Not assigned', 'cells' => array_fill_keys(['P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7'], ['type' => 'empty'])],
                 ['name' => 'Ms. Karim', 'subject' => 'Not assigned', 'cells' => array_fill_keys(['P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7'], ['type' => 'empty'])],
@@ -347,9 +342,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
                 'Mr. Chowdhury', 'Ms. Begum', 'Mr. Ali', 'Ms. Khatun', 'Ms. Islam',
                 'Mr. Rahman', 'Ms. Karim', 'Mr. Ahmed', 'Mr. Hossain',
             ],
-            // Mr. Chowdhury is double-booked at slot2 (11:30) in both Hall A and
-            // Hall B — the conflict banner and duty list below are computed live
-            // from this, not hardcoded, so resolving it in the UI clears them.
+
             'examGrid' => [
                 'Hall A' => [
                     'slot1' => ['subject' => 'Mathematics', 'classLabel' => 'Class 9A', 'invigilator' => 'Mr. Chowdhury'],

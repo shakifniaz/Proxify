@@ -3,7 +3,6 @@ import { ref } from 'vue';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { Check, Trash2, Plus } from 'lucide-vue-next';
 
-// Shape mirrors a future SettingsController@index response.
 const props = defineProps({
     general: { type: Object, default: () => ({}) }, // { schoolName, contactPhone, contactEmail, termLabel, weekStartDay, academicYear }
     periods: { type: Array, default: () => [] }, // [{ id, label, startTime, endTime, locked }]
@@ -14,12 +13,9 @@ const props = defineProps({
 const tab = ref('General'); // 'General' | 'Period Timings' | 'Notifications'
 const tabs = ['General', 'Period Timings', 'Notifications'];
 
-// Local, mutable copies — each tab's Save operates on these, never on props directly.
 const generalForm = ref({ ...props.general });
 const localPeriods = ref(props.periods.map((p) => ({ ...p })));
 const localNotifications = ref(props.notifications.map((n) => ({ ...n })));
-
-/* ------------------------------ Transient save feedback ------------------------------ */
 
 const saved = ref(false);
 let savedTimeout = null;
@@ -41,8 +37,6 @@ function savePeriods() {
 function saveNotifications() {
     flashSaved();
 }
-
-/* ------------------------------ Period timings ------------------------------ */
 
 function addPeriod() {
     const nextId = Math.max(0, ...localPeriods.value.map((p) => p.id)) + 1;

@@ -4,7 +4,6 @@ import { Link } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { ChevronLeft, ChevronRight, AlertTriangle, Repeat, Pencil } from 'lucide-vue-next';
 
-// Shape mirrors a future RoutineController@show response.
 const props = defineProps({
     routine: { type: Object, default: () => ({}) },
     days: { type: Array, default: () => [] },
@@ -14,8 +13,6 @@ const props = defineProps({
     classOptions: { type: Array, default: () => [] },
 });
 
-// Literal Tailwind class strings per subject color — required so the JIT
-// scanner can find them; never interpolate color names into class names.
 const cellColors = {
     blue: { bg: 'bg-blue-500/15', border: 'border-blue-400', text: 'text-blue-300', pill: 'bg-blue-500/15 text-blue-300 border border-blue-500/30' },
     amber: { bg: 'bg-amber-500/15', border: 'border-amber-400', text: 'text-amber-300', pill: 'bg-amber-500/15 text-amber-300 border border-amber-500/30' },
@@ -25,9 +22,6 @@ const cellColors = {
     rose: { bg: 'bg-rose-500/15', border: 'border-rose-400', text: 'text-rose-300', pill: 'bg-rose-500/15 text-rose-300 border border-rose-500/30' },
 };
 
-// Local, mutable copy of the grid — drag/drop and the edit popup operate on
-// this, never on props directly. Once the backend exists, each mutation
-// below is exactly where a PATCH request to persist the change would go.
 const gridTeachers = ref(props.teachers.map((t) => ({ ...t, cells: { ...t.cells } })));
 
 const selectedDay = ref(props.days[0] ?? 'Sun');
@@ -60,8 +54,6 @@ function cellClasses(cell) {
     const c = cellColors[cell.color];
     return `border-l-2 ${c.border} ${c.bg}`;
 }
-
-/* ---------------- Drag and drop: move into empty slot, or swap ---------------- */
 
 const dragSource = ref(null); // { teacherIndex, periodKey }
 const dragOverKey = ref(null);
@@ -99,9 +91,6 @@ function onDrop(teacherIndex, periodKey, event) {
     const fromCell = gridTeachers.value[from.teacherIndex].cells[from.periodKey];
     const toCell = gridTeachers.value[to.teacherIndex].cells[to.periodKey];
 
-    // Same swap covers both cases: dropping on an empty slot just moves the
-    // period there (the source becomes empty); dropping on a filled slot
-    // exchanges the two periods.
     gridTeachers.value[from.teacherIndex].cells[from.periodKey] = toCell;
     gridTeachers.value[to.teacherIndex].cells[to.periodKey] = fromCell;
 }
@@ -110,8 +99,6 @@ function onDragEnd() {
     dragSource.value = null;
     dragOverKey.value = null;
 }
-
-/* ---------------------------- Edit / Add popup ---------------------------- */
 
 const editing = ref(null); // { teacherIndex, periodKey, subject, classLabel, isNew }
 

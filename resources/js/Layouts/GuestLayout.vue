@@ -4,7 +4,6 @@ import { Link } from '@inertiajs/vue3';
 
 <template>
     <div class="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-950 px-4 py-12">
-        <!-- Decorative glow -->
         <div class="pointer-events-none absolute -top-32 left-1/2 h-72 w-72 -translate-x-1/2 rounded-full bg-emerald-500/10 blur-3xl"></div>
 
         <div class="relative w-full max-w-md">

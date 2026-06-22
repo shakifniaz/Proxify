@@ -3,7 +3,6 @@ import { computed, ref } from 'vue';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { AlertTriangle, Printer, Plus } from 'lucide-vue-next';
 
-// Shape mirrors a future ExamScheduleController@show response.
 const props = defineProps({
     session: { type: Object, default: () => ({}) }, // { title, subtitle, dateLabel }
     halls: { type: Array, default: () => [] }, // [{ name, capacity }]
@@ -14,7 +13,6 @@ const props = defineProps({
     examGrid: { type: Object, default: () => ({}) }, // { [hallName]: { [slotKey]: { subject, classLabel, invigilator } | null } }
 });
 
-// Local, mutable copy — editing operates on this, never on props directly.
 const grid = ref(JSON.parse(JSON.stringify(props.examGrid)));
 
 function cellAt(hallName, slotKey) {
@@ -25,8 +23,6 @@ const gridStyle = computed(() => ({
     gridTemplateColumns: `200px repeat(${props.timeSlots.length}, minmax(160px, 1fr))`,
 }));
 
-// Conflicts are derived live from the current grid — not a fixed mock flag —
-// so editing a cell can create or resolve a conflict in real time.
 const conflictGroups = computed(() => {
     const groups = [];
     for (const slot of props.timeSlots) {
@@ -79,7 +75,6 @@ const invigilatorDuties = computed(() => {
     }));
 });
 
-/* ---------------------------- Edit / Add popup ---------------------------- */
 
 const editing = ref(null); // { hallName, slotKey, subject, classLabel, invigilator, isNew }
 

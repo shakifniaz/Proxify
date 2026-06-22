@@ -42,8 +42,6 @@ const initials = computed(() =>
         .toUpperCase()
 );
 
-// Badge color tokens kept as full literal class strings so Tailwind's
-// content scanner can find them — never build class names dynamically.
 const badgeColors = {
     rose: 'bg-rose-500 text-white',
     amber: 'bg-amber-500 text-slate-950',

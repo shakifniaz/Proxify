@@ -4,7 +4,6 @@ import { Link } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { ChevronDown, ChevronUp, Layers, Users, Trash2, Plus } from 'lucide-vue-next';
 
-// Shape mirrors a future RoutineController@create response.
 const props = defineProps({
     classesConfig: { type: Object, default: () => ({ numberOfClasses: 0, maxPeriodsPerDay: 7 }) },
     classes: { type: Array, default: () => [] }, // [{ id, name, sections: [string], subjects: [string] }]
@@ -14,8 +13,6 @@ const props = defineProps({
 
 const tab = ref('Classes'); // 'Classes' | 'Teachers'
 
-// Local, mutable copies — Confirm / add / remove operate on these, never on
-// props directly.
 const classesForm = ref({ ...props.classesConfig });
 const localClasses = ref(props.classes.map((c) => ({ ...c, sections: [...c.sections], subjects: [...c.subjects] })));
 const expandedClassId = ref(localClasses.value[0]?.id ?? null);

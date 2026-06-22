@@ -3,7 +3,6 @@ import { ref } from 'vue';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { Eye, Megaphone, Send } from 'lucide-vue-next';
 
-// Shape mirrors a future NoticeController@index response.
 const props = defineProps({
     notices: { type: Array, default: () => [] }, // [{ id, title, message, urgency, postedBy, postedDate, readCount, totalStaff }]
     urgencyOptions: { type: Array, default: () => [] },
@@ -11,15 +10,12 @@ const props = defineProps({
     totalStaff: { type: Number, default: 18 },
 });
 
-// Literal Tailwind class strings per urgency level — required so the JIT
-// scanner can find them; never interpolate the urgency string into a class.
 const urgencyClasses = {
     Urgent: { border: 'border-rose-500', badge: 'bg-rose-500/15 text-rose-400' },
     Important: { border: 'border-amber-500', badge: 'bg-amber-500/15 text-amber-400' },
     Normal: { border: 'border-emerald-500', badge: 'bg-emerald-500/15 text-emerald-400' },
 };
 
-// Local, mutable copy — posting a notice mutates this, never props directly.
 const localNotices = ref(props.notices.map((n) => ({ ...n })));
 
 const blankForm = () => ({
