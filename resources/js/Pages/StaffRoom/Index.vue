@@ -5,6 +5,6 @@ import ComingSoon from '@/Components/ComingSoon.vue';
 
 <template>
     <AppLayout title="Staff Room">
-        <ComingSoon description="Department channels and direct messages will live here." />
+        <ComingSoon description="Staff updates and announcements will live here." />
     </AppLayout>
 </template>

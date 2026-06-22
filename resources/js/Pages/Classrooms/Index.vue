@@ -5,6 +5,6 @@ import ComingSoon from '@/Components/ComingSoon.vue';
 
 <template>
     <AppLayout title="Classrooms">
-        <ComingSoon description="Classroom cards, join codes, and submission tracking will live here." />
+        <ComingSoon description="Classroom cards, join codes, and resources tracking will live here." />
     </AppLayout>
 </template>
