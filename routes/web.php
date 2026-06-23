@@ -17,7 +17,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
         if (strtolower($role) === 'teacher') {
             return Inertia::render('TeacherDashboard', [
-                'teacherName' => 'Dr. Lisa Roy',
+                'teacherName' => 'Shakif Niaz',
                 'dateLabel' => 'Tuesday, June 23, 2026',
                 'stats' => [
                     'classesToday' => 4,
@@ -518,7 +518,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
                     'notes' => [
                         [
                             'id' => 3,
-                            'author' => 'Dr. Lisa Roy (Physics)',
+                            'author' => 'Shakif Niaz (Physics)',
                             'target' => 'Science Lab B',
                             'time' => '1 hour ago',
                             'content' => 'Left the circuit calibration meters wired on row 3 for the 6th period labs. Kindly let them sit undisturbed.',
@@ -554,12 +554,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
                     'id' => 1,
                     'name' => 'Class 10-A',
                     'room' => 'Science Block — Room 402',
-                    'advisor' => 'Dr. Lisa Roy',
+                    'advisor' => 'Shakif Niaz',
                     'proxyUpdates' => [
                         [
                             'id' => 201,
                             'period' => '3rd Period (11:00 AM)',
-                            'originalTeacher' => 'Dr. Lisa Roy (Physics)',
+                            'originalTeacher' => 'Shakif Niaz (Physics)',
                             'proxyTeacher' => 'Mr. Ahmed',
                             'note' => 'Please bring your standard physics workbooks. Session will proceed inside Room 402.'
                         ]
@@ -568,7 +568,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
                         [
                             'id' => 11,
                             'name' => 'Physics',
-                            'teacher' => 'Dr. Lisa Roy',
+                            'teacher' => 'Shakif Niaz',
                             'syllabus' => 'Chapter 5: Electromagnetism & Field Induction Theories.',
                             'homework' => 'Solve textbook back-exercises 5.1 to 5.12 inside your workspace logbooks.',
                             'assignment' => [
@@ -600,7 +600,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
                             'subject' => 'Physics',
                             'type' => 'Assignment Announcement',
                             'date' => 'June 20',
-                            'author' => 'Dr. Lisa Roy',
+                            'author' => 'Shakif Niaz',
                             'content' => 'Submissions for the electromagnetic induction project close this week. Submit via the lab inbox.'
                         ],
                         [
