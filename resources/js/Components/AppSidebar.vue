@@ -26,21 +26,17 @@ defineProps({
 defineEmits(['toggle']);
 
 const page = usePage();
-// Inertia exposes the current path as page.url (e.g. "/dashboard").
 const currentUrl = computed(() => page.url.split('?')[0]);
 
 const authUser = computed(() => ({
-    name: page.props.auth?.user?.name ?? 'Admin User',
-    role: page.props.auth?.user?.role ?? 'Super Admin',
+    name: page.props.auth?.user?.name ?? 'Test User',
+    role: page.props.auth?.user?.role ?? 'admin', // Defaults to admin if no role is found
 }));
 
+const isAdmin = computed(() => authUser.value.role.toLowerCase() === 'admin');
+
 const initials = computed(() =>
-    authUser.value.name
-        .split(' ')
-        .map((part) => part[0])
-        .slice(0, 2)
-        .join('')
-        .toUpperCase()
+    authUser.value.name.split(' ').map((part) => part[0]).slice(0, 2).join('').toUpperCase()
 );
 
 const badgeColors = {
@@ -48,7 +44,8 @@ const badgeColors = {
     amber: 'bg-amber-500/10 text-amber-400 border border-amber-500/20',
 };
 
-const navGroups = [
+// Admin Navigation
+const adminNavGroups = [
     {
         label: 'Core',
         items: [
@@ -83,6 +80,35 @@ const navGroups = [
     },
 ];
 
+// Teacher Navigation
+const teacherNavGroups = [
+    {
+        label: 'Core',
+        items: [
+            { name: 'My Dashboard', href: '/dashboard', icon: LayoutDashboard },
+            { name: 'Routines', href: '/routines', icon: CalendarDays },
+            { name: 'Exam Duties', href: '/exam-schedule', icon: GraduationCap },
+        ],
+    },
+    {
+        label: 'Staff',
+        items: [
+            { name: 'My Leave', href: '/leave-requests', icon: CalendarOff },
+            { name: 'Noticeboard', href: '/noticeboard', icon: Megaphone, badge: 1, color: 'rose' },
+            { name: 'Staff Room', href: '/staff-room', icon: MessagesSquare },
+        ],
+    },
+    {
+        label: 'Academic',
+        items: [
+            { name: 'My Classrooms', href: '/classrooms', icon: School },
+        ],
+    },
+];
+
+// Switch navs dynamically
+const activeNavGroups = computed(() => isAdmin.value ? adminNavGroups : teacherNavGroups);
+
 function isActive(href) {
     return currentUrl.value === href;
 }
@@ -103,7 +129,7 @@ function isActive(href) {
 
         <!-- Nav Links -->
         <nav class="flex-1 space-y-6 overflow-y-auto px-3 py-5">
-            <div v-for="group in navGroups" :key="group.label">
+            <div v-for="group in activeNavGroups" :key="group.label">
                 <p
                     v-if="!collapsed"
                     class="px-3 text-[10px] font-bold uppercase tracking-widest text-slate-500"
@@ -157,11 +183,10 @@ function isActive(href) {
                 </div>
                 <div v-if="!collapsed" class="min-w-0">
                     <p class="truncate text-xs font-bold text-slate-200">{{ authUser.name }}</p>
-                    <p class="truncate text-[11px] text-slate-500 font-medium">{{ authUser.role }}</p>
+                    <p class="truncate text-[11px] text-slate-500 font-medium capitalize">{{ authUser.role }}</p>
                 </div>
             </div>
 
-            <!-- Operational Post Logout trigger -->
             <Link
                 href="/logout"
                 method="post"

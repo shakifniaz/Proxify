@@ -12,7 +12,45 @@ Route::get('/', function () {
 });
 
 Route::middleware(['auth', 'verified'])->group(function () {
-    Route::get('/dashboard', function () {
+    Route::get('/dashboard', function (\Illuminate\Http\Request $request) {
+        $role = $request->user()?->role ?? 'admin'; // Defaults to admin for your current setup
+
+        if (strtolower($role) === 'teacher') {
+            return Inertia::render('TeacherDashboard', [
+                'teacherName' => 'Dr. Lisa Roy',
+                'dateLabel' => 'Tuesday, June 23, 2026',
+                'stats' => [
+                    'classesToday' => 4,
+                    'proxiesToday' => 1,
+                    'pendingLeaveDays' => 0,
+                ],
+                'urgentNotices' => [
+                    ['id' => 1, 'title' => 'Staff meeting — mandatory attendance', 'message' => 'All teaching staff must attend the departmental meeting this Friday at 2:00 PM in the conference hall.'],
+                ],
+                'proxyAssignments' => [
+                    ['id' => 1, 'date' => 'Today', 'period' => 'P4', 'subject' => 'Mathematics', 'classLabel' => 'Class 8C', 'coveringFor' => 'Mr. Ahmed'],
+                ],
+                'todaySchedule' => [
+                    ['period' => 'P1', 'time' => '8:00–8:45', 'type' => 'class', 'subject' => 'Physics', 'classLabel' => 'Class 10A', 'room' => 'Science Lab A', 'isProxy' => false],
+                    ['period' => 'P2', 'time' => '8:45–9:30', 'type' => 'empty'],
+                    ['period' => 'BREAK', 'time' => '9:30–9:45', 'type' => 'break', 'label' => 'Morning Break'],
+                    ['period' => 'P3', 'time' => '9:45–10:30', 'type' => 'class', 'subject' => 'Physics', 'classLabel' => 'Class 9B', 'room' => 'Room 402', 'isProxy' => false],
+                    ['period' => 'P4', 'time' => '10:30–11:15', 'type' => 'class', 'subject' => 'Mathematics', 'classLabel' => 'Class 8C', 'room' => 'Room 301', 'isProxy' => true],
+                    ['period' => 'P5', 'time' => '11:15–12:00', 'type' => 'empty'],
+                    ['period' => 'LUNCH', 'time' => '12:00–1:00', 'type' => 'break', 'label' => 'Lunch Break'],
+                    ['period' => 'P6', 'time' => '1:00–1:45', 'type' => 'class', 'subject' => 'Physics', 'classLabel' => 'Class 11A', 'room' => 'Science Lab A', 'isProxy' => false],
+                    ['period' => 'P7', 'time' => '1:45–2:30', 'type' => 'empty'],
+                ],
+                'tomorrowSchedule' => [
+                    ['period' => 'P1', 'subject' => 'Physics', 'classLabel' => 'Class 10B'],
+                    ['period' => 'P3', 'subject' => 'Physics', 'classLabel' => 'Class 9A'],
+                    ['period' => 'P5', 'subject' => 'Physics', 'classLabel' => 'Class 8C'],
+                    ['period' => 'P7', 'subject' => 'Physics', 'classLabel' => 'Class 11B'],
+                ]
+            ]);
+        }
+
+        // Return the existing admin dashboard for everyone else
         return Inertia::render('Dashboard', [
             'alerts' => [
                 '2 proxy periods unresolved',
@@ -40,7 +78,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
                 ['label' => 'Leave pending', 'value' => 2, 'sub' => 'needs approval', 'color' => 'amber'],
             ],
             'liveActivity' => [
-                ['id' => 1, 'text' => 'Proxy engine ran — 11 of 13 periods assigned', 'time' => '8:42', 'color' => 'emerald'],
+                ['id' => 1, 'text' => 'Proxy engine ran — 11 of 13 periods assigned', 'time' => '8:42', 'color' => 'teal'],
                 ['id' => 2, 'text' => 'Mr. Ahmed marked absent — 2 periods affected', 'time' => '8:38', 'color' => 'rose'],
                 ['id' => 3, 'text' => 'P4 · Class 7C flagged — no teacher available', 'time' => '8:38', 'color' => 'amber'],
                 ['id' => 4, 'text' => 'Ms. Karim submitted leave request', 'time' => '8:25', 'color' => 'sky'],
@@ -64,6 +102,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Routines — list
     Route::get('/routines', function () {
+        $role = request('role') ?? (auth()->check() ? (auth()->user()->role ?? 'admin') : 'admin');
+        
+        if ($role === 'teacher') {
+            return redirect()->route('routines.show', ['routine' => 1, 'role' => 'teacher']);
+        }
+
         return Inertia::render('Routines/Index', [
             'routines' => [
                 ['id' => 1, 'name' => 'Main Routine', 'days' => 5, 'classes' => 12, 'sections' => 24, 'teachers' => 12, 'proxyClassesWeek' => 35, 'status' => 'Active'],
@@ -385,6 +429,21 @@ Route::middleware(['auth', 'verified'])->group(function () {
                     'type' => 'Sick leave', 'dateRange' => 'Jun 1', 'days' => 1, 'status' => 'approved',
                     'reason' => '', 'attachment' => null,
                 ],
+                [
+                    'id' => 5, 'teacherName' => 'Shakif Niaz', 'initials' => 'SN', 'avatarColor' => 'emerald',
+                    'type' => 'Sick leave', 'dateRange' => 'Jun 25–26', 'days' => 2, 'status' => 'pending',
+                    'reason' => 'Severe fever and doctor appointments.', 'attachment' => 'medical_receipt.pdf',
+                ],
+                [
+                    'id' => 6, 'teacherName' => 'Shakif Niaz', 'initials' => 'SN', 'avatarColor' => 'emerald',
+                    'type' => 'Casual leave', 'dateRange' => 'May 10', 'days' => 1, 'status' => 'approved',
+                    'reason' => 'Attending a family wedding out of town.', 'attachment' => null,
+                ],
+                [
+                    'id' => 7, 'teacherName' => 'Shakif Niaz', 'initials' => 'SN', 'avatarColor' => 'emerald',
+                    'type' => 'Annual leave', 'dateRange' => 'Apr 2–5', 'days' => 4, 'status' => 'rejected',
+                    'reason' => 'Personal vacation during midterm evaluations.', 'attachment' => null,
+                ],
             ],
             'leaveBalances' => [
                 ['teacher' => 'Mr. Rahman', 'sick' => 10, 'casual' => 7, 'annual' => 15, 'used' => 5],
@@ -392,6 +451,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
                 ['teacher' => 'Mr. Ahmed', 'sick' => 10, 'casual' => 7, 'annual' => 15, 'used' => 8],
                 ['teacher' => 'Ms. Islam', 'sick' => 10, 'casual' => 7, 'annual' => 15, 'used' => 1],
                 ['teacher' => 'Mr. Hossain', 'sick' => 10, 'casual' => 7, 'annual' => 15, 'used' => 3],
+                ['teacher' => 'Shakif Niaz', 'sick' => 10, 'casual' => 7, 'annual' => 15, 'used' => 7],
             ],
             'typeOptions' => ['Sick leave', 'Casual leave', 'Annual leave', 'Emergency leave'],
             'year' => 2026,

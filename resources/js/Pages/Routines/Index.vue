@@ -1,10 +1,24 @@
 <script setup>
-import { Link } from '@inertiajs/vue3';
+import { computed } from 'vue';
+import { Link, usePage } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { CalendarDays, Upload, Plus, MoreVertical } from 'lucide-vue-next';
 
 const props = defineProps({
     routines: { type: Array, default: () => [] },
+});
+
+// Access shared authorization state from the Inertia page context
+const page = usePage();
+const isAdmin = computed(() => page.props.auth?.user?.role === 'admin');
+
+// Safely filter what routines get displayed based on the user's role
+const displayedRoutines = computed(() => {
+    if (isAdmin.value) {
+        return props.routines;
+    }
+    // Teachers only get to see the main active routines, hiding drafts/archives
+    return props.routines.filter(routine => routine.status === 'Active');
 });
 
 const statusBadge = {
@@ -18,7 +32,8 @@ const statusBadge = {
         <div class="space-y-6">
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <h2 class="text-xl font-semibold text-white">Routines</h2>
-                <div class="flex items-center gap-2">
+                
+                <div v-if="isAdmin" class="flex items-center gap-2">
                     <button
                         type="button"
                         class="flex items-center gap-2 rounded-lg border border-slate-800 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-slate-800/50"
@@ -38,7 +53,7 @@ const statusBadge = {
 
             <div class="space-y-3">
                 <Link
-                    v-for="routine in routines"
+                    v-for="routine in displayedRoutines"
                     :key="routine.id"
                     :href="`/routines/${routine.id}`"
                     class="flex items-center gap-4 rounded-xl border bg-slate-900/50 p-4 transition-colors hover:bg-slate-900"
@@ -73,6 +88,7 @@ const statusBadge = {
                     </span>
 
                     <button
+                        v-if="isAdmin"
                         type="button"
                         class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-800 text-slate-500 hover:bg-slate-800/70 hover:text-slate-300"
                         @click.stop.prevent

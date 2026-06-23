@@ -11,6 +11,7 @@ const form = useForm({
     name: '',
     phone: '',
     email: '',
+    role: 'teacher', // Defaults to teacher on form initialization
     password: '',
     password_confirmation: '',
 });
@@ -28,7 +29,7 @@ function submit() {
 
         <div class="mb-6 text-center">
             <h1 class="text-lg font-semibold text-white">Create your account</h1>
-            <p class="mt-1 text-sm text-slate-500">Set up your Proxify teacher account</p>
+            <p class="mt-1 text-sm text-slate-500">Set up your Proxify account permissions</p>
         </div>
 
         <form class="space-y-4" @submit.prevent="submit">
@@ -52,10 +53,25 @@ function submit() {
                 <InputError class="mt-1" :message="form.errors.phone" />
             </div>
 
+            <!-- New Account Type Selector Dropdown -->
+            <div>
+                <InputLabel for="role" value="Account Type" />
+                <select
+                    id="role"
+                    v-model="form.role"
+                    class="mt-1 block w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-300 focus:border-emerald-500 focus:ring-emerald-500 shadow-sm"
+                    required
+                >
+                    <option value="teacher">Teacher Access</option>
+                    <option value="admin">Administrator Access</option>
+                </select>
+                <InputError class="mt-1" :message="form.errors.role" />
+            </div>
+
             <div>
                 <InputLabel for="email" value="Email" />
                 <TextInput id="email" v-model="form.email" type="email" class="mt-1" required autocomplete="username" />
-                <InputError class="mt-1" :message="form.errors.email" />
+                <InputError class="mt-1" :message="logInFormErrors?.email || form.errors.email" />
             </div>
 
             <div>
@@ -79,7 +95,7 @@ function submit() {
 
             <div class="flex items-start gap-2 rounded-lg border border-slate-800 bg-slate-800/40 px-3 py-2.5 text-xs text-slate-400">
                 <Info class="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-500" />
-                Your account starts with Teacher access. An admin can grant you Admin permissions later from the Teachers page.
+                <span>Choosing <strong>Teacher Access</strong> logs you into the scheduling timeline. <strong>Administrator Access</strong> opens management controls.</span>
             </div>
 
             <PrimaryButton class="w-full" :disabled="form.processing">

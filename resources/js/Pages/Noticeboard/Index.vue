@@ -1,14 +1,19 @@
 <script setup>
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
+import { usePage } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { Eye, Megaphone, Send } from 'lucide-vue-next';
 
 const props = defineProps({
-    notices: { type: Array, default: () => [] }, // [{ id, title, message, urgency, postedBy, postedDate, readCount, totalStaff }]
+    notices: { type: Array, default: () => [] },
     urgencyOptions: { type: Array, default: () => [] },
     audienceOptions: { type: Array, default: () => [] },
     totalStaff: { type: Number, default: 18 },
 });
+
+// Role Verification Logic
+const page = usePage();
+const isAdmin = computed(() => page.props.auth?.user?.role === 'admin');
 
 const urgencyClasses = {
     Urgent: { border: 'border-rose-500/30 bg-rose-500/5', badge: 'bg-rose-500/10 text-rose-400 border border-rose-500/20' },
@@ -56,9 +61,9 @@ function submitNotice() {
     <AppLayout title="Institutional Noticeboard">
         <div class="space-y-6">
 
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+            <div class="grid grid-cols-1 gap-6 items-start" :class="isAdmin ? 'lg:grid-cols-3' : 'max-w-4xl mx-auto'">
                 
-                <div class="lg:col-span-2 space-y-4">
+                <div class="space-y-4" :class="isAdmin ? 'lg:col-span-2' : ''">
                     <div class="border-b border-slate-800 pb-2">
                         <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Active Broadcast Archives</h3>
                     </div>
@@ -104,7 +109,7 @@ function submitNotice() {
                     </div>
                 </div>
 
-                <div class="rounded-xl border border-slate-800 bg-slate-900/40 p-5 space-y-4">
+                <div v-if="isAdmin" class="rounded-xl border border-slate-800 bg-slate-900/40 p-5 space-y-4">
                     <div class="space-y-1">
                         <h4 class="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
                             <Send class="h-4 w-4 text-teal-400" />
