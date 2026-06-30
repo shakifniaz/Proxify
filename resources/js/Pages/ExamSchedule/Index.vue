@@ -49,9 +49,9 @@ function isConflict(hallName, slotKey) {
 
 function cellClasses(hallName, slotKey) {
     const cell = cellAt(hallName, slotKey);
-    if (!cell) return 'border border-dashed border-slate-800 bg-slate-800/20 hover:bg-slate-800/50';
-    if (isConflict(hallName, slotKey)) return 'border-l-2 border-rose-500 bg-rose-500/10';
-    return 'border-l-2 border-emerald-400 bg-emerald-500/10';
+    if (!cell) return 'border border-dashed border-stone-300 bg-stone-50 hover:bg-stone-100';
+    if (isConflict(hallName, slotKey)) return 'border-l-2 border-red-500 bg-red-50';
+    return 'border-l-2 border-emerald-400 bg-blue-50';
 }
 
 const invigilatorDuties = computed(() => {
@@ -119,13 +119,13 @@ function printPage() {
             <!-- Page header -->
             <div class="flex flex-wrap items-start justify-between gap-4">
                 <div>
-                    <h2 class="text-xl font-semibold text-white">{{ session.title }}</h2>
+                    <h2 class="text-xl font-semibold text-slate-950">{{ session.title }}</h2>
                     <p class="mt-1 text-sm text-slate-500">{{ session.subtitle }}</p>
                 </div>
                 <div class="flex items-center gap-2">
                     <button
                         type="button"
-                        class="flex items-center gap-2 rounded-lg border border-slate-800 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-slate-800/50"
+                        class="flex items-center gap-2 rounded-lg border border-stone-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-stone-100"
                         @click="printPage"
                     >
                         <Printer class="h-4 w-4" />
@@ -133,7 +133,7 @@ function printPage() {
                     </button>
                     <button
                         type="button"
-                        class="flex items-center gap-2 rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400"
+                        class="flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800"
                     >
                         <Plus class="h-4 w-4" />
                         New session
@@ -144,7 +144,7 @@ function printPage() {
             <!-- Conflict banner -->
             <div
                 v-if="conflictGroups.length"
-                class="flex items-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-300"
+                class="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
             >
                 <AlertTriangle class="h-4 w-4 shrink-0" />
                 <span>
@@ -155,12 +155,12 @@ function printPage() {
             </div>
 
             <!-- Exam grid -->
-            <div class="rounded-xl border border-slate-800 bg-slate-900/50">
-                <div class="flex items-center justify-between border-b border-slate-800 px-5 py-4">
-                    <p class="text-sm font-semibold text-white">{{ session.dateLabel }} &mdash; Exam Grid</p>
+            <div class="surface-card">
+                <div class="flex items-center justify-between border-b border-stone-200 px-5 py-4">
+                    <p class="text-sm font-semibold text-slate-950">{{ session.dateLabel }} &mdash; Exam Grid</p>
                     <span
                         v-if="conflictGroups.length"
-                        class="rounded-full bg-amber-500/15 px-2.5 py-1 text-xs font-medium text-amber-400"
+                        class="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700"
                     >
                         {{ conflictGroups.length }} conflict{{ conflictGroups.length > 1 ? 's' : '' }}
                     </span>
@@ -169,12 +169,12 @@ function printPage() {
                 <div class="overflow-x-auto">
                     <div class="min-w-[820px]">
                         <!-- Header row -->
-                        <div class="grid border-b border-slate-800" :style="gridStyle">
+                        <div class="grid border-b border-stone-200" :style="gridStyle">
                             <div class="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Hall</div>
                             <div
                                 v-for="slot in timeSlots"
                                 :key="slot.key"
-                                class="border-l border-slate-800 px-3 py-3 text-center text-xs font-semibold uppercase tracking-wider text-slate-500"
+                                class="border-l border-stone-200 px-3 py-3 text-center text-xs font-semibold uppercase tracking-wider text-slate-500"
                             >
                                 {{ slot.label }}
                             </div>
@@ -184,15 +184,15 @@ function printPage() {
                         <div
                             v-for="hall in halls"
                             :key="hall.name"
-                            class="grid border-b border-slate-800 last:border-b-0"
+                            class="grid border-b border-stone-200 last:border-b-0"
                             :style="gridStyle"
                         >
                             <div class="px-4 py-4">
-                                <p class="text-sm font-semibold text-slate-100">{{ hall.name }}</p>
+                                <p class="text-sm font-semibold text-slate-900">{{ hall.name }}</p>
                                 <p class="text-xs text-slate-500">Capacity: {{ hall.capacity }}</p>
                             </div>
 
-                            <div v-for="slot in timeSlots" :key="slot.key" class="border-l border-slate-800 p-2">
+                            <div v-for="slot in timeSlots" :key="slot.key" class="border-l border-stone-200 p-2">
                                 <button
                                     type="button"
                                     class="flex h-full w-full flex-col items-start justify-center gap-0.5 rounded-lg px-3 py-2 text-left transition-colors"
@@ -205,17 +205,17 @@ function printPage() {
                                     <template v-else>
                                         <span
                                             v-if="isConflict(hall.name, slot.key)"
-                                            class="flex items-center gap-1 text-xs font-semibold text-rose-400"
+                                            class="flex items-center gap-1 text-xs font-semibold text-red-700"
                                         >
                                             <AlertTriangle class="h-3 w-3" /> Conflict
                                         </span>
                                         <span
                                             class="text-xs font-semibold"
-                                            :class="isConflict(hall.name, slot.key) ? 'text-rose-300' : 'text-emerald-300'"
+                                            :class="isConflict(hall.name, slot.key) ? 'text-red-700' : 'text-blue-700'"
                                         >
                                             {{ cellAt(hall.name, slot.key).subject }}
                                         </span>
-                                        <span class="text-xs text-slate-400">
+                                        <span class="text-xs text-slate-600">
                                             {{ cellAt(hall.name, slot.key).classLabel }} &middot; {{ cellAt(hall.name, slot.key).invigilator }}
                                         </span>
                                     </template>
@@ -227,9 +227,9 @@ function printPage() {
             </div>
 
             <!-- Invigilator duty list -->
-            <div class="rounded-xl border border-slate-800 bg-slate-900/50">
-                <div class="border-b border-slate-800 px-5 py-4">
-                    <p class="text-sm font-semibold text-white">Invigilator duty list</p>
+            <div class="surface-card">
+                <div class="border-b border-stone-200 px-5 py-4">
+                    <p class="text-sm font-semibold text-slate-950">Invigilator duty list</p>
                 </div>
                 <div class="overflow-x-auto">
                     <table class="w-full text-left text-sm">
@@ -240,14 +240,14 @@ function printPage() {
                                 <th class="px-5 py-3 font-medium">Load</th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-slate-800">
+                        <tbody class="divide-y divide-stone-200">
                             <tr v-for="d in invigilatorDuties" :key="d.name">
-                                <td class="px-5 py-3 font-medium text-slate-200">{{ d.name }}</td>
-                                <td class="px-5 py-3 text-slate-400">{{ d.dutiesText }}</td>
+                                <td class="px-5 py-3 font-medium text-slate-800">{{ d.name }}</td>
+                                <td class="px-5 py-3 text-slate-600">{{ d.dutiesText }}</td>
                                 <td class="px-5 py-3">
                                     <span
                                         class="rounded-full px-2.5 py-1 text-xs font-semibold"
-                                        :class="d.conflict ? 'bg-rose-500/15 text-rose-300' : 'bg-emerald-500/15 text-emerald-400'"
+                                        :class="d.conflict ? 'bg-red-50 text-red-700' : 'bg-blue-50 text-blue-700'"
                                     >
                                         {{ d.load }}{{ d.conflict ? ' — conflict!' : '' }}
                                     </span>
@@ -263,39 +263,39 @@ function printPage() {
         <Teleport to="body">
             <div
                 v-if="editing"
-                class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4"
+                class="fixed inset-0 z-50 flex items-center justify-center bg-stone-100/70 p-4"
                 @click.self="closeEditor"
             >
-                <div class="w-full max-w-sm rounded-xl border border-slate-800 bg-slate-900 p-5 shadow-xl">
-                    <h3 class="text-base font-semibold text-white">{{ editing.isNew ? 'Add Exam Slot' : 'Edit Exam Slot' }}</h3>
+                <div class="w-full max-w-sm surface-card p-5 shadow-xl">
+                    <h3 class="text-base font-semibold text-slate-950">{{ editing.isNew ? 'Add Exam Slot' : 'Edit Exam Slot' }}</h3>
                     <p class="mt-1 text-xs text-slate-500">{{ editing.hallName }} &middot; {{ editingSlotLabel }}</p>
 
                     <div class="mt-4 space-y-3">
                         <div>
-                            <label class="text-xs font-medium text-slate-400">Subject</label>
+                            <label class="text-xs font-medium text-slate-600">Subject</label>
                             <select
                                 v-model="editing.subject"
-                                class="mt-1 w-full rounded-lg border border-slate-800 bg-slate-800/60 px-3 py-2 text-sm text-slate-100 focus:border-emerald-500 focus:outline-none"
+                                class="mt-1 w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none"
                             >
                                 <option value="" disabled>Select subject</option>
                                 <option v-for="s in subjectOptions" :key="s" :value="s">{{ s }}</option>
                             </select>
                         </div>
                         <div>
-                            <label class="text-xs font-medium text-slate-400">Class</label>
+                            <label class="text-xs font-medium text-slate-600">Class</label>
                             <select
                                 v-model="editing.classLabel"
-                                class="mt-1 w-full rounded-lg border border-slate-800 bg-slate-800/60 px-3 py-2 text-sm text-slate-100 focus:border-emerald-500 focus:outline-none"
+                                class="mt-1 w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none"
                             >
                                 <option value="" disabled>Select class</option>
                                 <option v-for="c in classOptions" :key="c" :value="c">{{ c }}</option>
                             </select>
                         </div>
                         <div>
-                            <label class="text-xs font-medium text-slate-400">Invigilator</label>
+                            <label class="text-xs font-medium text-slate-600">Invigilator</label>
                             <select
                                 v-model="editing.invigilator"
-                                class="mt-1 w-full rounded-lg border border-slate-800 bg-slate-800/60 px-3 py-2 text-sm text-slate-100 focus:border-emerald-500 focus:outline-none"
+                                class="mt-1 w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none"
                             >
                                 <option value="" disabled>Select invigilator</option>
                                 <option v-for="i in invigilatorOptions" :key="i" :value="i">{{ i }}</option>
@@ -306,14 +306,14 @@ function printPage() {
                     <div class="mt-5 flex justify-end gap-2">
                         <button
                             type="button"
-                            class="rounded-lg border border-slate-800 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-slate-800/50"
+                            class="rounded-lg border border-stone-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-stone-100"
                             @click="closeEditor"
                         >
                             Cancel
                         </button>
                         <button
                             type="button"
-                            class="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40"
+                            class="rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-40"
                             :disabled="!editing.subject || !editing.classLabel || !editing.invigilator"
                             @click="saveEditor"
                         >

@@ -18,6 +18,6 @@ defineExpose({ focus: () => input.value.focus() });
     <input
         ref="input"
         v-model="model"
-        class="w-full rounded-lg border border-slate-800 bg-slate-800/60 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-emerald-500 focus:outline-none focus:ring-0"
+        class="field-control w-full"
     />
 </template>

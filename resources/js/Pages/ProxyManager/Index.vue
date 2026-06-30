@@ -96,41 +96,41 @@ function confirmOverride() {
     <AppLayout title="Proxy Manager">
         <div class="space-y-6">
             <!-- Stepper -->
-            <div class="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-slate-800 sm:grid-cols-4">
+            <div class="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-stone-300 sm:grid-cols-4">
                 <div
                     v-for="(step, i) in steps"
                     :key="step.label"
                     class="px-4 py-3"
-                    :class="i < 2 ? 'bg-emerald-500/15' : 'bg-slate-900/60'"
+                    :class="i < 2 ? 'bg-blue-50' : 'bg-stone-50'"
                 >
-                    <p class="text-[10px] font-semibold uppercase tracking-wider" :class="i < 2 ? 'text-emerald-400' : 'text-slate-500'">
+                    <p class="text-[10px] font-semibold uppercase tracking-wider" :class="i < 2 ? 'text-blue-700' : 'text-slate-500'">
                         Step {{ i + 1 }}
                     </p>
-                    <p class="text-sm font-semibold" :class="i < 2 ? 'text-emerald-300' : 'text-slate-500'">{{ step.label }}</p>
+                    <p class="text-sm font-semibold" :class="i < 2 ? 'text-blue-700' : 'text-slate-500'">{{ step.label }}</p>
                 </div>
             </div>
 
             <!-- Summary banner -->
-            <div class="flex items-center justify-between gap-4 rounded-xl border border-slate-800 bg-slate-900/50 p-5">
+            <div class="flex items-center justify-between gap-4 surface-card p-5">
                 <div>
-                    <p class="text-base font-semibold text-white">Send Tomorrow's Routine Updates</p>
+                    <p class="text-base font-semibold text-slate-950">Send Tomorrow's Routine Updates</p>
                     <p class="mt-1 text-sm text-slate-500">
                         {{ summary.routineName }} &middot; {{ summary.absentTeachers }} Absent Teachers &middot;
                         {{ summary.availableTeachers }} Available Teachers
                     </p>
-                    <p class="mt-1 text-sm font-medium text-rose-400">{{ summary.proxyClassesTomorrow }} Total Proxy Classes Tomorrow</p>
+                    <p class="mt-1 text-sm font-medium text-red-700">{{ summary.proxyClassesTomorrow }} Total Proxy Classes Tomorrow</p>
                 </div>
-                <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-emerald-500">
+                <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-700">
                     <CheckCircle2 class="h-6 w-6 text-slate-950" />
                 </div>
             </div>
 
             <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
                 <!-- Mark absences -->
-                <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-5">
+                <div class="surface-card p-5">
                     <div class="flex items-center justify-between">
-                        <p class="text-sm font-semibold text-white">Mark absences</p>
-                        <span class="rounded-full bg-amber-500/15 px-2.5 py-1 text-xs font-medium text-amber-400">{{ markDate }}</span>
+                        <p class="text-sm font-semibold text-slate-950">Mark absences</p>
+                        <span class="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">{{ markDate }}</span>
                     </div>
 
                     <p class="mt-5 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Duration</p>
@@ -140,7 +140,7 @@ function confirmOverride() {
                             :key="d"
                             type="button"
                             class="rounded-lg border px-3 py-2 text-sm font-medium"
-                            :class="duration === d ? 'border-emerald-500 bg-emerald-500/10 text-emerald-400' : 'border-slate-800 text-slate-400 hover:bg-slate-800/50'"
+                            :class="duration === d ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-stone-300 text-slate-600 hover:bg-stone-100'"
                             @click="duration = d"
                         >
                             {{ d }}
@@ -150,7 +150,7 @@ function confirmOverride() {
                     <p class="mt-5 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Select Teacher</p>
                     <select
                         v-model="singleTeacher"
-                        class="mt-2 w-full rounded-lg border border-slate-800 bg-slate-800/60 px-3 py-2 text-sm text-slate-100 focus:border-emerald-500 focus:outline-none"
+                        class="mt-2 w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none"
                     >
                         <option v-for="t in teacherOptions" :key="t.id" :value="t.name">{{ t.name }}</option>
                     </select>
@@ -158,7 +158,7 @@ function confirmOverride() {
                     <p class="mt-5 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Select Subject</p>
                     <select
                         v-model="singleSubject"
-                        class="mt-2 w-full rounded-lg border border-slate-800 bg-slate-800/60 px-3 py-2 text-sm text-slate-100 focus:border-emerald-500 focus:outline-none"
+                        class="mt-2 w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none"
                     >
                         <option v-for="s in subjectOptions" :key="s" :value="s">{{ s }}</option>
                     </select>
@@ -166,7 +166,7 @@ function confirmOverride() {
                     <p class="mt-5 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Select Class</p>
                     <select
                         v-model="singleClass"
-                        class="mt-2 w-full rounded-lg border border-slate-800 bg-slate-800/60 px-3 py-2 text-sm text-slate-100 focus:border-emerald-500 focus:outline-none"
+                        class="mt-2 w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none"
                     >
                         <option v-for="c in classOptions" :key="c" :value="c">{{ c }}</option>
                     </select>
@@ -178,7 +178,7 @@ function confirmOverride() {
                             :key="p"
                             type="button"
                             class="rounded-lg border px-3 py-1.5 text-xs font-semibold"
-                            :class="selectedPeriods.includes(p) ? 'border-rose-500 bg-rose-500/15 text-rose-300' : 'border-slate-800 text-slate-500 hover:bg-slate-800/50'"
+                            :class="selectedPeriods.includes(p) ? 'border-red-500 bg-red-50 text-red-700' : 'border-stone-300 text-slate-500 hover:bg-stone-100'"
                             @click="togglePeriod(p)"
                         >
                             {{ p }}
@@ -190,10 +190,10 @@ function confirmOverride() {
                         <span
                             v-for="(d, i) in selectedDates"
                             :key="d"
-                            class="flex items-center gap-1.5 rounded-full border border-slate-800 bg-slate-800/60 px-2.5 py-1 text-xs text-slate-300"
+                            class="flex items-center gap-1.5 rounded-full border border-stone-300 bg-white px-2.5 py-1 text-xs text-slate-700"
                         >
                             {{ formatDate(d) }}
-                            <button type="button" class="text-slate-500 hover:text-rose-400" @click="removeDate(i)">
+                            <button type="button" class="text-slate-500 hover:text-red-700" @click="removeDate(i)">
                                 <X class="h-3 w-3" />
                             </button>
                         </span>
@@ -201,11 +201,11 @@ function confirmOverride() {
                             <input
                                 v-model="newDate"
                                 type="date"
-                                class="rounded-lg border border-slate-800 bg-slate-800/60 px-2 py-1 text-xs text-slate-200 focus:border-emerald-500 focus:outline-none"
+                                class="rounded-lg border border-stone-300 bg-white px-2 py-1 text-xs text-slate-800 focus:border-blue-500 focus:outline-none"
                             />
                             <button
                                 type="button"
-                                class="rounded-lg border border-slate-800 px-2.5 py-1 text-xs font-medium text-emerald-400 hover:bg-slate-800/50"
+                                class="rounded-lg border border-stone-300 px-2.5 py-1 text-xs font-medium text-blue-700 hover:bg-stone-100"
                                 @click="addDate"
                             >
                                 + Add
@@ -218,30 +218,30 @@ function confirmOverride() {
                         v-model="teacherSearch"
                         type="text"
                         placeholder="Search teachers..."
-                        class="mt-2 w-full rounded-lg border border-slate-800 bg-slate-800/60 px-3 py-2 text-sm text-slate-200 placeholder:text-slate-500 focus:border-emerald-500 focus:outline-none"
+                        class="mt-2 w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-slate-800 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none"
                     />
                     <div class="mt-2 max-h-64 space-y-2 overflow-y-auto pr-1">
                         <label
                             v-for="t in filteredTeachers"
                             :key="t.id"
                             class="flex cursor-pointer items-center justify-between gap-3 rounded-lg border px-3 py-2.5 transition-colors"
-                            :class="markedIds.has(t.id) ? 'border-emerald-500/40 bg-emerald-500/10' : 'border-slate-800 hover:bg-slate-800/40'"
+                            :class="markedIds.has(t.id) ? 'border-blue-300 bg-blue-50' : 'border-stone-300 hover:bg-stone-50'"
                         >
                             <span class="flex items-center gap-3">
                                 <input
                                     type="checkbox"
                                     :checked="markedIds.has(t.id)"
-                                    class="h-4 w-4 rounded border-slate-700 bg-slate-800 text-emerald-500 focus:ring-emerald-500"
+                                    class="h-4 w-4 rounded border-slate-700 bg-stone-100 text-blue-700 focus:ring-blue-500"
                                     @change="toggleTeacher(t.id)"
                                 />
                                 <span>
-                                    <span class="block text-sm font-medium text-slate-100">{{ t.name }}</span>
+                                    <span class="block text-sm font-medium text-slate-900">{{ t.name }}</span>
                                     <span class="block text-xs text-slate-500">{{ t.subject }} &middot; {{ t.periodsToday }} periods today</span>
                                 </span>
                             </span>
                             <span
                                 class="shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold"
-                                :class="markedIds.has(t.id) ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-800 text-slate-500'"
+                                :class="markedIds.has(t.id) ? 'bg-blue-100 text-blue-700' : 'bg-stone-100 text-slate-500'"
                             >
                                 {{ markedIds.has(t.id) ? t.periodsToday : 'present' }}
                             </span>
@@ -250,15 +250,15 @@ function confirmOverride() {
                 </div>
 
                 <!-- Tomorrow's Proxy Classes -->
-                <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-5">
+                <div class="surface-card p-5">
                     <div class="flex items-center justify-between">
-                        <p class="text-sm font-semibold text-white">Tomorrow's Proxy Classes</p>
-                        <span class="rounded-full bg-emerald-500/15 px-2.5 py-1 text-xs font-medium text-emerald-400">
+                        <p class="text-sm font-semibold text-slate-950">Tomorrow's Proxy Classes</p>
+                        <span class="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700">
                             {{ resolvedCount }} resolved
                         </span>
                     </div>
 
-                    <div class="mt-4 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs font-medium text-emerald-300">
+                    <div class="mt-4 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-700">
                         Priority: same subject &rarr; same class &rarr; least load today
                     </div>
 
@@ -270,13 +270,13 @@ function confirmOverride() {
                                     v-for="item in group.items"
                                     :key="item.class + item.subject"
                                     class="rounded-lg px-3 py-2.5"
-                                    :class="item.status === 'unresolved' ? 'border border-rose-500/30 bg-rose-500/10' : 'bg-slate-800/40'"
+                                    :class="item.status === 'unresolved' ? 'border border-red-200 bg-red-50' : 'bg-stone-50'"
                                 >
                                     <div class="flex items-center justify-between gap-3">
                                         <div class="min-w-0">
                                             <p
                                                 class="flex items-center gap-1 text-sm font-semibold"
-                                                :class="item.status === 'unresolved' ? 'text-rose-300' : 'text-slate-100'"
+                                                :class="item.status === 'unresolved' ? 'text-red-700' : 'text-slate-900'"
                                             >
                                                 <AlertTriangle v-if="item.status === 'unresolved'" class="h-3.5 w-3.5 shrink-0" />
                                                 {{ item.class }} &middot; {{ item.subject }}
@@ -286,13 +286,13 @@ function confirmOverride() {
                                             </p>
                                         </div>
                                         <div class="shrink-0 text-right">
-                                            <p v-if="item.status === 'resolved'" class="text-sm font-medium text-emerald-400">
+                                            <p v-if="item.status === 'resolved'" class="text-sm font-medium text-blue-700">
                                                 &rarr; {{ item.assignedTeacher }}
                                             </p>
                                             <button
                                                 v-else
                                                 type="button"
-                                                class="rounded-full border border-rose-500/40 bg-rose-500/15 px-3 py-1 text-xs font-semibold text-rose-300 hover:bg-rose-500/25"
+                                                class="rounded-full border border-red-300 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 hover:bg-red-100"
                                                 @click="openOverride(item)"
                                             >
                                                 Override
@@ -303,14 +303,14 @@ function confirmOverride() {
                                     <div v-if="overrideTarget === item" class="mt-3 flex items-center gap-2">
                                         <select
                                             v-model="overrideChoice"
-                                            class="flex-1 rounded-lg border border-slate-800 bg-slate-800/60 px-2 py-1.5 text-xs text-slate-100 focus:border-emerald-500 focus:outline-none"
+                                            class="flex-1 rounded-lg border border-stone-300 bg-white px-2 py-1.5 text-xs text-slate-900 focus:border-blue-500 focus:outline-none"
                                         >
                                             <option value="" disabled>Choose teacher</option>
                                             <option v-for="t in availableTeachers" :key="t" :value="t">{{ t }}</option>
                                         </select>
                                         <button
                                             type="button"
-                                            class="rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-slate-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40"
+                                            class="rounded-lg bg-blue-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-40"
                                             :disabled="!overrideChoice"
                                             @click="confirmOverride"
                                         >
@@ -318,7 +318,7 @@ function confirmOverride() {
                                         </button>
                                         <button
                                             type="button"
-                                            class="rounded-lg border border-slate-800 px-2.5 py-1.5 text-xs text-slate-400 hover:bg-slate-800/50"
+                                            class="rounded-lg border border-stone-300 px-2.5 py-1.5 text-xs text-slate-600 hover:bg-stone-100"
                                             @click="cancelOverride"
                                         >
                                             Cancel
@@ -329,22 +329,22 @@ function confirmOverride() {
                         </div>
                     </div>
 
-                    <div class="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-800 pt-4">
+                    <div class="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-stone-200 pt-4">
                         <p class="text-xs text-slate-500">
-                            <span class="font-semibold text-emerald-400">{{ resolvedCount }} resolved</span>
+                            <span class="font-semibold text-blue-700">{{ resolvedCount }} resolved</span>
                             &middot;
-                            <span class="font-semibold text-rose-400">{{ unresolvedCount }} unresolved</span>
+                            <span class="font-semibold text-red-700">{{ unresolvedCount }} unresolved</span>
                         </p>
                         <div class="flex items-center gap-2">
                             <button
                                 type="button"
-                                class="rounded-lg border border-slate-800 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-slate-800/50"
+                                class="rounded-lg border border-stone-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-stone-100"
                             >
                                 Edit draft
                             </button>
                             <button
                                 type="button"
-                                class="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40"
+                                class="rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-40"
                                 :disabled="unresolvedCount > 0"
                                 :title="unresolvedCount > 0 ? 'Resolve all periods before finalizing' : ''"
                             >

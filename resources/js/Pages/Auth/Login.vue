@@ -34,11 +34,11 @@ function submit() {
         <Head title="Log in" />
 
         <div class="mb-6 text-center">
-            <h1 class="text-lg font-semibold text-white">Welcome back</h1>
+            <h1 class="text-lg font-semibold text-slate-950">Welcome back</h1>
             <p class="mt-1 text-sm text-slate-500">Sign in to your Proxify account</p>
         </div>
 
-        <div v-if="status" class="mb-4 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-300">
+        <div v-if="status" class="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-700">
             {{ status }}
         </div>
 
@@ -70,7 +70,7 @@ function submit() {
                     />
                     <button
                         type="button"
-                        class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
+                        class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-800"
                         @click="showPassword = !showPassword"
                     >
                         <component :is="showPassword ? EyeOff : Eye" class="h-4 w-4" />
@@ -80,7 +80,7 @@ function submit() {
             </div>
 
             <div class="flex items-center justify-between">
-                <label class="flex items-center gap-2 text-sm text-slate-400">
+                <label class="flex items-center gap-2 text-sm text-slate-600">
                     <Checkbox v-model:checked="form.remember" />
                     Remember me
                 </label>
@@ -88,7 +88,7 @@ function submit() {
                 <Link
                     v-if="canResetPassword"
                     href="/forgot-password"
-                    class="text-sm font-medium text-emerald-400 hover:text-emerald-300"
+                    class="text-sm font-medium text-blue-700 hover:text-blue-900"
                 >
                     Forgot your password?
                 </Link>
@@ -101,7 +101,7 @@ function submit() {
 
         <p class="mt-6 text-center text-sm text-slate-500">
             Don't have an account?
-            <Link href="/register" class="font-medium text-emerald-400 hover:text-emerald-300">Register</Link>
+            <Link href="/register" class="font-medium text-blue-700 hover:text-blue-900">Register</Link>
         </p>
     </GuestLayout>
 </template>

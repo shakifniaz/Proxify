@@ -39,7 +39,7 @@ const filteredAnnouncements = computed(() => {
         <div class="space-y-6">
 
             <!-- Class Sub-Tabs Navigation Array Strip -->
-            <div v-if="classrooms.length > 0" class="flex flex-wrap gap-2 border-b border-slate-800 pb-4">
+            <div v-if="classrooms.length > 0" class="flex flex-wrap gap-2 border-b border-stone-200 pb-4">
                 <button
                     v-for="(room, index) in classrooms"
                     :key="room.id"
@@ -47,8 +47,8 @@ const filteredAnnouncements = computed(() => {
                     @click="activeClassroomIndex = index"
                     class="flex items-center gap-2 rounded-lg px-4 py-2.5 text-xs font-bold uppercase tracking-wider transition-all"
                     :class="activeClassroomIndex === index 
-                        ? 'bg-teal-500/10 text-teal-400 border border-teal-500/30' 
-                        : 'text-slate-400 border border-transparent hover:bg-slate-900/50 hover:text-slate-200'"
+                        ? 'bg-blue-50 text-blue-700 border border-blue-200' 
+                        : 'text-slate-600 border border-transparent hover:bg-white hover:text-slate-800'"
                 >
                     <GraduationCap class="h-4 w-4" />
                     {{ room.name }}
@@ -60,10 +60,10 @@ const filteredAnnouncements = computed(() => {
                 
                 <div class="lg:col-span-2 space-y-6">
                     
-                    <div class="rounded-xl border border-slate-800 bg-slate-900/20 p-5 space-y-3">
+                    <div class="surface-card p-5 space-y-3">
                         <div class="flex items-center justify-between">
-                            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
-                                <CalendarDays class="h-4 w-4 text-teal-400" />
+                            <h3 class="text-xs font-bold text-slate-600 uppercase tracking-wider flex items-center gap-2">
+                                <CalendarDays class="h-4 w-4 text-blue-700" />
                                 Today's Schedule Deviations & Proxies
                             </h3>
                             <span class="text-[11px] text-slate-500 font-medium">Live sync tracking</span>
@@ -73,30 +73,30 @@ const filteredAnnouncements = computed(() => {
                             <div 
                                 v-for="proxy in currentClassroom.proxyUpdates" 
                                 :key="proxy.id"
-                                class="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 flex gap-3 items-start"
+                                class="rounded-lg border border-amber-200 bg-amber-50 p-3 flex gap-3 items-start"
                             >
-                                <AlertTriangle class="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
+                                <AlertTriangle class="h-4 w-4 text-amber-700 shrink-0 mt-0.5" />
                                 <div class="space-y-1">
                                     <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                                        <span class="text-xs font-bold text-amber-400 uppercase tracking-wide">{{ proxy.period }}</span>
-                                        <span class="text-xs text-slate-300">— Substitute Teacher assigned</span>
+                                        <span class="text-xs font-bold text-amber-700 uppercase tracking-wide">{{ proxy.period }}</span>
+                                        <span class="text-xs text-slate-700">— Substitute Teacher assigned</span>
                                     </div>
-                                    <p class="text-xs text-slate-400 leading-normal">
-                                        Original session (<span class="text-slate-300 font-medium">{{ proxy.originalTeacher }}</span>) will be covered by 
-                                        <strong class="text-zinc-200 font-semibold">{{ proxy.proxyTeacher }}</strong>. {{ proxy.note }}
+                                    <p class="text-xs text-slate-600 leading-normal">
+                                        Original session (<span class="text-slate-700 font-medium">{{ proxy.originalTeacher }}</span>) will be covered by 
+                                        <strong class="text-slate-900 font-semibold">{{ proxy.proxyTeacher }}</strong>. {{ proxy.note }}
                                     </p>
                                 </div>
                             </div>
                         </div>
-                        <div v-else class="text-xs text-slate-500 italic p-2 border border-dashed border-slate-800 rounded-lg text-center">
+                        <div v-else class="text-xs text-slate-500 italic p-2 border border-dashed border-stone-300 rounded-lg text-center">
                             No external routine adjustments or substituted proxy slots recorded for this room class today.
                         </div>
                     </div>
 
                     <div class="space-y-4">
-                        <div class="flex items-center justify-between border-b border-slate-800 pb-2">
-                            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
-                                <BookOpen class="h-4 w-4 text-teal-400" />
+                        <div class="flex items-center justify-between border-b border-stone-200 pb-2">
+                            <h3 class="text-xs font-bold text-slate-600 uppercase tracking-wider flex items-center gap-2">
+                                <BookOpen class="h-4 w-4 text-blue-700" />
                                 Active Academic Coursework Load
                             </h3>
                         </div>
@@ -105,21 +105,21 @@ const filteredAnnouncements = computed(() => {
                             <div 
                                 v-for="subject in currentClassroom.subjects" 
                                 :key="subject.id"
-                                class="rounded-xl border border-slate-800 bg-slate-900/40 p-4 space-y-3"
+                                class="surface-card p-4 space-y-3"
                             >
-                                <div class="flex items-center justify-between border-b border-slate-800 pb-2">
-                                    <h4 class="text-xs font-bold text-zinc-100 uppercase tracking-wide">{{ subject.name }}</h4>
+                                <div class="flex items-center justify-between border-b border-stone-200 pb-2">
+                                    <h4 class="text-xs font-bold text-slate-950 uppercase tracking-wide">{{ subject.name }}</h4>
                                     <span class="text-[11px] text-slate-500">{{ subject.teacher }}</span>
                                 </div>
 
                                 <div class="space-y-1">
-                                    <span class="text-[10px] font-bold uppercase tracking-wider text-teal-400/80 block">Current Syllabus Target</span>
-                                    <p class="text-xs text-slate-400 leading-normal">{{ subject.syllabus }}</p>
+                                    <span class="text-[10px] font-bold uppercase tracking-wider text-blue-700/80 block">Current Syllabus Target</span>
+                                    <p class="text-xs text-slate-600 leading-normal">{{ subject.syllabus }}</p>
                                 </div>
 
-                                <div class="bg-slate-950/60 p-2.5 rounded-lg border border-slate-800 space-y-1">
-                                    <span class="text-[10px] font-bold uppercase tracking-wider text-amber-400 block">Homework Desk</span>
-                                    <p class="text-xs text-slate-300 leading-relaxed">{{ subject.homework }}</p>
+                                <div class="bg-stone-50 p-2.5 rounded-lg border border-stone-300 space-y-1">
+                                    <span class="text-[10px] font-bold uppercase tracking-wider text-amber-700 block">Homework Desk</span>
+                                    <p class="text-xs text-slate-700 leading-relaxed">{{ subject.homework }}</p>
                                 </div>
 
                                 <!-- Embedded Task Notice -->
@@ -128,7 +128,7 @@ const filteredAnnouncements = computed(() => {
                                         <FileText class="h-3 w-3" />
                                         Task Assessment: {{ subject.assignment.title }}
                                     </span>
-                                    <p class="text-[11px] text-slate-400 leading-tight">{{ subject.assignment.instruction }}</p>
+                                    <p class="text-[11px] text-slate-600 leading-tight">{{ subject.assignment.instruction }}</p>
                                     <span class="block text-[10px] text-slate-500 font-semibold pt-0.5">Due: {{ subject.assignment.deadline }}</span>
                                 </div>
                             </div>
@@ -136,15 +136,15 @@ const filteredAnnouncements = computed(() => {
                     </div>
 
                     <div class="space-y-4">
-                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-2">
-                            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
-                                <Megaphone class="h-4 w-4 text-teal-400" />
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-stone-200 pb-2">
+                            <h3 class="text-xs font-bold text-slate-600 uppercase tracking-wider flex items-center gap-2">
+                                <Megaphone class="h-4 w-4 text-blue-700" />
                                 Interactive Noticeboard & Updates Stream
                             </h3>
                             
                             <select 
                                 v-model="selectedSubjectFilter"
-                                class="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-[11px] text-slate-400 focus:outline-none focus:border-teal-500/50"
+                                class="bg-stone-100 border border-stone-300 rounded-lg px-2.5 py-1 text-[11px] text-slate-600 focus:outline-none focus:border-blue-500"
                             >
                                 <option>All Subjects</option>
                                 <option v-for="subj in currentClassroom.subjects" :key="subj.id" :value="subj.name">
@@ -157,19 +157,19 @@ const filteredAnnouncements = computed(() => {
                             <div 
                                 v-for="announcement in filteredAnnouncements" 
                                 :key="announcement.id"
-                                class="rounded-xl border border-slate-800/80 bg-slate-900/10 p-4 space-y-2 hover:border-slate-700/80 transition-colors"
+                                class="rounded-lg border border-stone-200 bg-white p-4 space-y-2 hover:border-slate-700/80 transition-colors"
                             >
                                 <div class="flex items-center justify-between gap-2">
                                     <div class="flex items-center gap-2">
-                                        <span class="px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-teal-500/10 text-teal-400 border border-teal-500/20">
+                                        <span class="px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-200">
                                             {{ announcement.subject }}
                                         </span>
                                         <span 
                                             class="px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider"
                                             :class="[
-                                                announcement.type === 'Test Announcement' ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' : '',
+                                                announcement.type === 'Test Announcement' ? 'bg-red-50 text-red-700 border border-red-200' : '',
                                                 announcement.type === 'Assignment Announcement' ? 'bg-violet-500/10 text-violet-400 border border-violet-500/20' : '',
-                                                announcement.type === 'General' ? 'bg-slate-800 text-slate-400 border border-slate-700/50' : ''
+                                                announcement.type === 'General' ? 'bg-stone-100 text-slate-600 border border-slate-700/50' : ''
                                             ]"
                                         >
                                             {{ announcement.type }}
@@ -177,8 +177,8 @@ const filteredAnnouncements = computed(() => {
                                     </div>
                                     <span class="text-[11px] text-slate-500">{{ announcement.date }}</span>
                                 </div>
-                                <p class="text-xs text-slate-300 leading-relaxed">{{ announcement.content }}</p>
-                                <div class="text-[10px] text-slate-500 font-medium pt-1">Posted by: <span class="text-slate-400">{{ announcement.author }}</span></div>
+                                <p class="text-xs text-slate-700 leading-relaxed">{{ announcement.content }}</p>
+                                <div class="text-[10px] text-slate-500 font-medium pt-1">Posted by: <span class="text-slate-600">{{ announcement.author }}</span></div>
                             </div>
 
                             <div v-if="filteredAnnouncements.length === 0" class="text-center py-8 text-xs text-slate-500 italic">
@@ -189,10 +189,10 @@ const filteredAnnouncements = computed(() => {
                 </div>
 
                 <!-- Right Side Broadcast Dispatch Form Console -->
-                <div class="rounded-xl border border-slate-800 bg-slate-900/40 p-5 space-y-4">
+                <div class="surface-card p-5 space-y-4">
                     <div class="space-y-1">
-                        <h4 class="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                            <PlusCircle class="h-4 w-4 text-teal-400" />
+                        <h4 class="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
+                            <PlusCircle class="h-4 w-4 text-blue-700" />
                             Dispatch Local Update
                         </h4>
                         <p class="text-[11px] text-slate-500 leading-normal">
@@ -202,16 +202,16 @@ const filteredAnnouncements = computed(() => {
 
                     <div class="space-y-3 pt-2">
                         <div>
-                            <label class="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Target Subject Channel</label>
-                            <select class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-400 focus:outline-none focus:border-teal-500/50">
+                            <label class="block text-[11px] font-semibold text-slate-600 uppercase tracking-wider mb-1">Target Subject Channel</label>
+                            <select class="w-full bg-stone-100 border border-stone-300 rounded-lg px-3 py-2 text-xs text-slate-600 focus:outline-none focus:border-blue-500">
                                 <option v-for="subj in currentClassroom.subjects" :key="subj.id">{{ subj.name }}</option>
                                 <option>General Classroom Sync</option>
                             </select>
                         </div>
 
                         <div>
-                            <label class="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Update Type Classification</label>
-                            <select class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-400 focus:outline-none focus:border-teal-500/50">
+                            <label class="block text-[11px] font-semibold text-slate-600 uppercase tracking-wider mb-1">Update Type Classification</label>
+                            <select class="w-full bg-stone-100 border border-stone-300 rounded-lg px-3 py-2 text-xs text-slate-600 focus:outline-none focus:border-blue-500">
                                 <option>Homework Desk Update</option>
                                 <option>Syllabus Milestone</option>
                                 <option>Test Announcement</option>
@@ -221,17 +221,17 @@ const filteredAnnouncements = computed(() => {
                         </div>
 
                         <div>
-                            <label class="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Instruction Details</label>
+                            <label class="block text-[11px] font-semibold text-slate-600 uppercase tracking-wider mb-1">Instruction Details</label>
                             <textarea 
                                 rows="4" 
                                 placeholder="State clearly what needs to be prepared, revised, or reviewed..." 
-                                class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-teal-500/50 resize-none"
+                                class="w-full bg-stone-100 border border-stone-300 rounded-lg px-3 py-2 text-xs text-slate-800 placeholder-slate-600 focus:outline-none focus:border-blue-500 resize-none"
                             ></textarea>
                         </div>
 
                         <button 
                             type="button" 
-                            class="w-full bg-teal-600 hover:bg-teal-500 text-slate-950 font-bold text-xs py-2 px-4 rounded-lg transition-colors shadow-lg shadow-teal-950/20 flex items-center justify-center gap-1.5"
+                            class="w-full bg-blue-700 hover:bg-blue-700 text-slate-950 font-bold text-xs py-2 px-4 rounded-lg transition-colors shadow-lg shadow-none flex items-center justify-center gap-1.5"
                         >
                             <BookmarkCheck class="h-4 w-4" />
                             Broadcast to Class Stream

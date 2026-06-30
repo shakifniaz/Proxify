@@ -40,8 +40,8 @@ const initials = computed(() =>
 );
 
 const badgeColors = {
-    rose: 'bg-rose-500/10 text-rose-400 border border-rose-500/20',
-    amber: 'bg-amber-500/10 text-amber-400 border border-amber-500/20',
+    rose: 'border border-red-200 bg-red-50 text-red-700',
+    amber: 'border border-amber-200 bg-amber-50 text-amber-700',
 };
 
 // Admin Navigation
@@ -116,39 +116,42 @@ function isActive(href) {
 
 <template>
     <aside
-        class="sticky top-0 hidden h-screen flex-col border-r border-slate-800 bg-slate-900/60 transition-all duration-200 sm:flex"
-        :class="collapsed ? 'w-20' : 'w-64'"
+        class="sticky top-0 hidden h-screen flex-col border-r border-stone-200 bg-stone-50/95 shadow-[1px_0_0_rgba(15,23,42,0.02)] transition-all duration-200 sm:flex"
+        :class="collapsed ? 'w-16' : 'w-64'"
     >
-        <!-- Brand -->
-        <div class="flex h-16 items-center gap-3 border-b border-slate-800 px-5">
-            <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-teal-600 shadow-md shadow-teal-950/30">
-                <span class="text-sm font-bold text-slate-950">P</span>
+        <div class="flex h-16 items-center border-b border-stone-200" :class="collapsed ? 'justify-center px-2' : 'gap-3 px-5'">
+            <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-blue-100 bg-blue-700 shadow-sm">
+                <span class="text-sm font-bold text-white">P</span>
             </div>
-            <span v-if="!collapsed" class="truncate text-base font-semibold text-white tracking-wide">Proxify</span>
+            <div v-if="!collapsed" class="min-w-0">
+                <span class="block truncate text-base font-semibold tracking-wide text-slate-950">Proxify</span>
+                <span class="block truncate text-[11px] font-medium text-slate-500">Routine operations</span>
+            </div>
         </div>
 
-        <!-- Nav Links -->
-        <nav class="flex-1 space-y-6 overflow-y-auto px-3 py-5">
+        <nav class="flex-1 space-y-5 overflow-y-auto py-5" :class="collapsed ? 'px-2' : 'px-3'">
             <div v-for="group in activeNavGroups" :key="group.label">
                 <p
                     v-if="!collapsed"
-                    class="px-3 text-[10px] font-bold uppercase tracking-widest text-slate-500"
+                    class="px-3 text-[10px] font-bold uppercase tracking-widest text-slate-400"
                 >
                     {{ group.label }}
                 </p>
-                <div class="mt-2 space-y-1">
+                <div class="space-y-1" :class="collapsed ? 'mt-0' : 'mt-2'">
                     <Link
                         v-for="item in group.items"
                         :key="item.name"
                         :href="item.href"
-                        class="group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors border border-transparent"
-                        :class="
+                        :title="collapsed ? item.name : undefined"
+                        class="group relative flex items-center rounded-lg border border-transparent text-sm font-medium transition-colors"
+                        :class="[
+                            collapsed ? 'h-10 justify-center px-0' : 'gap-3 px-3 py-2',
                             isActive(item.href)
-                                ? 'bg-teal-500/10 text-teal-400 border-teal-500/20'
-                                : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-100'
-                        "
+                                ? 'border-blue-100 bg-blue-50 text-blue-800 shadow-sm'
+                                : 'text-slate-600 hover:bg-white hover:text-slate-950 hover:shadow-sm'
+                        ]"
                     >
-                        <component :is="item.icon" class="h-[18px] w-[18px] shrink-0" :class="isActive(item.href) ? 'text-teal-400' : 'text-slate-500 group-hover:text-slate-300'" />
+                        <component :is="item.icon" class="h-[18px] w-[18px] shrink-0 stroke-[1.9]" :class="isActive(item.href) ? 'text-blue-700' : 'text-slate-500 group-hover:text-slate-800'" />
                         <span v-if="!collapsed" class="flex-1 truncate">{{ item.name }}</span>
                         <span
                             v-if="!collapsed && item.badge"
@@ -157,15 +160,20 @@ function isActive(href) {
                         >
                             {{ item.badge }}
                         </span>
+                        <span
+                            v-else-if="collapsed && item.badge"
+                            class="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full"
+                            :class="item.color === 'amber' ? 'bg-amber-500' : 'bg-red-500'"
+                        />
                     </Link>
                 </div>
             </div>
         </nav>
 
-        <!-- Collapse toggle -->
         <button
             type="button"
-            class="mx-3 mb-3 flex items-center justify-center gap-2 rounded-lg border border-slate-800 py-2 text-xs font-medium text-slate-500 hover:bg-slate-800/60 hover:text-slate-300 transition-colors"
+            class="mx-2 mb-3 flex h-10 items-center justify-center gap-2 rounded-lg border border-stone-200 bg-white text-xs font-medium text-slate-500 transition-colors hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+            :title="collapsed ? 'Expand menu' : 'Collapse menu'"
             @click="$emit('toggle')"
         >
             <ChevronsLeft v-if="!collapsed" class="h-4 w-4" />
@@ -173,17 +181,19 @@ function isActive(href) {
             <span v-if="!collapsed">Collapse Menu</span>
         </button>
 
-        <!-- User profile & Logout Footer -->
-        <div class="flex items-center justify-between border-t border-slate-800 px-4 py-4 gap-2 bg-slate-950/20">
-            <div class="flex items-center gap-3 min-w-0">
+        <div
+            class="border-t border-stone-200 bg-white/70"
+            :class="collapsed ? 'flex flex-col items-center gap-2 px-2 py-3' : 'flex items-center justify-between gap-2 px-4 py-4'"
+        >
+            <div class="flex min-w-0 items-center" :class="collapsed ? 'justify-center' : 'gap-3'" :title="collapsed ? `${authUser.name} - ${authUser.role}` : undefined">
                 <div
-                    class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-teal-500/10 text-xs font-bold text-teal-400 border border-teal-500/20"
+                    class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-blue-100 bg-blue-50 text-xs font-bold text-blue-700"
                 >
                     {{ initials }}
                 </div>
                 <div v-if="!collapsed" class="min-w-0">
-                    <p class="truncate text-xs font-bold text-slate-200">{{ authUser.name }}</p>
-                    <p class="truncate text-[11px] text-slate-500 font-medium capitalize">{{ authUser.role }}</p>
+                    <p class="truncate text-xs font-bold text-slate-900">{{ authUser.name }}</p>
+                    <p class="truncate text-[11px] font-medium capitalize text-slate-500">{{ authUser.role }}</p>
                 </div>
             </div>
 
@@ -192,7 +202,7 @@ function isActive(href) {
                 method="post"
                 as="button"
                 type="button"
-                class="p-2 text-slate-500 hover:text-rose-400 rounded-lg hover:bg-slate-900/60 border border-transparent hover:border-slate-800 transition-colors shrink-0"
+                class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-transparent text-slate-500 transition-colors hover:border-red-100 hover:bg-red-50 hover:text-red-700"
                 title="Log out session"
             >
                 <LogOut class="h-4 w-4" />

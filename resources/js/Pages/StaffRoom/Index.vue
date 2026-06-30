@@ -32,7 +32,7 @@ watch(() => props.boards, (newBoards) => {
     <AppLayout title="Staff Room Workspace">
         <div class="space-y-6">
 
-            <div class="flex flex-wrap gap-2 border-b border-slate-800 pb-4">
+            <div class="flex flex-wrap gap-2 border-b border-stone-200 pb-4">
                 <button
                     v-for="board in boards"
                     :key="board.id"
@@ -40,10 +40,10 @@ watch(() => props.boards, (newBoards) => {
                     @click="selectBoard(board.id)"
                     class="flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-all"
                     :class="activeBoardId === board.id 
-                        ? 'bg-teal-500/10 text-teal-400 border border-teal-500/30' 
-                        : 'text-slate-400 border border-transparent hover:bg-slate-900/50 hover:text-slate-200'"
+                        ? 'bg-blue-50 text-blue-700 border border-blue-200' 
+                        : 'text-slate-600 border border-transparent hover:bg-white hover:text-slate-800'"
                 >
-                    <Pin class="h-4 w-4" :class="activeBoardId === board.id ? 'rotate-45 text-teal-400' : 'text-slate-500'" />
+                    <Pin class="h-4 w-4" :class="activeBoardId === board.id ? 'rotate-45 text-blue-700' : 'text-slate-500'" />
                     {{ board.name }}
                 </button>
             </div>
@@ -52,7 +52,7 @@ watch(() => props.boards, (newBoards) => {
                 
                 <div class="lg:col-span-2 space-y-4">
                     <div>
-                        <h3 class="text-sm font-bold text-zinc-200 uppercase tracking-wider">{{ activeBoard.name }}</h3>
+                        <h3 class="text-sm font-bold text-slate-900 uppercase tracking-wider">{{ activeBoard.name }}</h3>
                         <p class="text-xs text-slate-500 mt-0.5">{{ activeBoard.description }}</p>
                     </div>
 
@@ -60,13 +60,13 @@ watch(() => props.boards, (newBoards) => {
                         <div 
                             v-for="note in activeBoard.notes" 
                             :key="note.id"
-                            class="rounded-xl border bg-slate-900/20 p-4 flex flex-col justify-between space-y-4 transition-all hover:border-slate-700"
+                            class="rounded-lg border bg-white p-4 flex flex-col justify-between space-y-4 transition-all hover:border-slate-700"
                             :class="[
-                                note.color === 'rose' ? 'border-rose-500/20 bg-rose-500/5' : '',
+                                note.color === 'rose' ? 'border-red-200 bg-red-50' : '',
                                 note.color === 'violet' ? 'border-violet-500/20 bg-violet-500/5' : '',
-                                note.color === 'amber' ? 'border-amber-500/20 bg-amber-500/5' : '',
+                                note.color === 'amber' ? 'border-amber-200 bg-amber-50' : '',
                                 note.color === 'sky' ? 'border-sky-500/20 bg-sky-500/5' : '',
-                                note.color === 'zinc' ? 'border-slate-800' : ''
+                                note.color === 'zinc' ? 'border-stone-300' : ''
                             ]"
                         >
                             <div class="space-y-2">
@@ -74,11 +74,11 @@ watch(() => props.boards, (newBoards) => {
                                     <span 
                                         class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider"
                                         :class="[
-                                            note.color === 'rose' ? 'bg-rose-500/10 text-rose-400' : '',
+                                            note.color === 'rose' ? 'bg-red-50 text-red-700' : '',
                                             note.color === 'violet' ? 'bg-violet-500/10 text-violet-400' : '',
-                                            note.color === 'amber' ? 'bg-amber-500/10 text-amber-400' : '',
+                                            note.color === 'amber' ? 'bg-amber-50 text-amber-700' : '',
                                             note.color === 'sky' ? 'bg-sky-500/10 text-sky-400' : '',
-                                            note.color === 'zinc' ? 'bg-slate-800 text-slate-400' : ''
+                                            note.color === 'zinc' ? 'bg-stone-100 text-slate-600' : ''
                                         ]"
                                     >
                                         {{ note.tag }}
@@ -89,19 +89,19 @@ watch(() => props.boards, (newBoards) => {
                                     </div>
                                 </div>
 
-                                <div class="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-                                    <span class="h-1.5 w-1.5 rounded-full bg-teal-400"></span>
-                                    Context: <span class="text-white font-medium">{{ note.target }}</span>
+                                <div class="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                                    <span class="h-1.5 w-1.5 rounded-full bg-blue-600"></span>
+                                    Context: <span class="text-slate-950 font-medium">{{ note.target }}</span>
                                 </div>
 
-                                <p class="text-xs text-slate-400 leading-relaxed pt-1">
+                                <p class="text-xs text-slate-600 leading-relaxed pt-1">
                                     {{ note.content }}
                                 </p>
                             </div>
 
-                            <div class="pt-3 border-t border-slate-800/60 flex items-center gap-2 text-slate-500 text-[11px]">
-                                <User class="h-3 w-3 text-slate-400" />
-                                <span>From: <strong class="text-slate-300 font-medium">{{ note.author }}</strong></span>
+                            <div class="pt-3 border-t border-stone-200/60 flex items-center gap-2 text-slate-500 text-[11px]">
+                                <User class="h-3 w-3 text-slate-600" />
+                                <span>From: <strong class="text-slate-700 font-medium">{{ note.author }}</strong></span>
                             </div>
                         </div>
                         
@@ -111,10 +111,10 @@ watch(() => props.boards, (newBoards) => {
                     </div>
                 </div>
 
-                <div class="rounded-xl border border-slate-800 bg-slate-900/40 p-5 space-y-4">
+                <div class="surface-card p-5 space-y-4">
                     <div class="space-y-1">
-                        <h4 class="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                            <PlusCircle class="h-4 w-4 text-teal-400" />
+                        <h4 class="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
+                            <PlusCircle class="h-4 w-4 text-blue-700" />
                             Pin a Live Note
                         </h4>
                         <p class="text-[11px] text-slate-500 leading-normal">
@@ -124,17 +124,17 @@ watch(() => props.boards, (newBoards) => {
 
                     <div class="space-y-3 pt-2">
                         <div>
-                            <label class="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Target Context / Room</label>
+                            <label class="block text-[11px] font-semibold text-slate-600 uppercase tracking-wider mb-1">Target Context / Room</label>
                             <input 
                                 type="text" 
                                 placeholder="e.g., Class 10-A, Science Lab" 
-                                class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-teal-500/50"
+                                class="w-full bg-stone-100 border border-stone-300 rounded-lg px-3 py-2 text-xs text-slate-800 placeholder-slate-600 focus:outline-none focus:border-blue-500"
                             />
                         </div>
 
                         <div>
-                            <label class="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Board Category Tag</label>
-                            <select class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-400 focus:outline-none focus:border-teal-500/50">
+                            <label class="block text-[11px] font-semibold text-slate-600 uppercase tracking-wider mb-1">Board Category Tag</label>
+                            <select class="w-full bg-stone-100 border border-stone-300 rounded-lg px-3 py-2 text-xs text-slate-600 focus:outline-none focus:border-blue-500">
                                 <option>Urgent Context</option>
                                 <option>Task Reminder</option>
                                 <option>Lab Layout</option>
@@ -144,17 +144,17 @@ watch(() => props.boards, (newBoards) => {
                         </div>
 
                         <div>
-                            <label class="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Message Description</label>
+                            <label class="block text-[11px] font-semibold text-slate-600 uppercase tracking-wider mb-1">Message Description</label>
                             <textarea 
                                 rows="3" 
                                 placeholder="Write down structural context guidelines clearly..." 
-                                class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-teal-500/50 resize-none"
+                                class="w-full bg-stone-100 border border-stone-300 rounded-lg px-3 py-2 text-xs text-slate-800 placeholder-slate-600 focus:outline-none focus:border-blue-500 resize-none"
                             ></textarea>
                         </div>
 
                         <button 
                             type="button" 
-                            class="w-full bg-teal-600 hover:bg-teal-500 text-slate-950 font-bold text-xs py-2 px-4 rounded-lg transition-colors shadow-lg shadow-teal-950/20"
+                            class="w-full bg-blue-700 hover:bg-blue-700 text-slate-950 font-bold text-xs py-2 px-4 rounded-lg transition-colors shadow-lg shadow-none"
                         >
                             Pin Note onto Desk
                         </button>

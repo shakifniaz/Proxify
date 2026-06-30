@@ -12,24 +12,24 @@ const props = defineProps({
 // Literal Tailwind class strings per avatar color — required so the JIT
 // scanner can find them; never interpolate color names into class names.
 const avatarColors = {
-    emerald: 'bg-emerald-500/20 text-emerald-300',
-    sky: 'bg-sky-500/20 text-sky-300',
-    violet: 'bg-violet-500/20 text-violet-300',
-    amber: 'bg-amber-500/20 text-amber-300',
-    rose: 'bg-rose-500/20 text-rose-300',
+    emerald: 'bg-blue-100 text-blue-700',
+    sky: 'bg-sky-100 text-sky-700',
+    violet: 'bg-indigo-100 text-indigo-700',
+    amber: 'bg-amber-100 text-amber-800',
+    rose: 'bg-red-100 text-red-700',
 };
 const avatarColorKeys = Object.keys(avatarColors);
 
 const statusBadge = {
-    Active: 'bg-emerald-500/15 text-emerald-400',
-    'On leave': 'bg-rose-500/15 text-rose-400',
-    Inactive: 'bg-slate-800 text-slate-500',
+    Active: 'bg-blue-50 text-blue-700',
+    'On leave': 'bg-red-50 text-red-700',
+    Inactive: 'bg-stone-100 text-slate-500',
 };
 const statusOptions = ['Active', 'On leave', 'Inactive'];
 
 const roleBadge = {
-    Teacher: 'bg-slate-800 text-slate-400',
-    Admin: 'bg-violet-500/15 text-violet-400',
+    Teacher: 'bg-stone-100 text-slate-600',
+    Admin: 'bg-indigo-50 text-indigo-700',
 };
 const roleOptions = ['Teacher', 'Admin'];
 
@@ -46,7 +46,7 @@ const filteredTeachers = computed(() => {
 });
 
 function proxyLoadBadgeClass(teacher) {
-    return teacher.status === 'On leave' ? 'bg-amber-500/15 text-amber-400' : 'bg-emerald-500/15 text-emerald-400';
+    return teacher.status === 'On leave' ? 'bg-amber-50 text-amber-700' : 'bg-blue-50 text-blue-700';
 }
 
 /* ---------------------------- Add / Edit popup ---------------------------- */
@@ -122,7 +122,7 @@ function saveEditor() {
         <div class="space-y-6">
             <!-- Page header -->
             <div class="flex flex-wrap items-center justify-between gap-3">
-                <h2 class="text-xl font-semibold text-white">Teachers</h2>
+                <h2 class="text-xl font-semibold text-slate-950">Teachers</h2>
                 <div class="flex items-center gap-2">
                     <div class="relative">
                         <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
@@ -130,12 +130,12 @@ function saveEditor() {
                             v-model="search"
                             type="text"
                             placeholder="Search teachers..."
-                            class="w-56 rounded-lg border border-slate-800 bg-slate-800/60 py-2 pl-9 pr-3 text-sm text-slate-200 placeholder:text-slate-500 focus:border-emerald-500 focus:outline-none"
+                            class="w-56 rounded-lg border border-stone-300 bg-white py-2 pl-9 pr-3 text-sm text-slate-800 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none"
                         />
                     </div>
                     <button
                         type="button"
-                        class="flex items-center gap-2 rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400"
+                        class="flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800"
                         @click="openAdd"
                     >
                         <Plus class="h-4 w-4" />
@@ -145,7 +145,7 @@ function saveEditor() {
             </div>
 
             <!-- Teacher table -->
-            <div class="rounded-xl border border-slate-800 bg-slate-900/50">
+            <div class="surface-card">
                 <div class="overflow-x-auto">
                     <table class="w-full text-left text-sm">
                         <thead>
@@ -159,7 +159,7 @@ function saveEditor() {
                                 <th class="px-5 py-3 font-medium"></th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-slate-800">
+                        <tbody class="divide-y divide-stone-200">
                             <tr v-for="t in filteredTeachers" :key="t.id">
                                 <td class="px-5 py-3.5">
                                     <div class="flex items-center gap-3">
@@ -170,7 +170,7 @@ function saveEditor() {
                                             {{ t.initials }}
                                         </div>
                                         <div>
-                                            <p class="font-medium text-slate-100">{{ t.name }}</p>
+                                            <p class="font-medium text-slate-900">{{ t.name }}</p>
                                             <p class="text-xs text-slate-500">{{ t.phone }}</p>
                                         </div>
                                     </div>
@@ -180,13 +180,13 @@ function saveEditor() {
                                         {{ t.role ?? 'Teacher' }}
                                     </span>
                                 </td>
-                                <td class="px-3 py-3.5 text-slate-300">{{ t.subject }}</td>
+                                <td class="px-3 py-3.5 text-slate-700">{{ t.subject }}</td>
                                 <td class="px-3 py-3.5">
                                     <span class="rounded-full px-2.5 py-1 text-xs font-semibold" :class="proxyLoadBadgeClass(t)">
                                         {{ t.proxyLoadThisMonth }} this month
                                     </span>
                                 </td>
-                                <td class="px-3 py-3.5 text-slate-400">
+                                <td class="px-3 py-3.5 text-slate-600">
                                     {{ t.leaveUsedDays }} day{{ t.leaveUsedDays === 1 ? '' : 's' }}
                                 </td>
                                 <td class="px-3 py-3.5">
@@ -197,7 +197,7 @@ function saveEditor() {
                                 <td class="px-5 py-3.5 text-right">
                                     <button
                                         type="button"
-                                        class="flex items-center gap-1.5 rounded-full border border-slate-800 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-slate-800/50"
+                                        class="flex items-center gap-1.5 rounded-full border border-stone-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-stone-100"
                                         @click="openEdit(t)"
                                     >
                                         <Pencil class="h-3 w-3" />
@@ -219,55 +219,55 @@ function saveEditor() {
         <Teleport to="body">
             <div
                 v-if="editing"
-                class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4"
+                class="fixed inset-0 z-50 flex items-center justify-center bg-stone-100/70 p-4"
                 @click.self="closeEditor"
             >
-                <div class="w-full max-w-sm rounded-xl border border-slate-800 bg-slate-900 p-5 shadow-xl">
-                    <h3 class="text-base font-semibold text-white">{{ editing.isNew ? 'Add Teacher' : 'Edit Teacher' }}</h3>
+                <div class="w-full max-w-sm surface-card p-5 shadow-xl">
+                    <h3 class="text-base font-semibold text-slate-950">{{ editing.isNew ? 'Add Teacher' : 'Edit Teacher' }}</h3>
 
                     <div class="mt-4 space-y-3">
                         <div>
-                            <label class="text-xs font-medium text-slate-400">Name</label>
+                            <label class="text-xs font-medium text-slate-600">Name</label>
                             <input
                                 v-model="editing.name"
                                 type="text"
                                 placeholder="e.g. Mr. Sarkar"
-                                class="mt-1 w-full rounded-lg border border-slate-800 bg-slate-800/60 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-emerald-500 focus:outline-none"
+                                class="mt-1 w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none"
                             />
                         </div>
                         <div>
-                            <label class="text-xs font-medium text-slate-400">Phone (WhatsApp)</label>
+                            <label class="text-xs font-medium text-slate-600">Phone (WhatsApp)</label>
                             <input
                                 v-model="editing.phone"
                                 type="text"
                                 placeholder="+8801XXXXXXXXX"
-                                class="mt-1 w-full rounded-lg border border-slate-800 bg-slate-800/60 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-emerald-500 focus:outline-none"
+                                class="mt-1 w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none"
                             />
                         </div>
                         <div>
-                            <label class="text-xs font-medium text-slate-400">Subject</label>
+                            <label class="text-xs font-medium text-slate-600">Subject</label>
                             <select
                                 v-model="editing.subject"
-                                class="mt-1 w-full rounded-lg border border-slate-800 bg-slate-800/60 px-3 py-2 text-sm text-slate-100 focus:border-emerald-500 focus:outline-none"
+                                class="mt-1 w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none"
                             >
                                 <option value="" disabled>Select subject</option>
                                 <option v-for="s in subjectOptions" :key="s" :value="s">{{ s }}</option>
                             </select>
                         </div>
                         <div>
-                            <label class="text-xs font-medium text-slate-400">Status</label>
+                            <label class="text-xs font-medium text-slate-600">Status</label>
                             <select
                                 v-model="editing.status"
-                                class="mt-1 w-full rounded-lg border border-slate-800 bg-slate-800/60 px-3 py-2 text-sm text-slate-100 focus:border-emerald-500 focus:outline-none"
+                                class="mt-1 w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none"
                             >
                                 <option v-for="s in statusOptions" :key="s" :value="s">{{ s }}</option>
                             </select>
                         </div>
                         <div>
-                            <label class="text-xs font-medium text-slate-400">Role / Permissions</label>
+                            <label class="text-xs font-medium text-slate-600">Role / Permissions</label>
                             <select
                                 v-model="editing.role"
-                                class="mt-1 w-full rounded-lg border border-slate-800 bg-slate-800/60 px-3 py-2 text-sm text-slate-100 focus:border-emerald-500 focus:outline-none"
+                                class="mt-1 w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none"
                             >
                                 <option v-for="r in roleOptions" :key="r" :value="r">{{ r }}</option>
                             </select>
@@ -278,14 +278,14 @@ function saveEditor() {
                     <div class="mt-5 flex justify-end gap-2">
                         <button
                             type="button"
-                            class="rounded-lg border border-slate-800 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-slate-800/50"
+                            class="rounded-lg border border-stone-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-stone-100"
                             @click="closeEditor"
                         >
                             Cancel
                         </button>
                         <button
                             type="button"
-                            class="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40"
+                            class="rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-40"
                             :disabled="!editing.name || !editing.phone || !editing.subject"
                             @click="saveEditor"
                         >

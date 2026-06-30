@@ -28,7 +28,7 @@ function submit() {
         <Head title="Register" />
 
         <div class="mb-6 text-center">
-            <h1 class="text-lg font-semibold text-white">Create your account</h1>
+            <h1 class="text-lg font-semibold text-slate-950">Create your account</h1>
             <p class="mt-1 text-sm text-slate-500">Set up your Proxify account permissions</p>
         </div>
 
@@ -59,7 +59,7 @@ function submit() {
                 <select
                     id="role"
                     v-model="form.role"
-                    class="mt-1 block w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-300 focus:border-emerald-500 focus:ring-emerald-500 shadow-sm"
+                    class="field-control mt-1 block w-full"
                     required
                 >
                     <option value="teacher">Teacher Access</option>
@@ -93,8 +93,8 @@ function submit() {
                 <InputError class="mt-1" :message="form.errors.password_confirmation" />
             </div>
 
-            <div class="flex items-start gap-2 rounded-lg border border-slate-800 bg-slate-800/40 px-3 py-2.5 text-xs text-slate-400">
-                <Info class="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-500" />
+            <div class="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5 text-xs text-blue-900">
+                <Info class="mt-0.5 h-3.5 w-3.5 shrink-0 text-blue-700" />
                 <span>Choosing <strong>Teacher Access</strong> logs you into the scheduling timeline. <strong>Administrator Access</strong> opens management controls.</span>
             </div>
 
@@ -105,7 +105,7 @@ function submit() {
 
         <p class="mt-6 text-center text-sm text-slate-500">
             Already have an account?
-            <Link href="/login" class="font-medium text-emerald-400 hover:text-emerald-300">Sign in</Link>
+            <Link href="/login" class="font-medium text-blue-700 hover:text-blue-900">Sign in</Link>
         </p>
     </GuestLayout>
 </template>

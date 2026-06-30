@@ -23,13 +23,13 @@ function toggleSidebar() {
 <template>
     <Head :title="title" />
 
-    <div class="flex min-h-screen bg-slate-950 text-slate-100">
+    <div class="flex min-h-screen bg-stone-100 text-slate-900">
         <AppSidebar :collapsed="sidebarCollapsed" @toggle="toggleSidebar" />
 
         <div class="flex min-w-0 flex-1 flex-col">
             <AppTopbar :title="title" />
 
-            <main class="flex-1 overflow-y-auto p-4 sm:p-6">
+            <main class="flex-1 overflow-y-auto bg-[radial-gradient(circle_at_top_left,rgba(120,113,108,0.10),transparent_34rem)] p-4 sm:p-6">
                 <slot />
             </main>
         </div>

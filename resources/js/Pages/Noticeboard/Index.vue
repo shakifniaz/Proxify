@@ -16,9 +16,9 @@ const page = usePage();
 const isAdmin = computed(() => page.props.auth?.user?.role === 'admin');
 
 const urgencyClasses = {
-    Urgent: { border: 'border-rose-500/30 bg-rose-500/5', badge: 'bg-rose-500/10 text-rose-400 border border-rose-500/20' },
-    Important: { border: 'border-amber-500/30 bg-amber-500/5', badge: 'bg-amber-500/10 text-amber-400 border border-amber-500/20' },
-    Normal: { border: 'border-slate-800 bg-slate-900/10', badge: 'bg-teal-500/10 text-teal-400 border border-teal-500/20' },
+    Urgent: { border: 'border-red-200 bg-red-50', badge: 'bg-red-50 text-red-700 border border-red-200' },
+    Important: { border: 'border-amber-200 bg-amber-50', badge: 'bg-amber-50 text-amber-700 border border-amber-200' },
+    Normal: { border: 'border-stone-300 bg-white', badge: 'bg-blue-50 text-blue-700 border border-blue-200' },
 };
 
 const localNotices = ref(props.notices.map((n) => ({ ...n })));
@@ -64,15 +64,15 @@ function submitNotice() {
             <div class="grid grid-cols-1 gap-6 items-start" :class="isAdmin ? 'lg:grid-cols-3' : 'max-w-4xl mx-auto'">
                 
                 <div class="space-y-4" :class="isAdmin ? 'lg:col-span-2' : ''">
-                    <div class="border-b border-slate-800 pb-2">
-                        <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Active Broadcast Archives</h3>
+                    <div class="border-b border-stone-200 pb-2">
+                        <h3 class="text-xs font-bold text-slate-600 uppercase tracking-wider">Active Broadcast Archives</h3>
                     </div>
 
                     <div class="space-y-4">
                         <div
                             v-for="notice in localNotices"
                             :key="notice.id"
-                            class="rounded-xl border p-5 space-y-3 transition-colors"
+                            class="rounded-lg border p-5 space-y-3 transition-colors"
                             :class="urgencyClasses[notice.urgency]?.border ?? urgencyClasses.Normal.border"
                         >
                             <div class="flex items-start justify-between gap-4">
@@ -83,18 +83,18 @@ function submitNotice() {
                                     >
                                         {{ notice.urgency }} Notice
                                     </span>
-                                    <h4 class="text-sm font-bold text-zinc-100 tracking-wide pt-1">{{ notice.title }}</h4>
+                                    <h4 class="text-sm font-bold text-slate-950 tracking-wide pt-1">{{ notice.title }}</h4>
                                 </div>
                                 <span class="text-[11px] text-slate-500 whitespace-nowrap">{{ notice.postedDate }}</span>
                             </div>
 
-                            <p class="text-xs text-slate-300 leading-relaxed whitespace-pre-line">
+                            <p class="text-xs text-slate-700 leading-relaxed whitespace-pre-line">
                                 {{ notice.message }}
                             </p>
 
-                            <div class="pt-3 border-t border-slate-800/60 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500">
+                            <div class="pt-3 border-t border-stone-200/60 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500">
                                 <div>
-                                    Posted by: <span class="text-slate-400 font-medium">{{ notice.postedBy }}</span>
+                                    Posted by: <span class="text-slate-600 font-medium">{{ notice.postedBy }}</span>
                                 </div>
                                 <div class="flex items-center gap-1">
                                     <Eye class="h-3.5 w-3.5 text-slate-500" />
@@ -103,16 +103,16 @@ function submitNotice() {
                             </div>
                         </div>
 
-                        <div v-if="localNotices.length === 0" class="text-center py-12 text-xs text-slate-500 italic border border-dashed border-slate-800 rounded-xl">
+                        <div v-if="localNotices.length === 0" class="text-center py-12 text-xs text-slate-500 italic border border-dashed border-stone-300 rounded-lg">
                             No active administrative announcements recorded on the live stream.
                         </div>
                     </div>
                 </div>
 
-                <div v-if="isAdmin" class="rounded-xl border border-slate-800 bg-slate-900/40 p-5 space-y-4">
+                <div v-if="isAdmin" class="surface-card p-5 space-y-4">
                     <div class="space-y-1">
-                        <h4 class="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                            <Send class="h-4 w-4 text-teal-400" />
+                        <h4 class="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
+                            <Send class="h-4 w-4 text-blue-700" />
                             Compose Official Notice
                         </h4>
                         <p class="text-[11px] text-slate-500 leading-normal">
@@ -122,42 +122,42 @@ function submitNotice() {
 
                     <div class="space-y-3 pt-2">
                         <div>
-                            <label class="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Notice Heading Title</label>
+                            <label class="block text-[11px] font-semibold text-slate-600 uppercase tracking-wider mb-1">Notice Heading Title</label>
                             <input
                                 ref="titleInput"
                                 v-model="form.title"
                                 type="text"
                                 placeholder="e.g., Campus Faculty General Meeting rescheduled"
-                                class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-teal-500/50"
+                                class="w-full bg-stone-100 border border-stone-300 rounded-lg px-3 py-2 text-xs text-slate-800 placeholder-slate-600 focus:outline-none focus:border-blue-500"
                             />
                         </div>
 
                         <div>
-                            <label class="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Detailed Message Context</label>
+                            <label class="block text-[11px] font-semibold text-slate-600 uppercase tracking-wider mb-1">Detailed Message Context</label>
                             <textarea
                                 v-model="form.message"
                                 rows="5"
                                 placeholder="State core logistical operational facts concisely..."
-                                class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-teal-500/50 resize-none"
+                                class="w-full bg-stone-100 border border-stone-300 rounded-lg px-3 py-2 text-xs text-slate-800 placeholder-slate-600 focus:outline-none focus:border-blue-500 resize-none"
                             ></textarea>
                         </div>
 
                         <div class="grid grid-cols-2 gap-3">
                             <div>
-                                <label class="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Urgency Level</label>
+                                <label class="block text-[11px] font-semibold text-slate-600 uppercase tracking-wider mb-1">Urgency Level</label>
                                 <select
                                     v-model="form.urgency"
-                                    class="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-slate-400 focus:outline-none focus:border-teal-500/50"
+                                    class="w-full bg-stone-100 border border-stone-300 rounded-lg px-2.5 py-2 text-xs text-slate-600 focus:outline-none focus:border-blue-500"
                                 >
                                     <option v-for="u in urgencyOptions" :key="u" :value="u">{{ u }}</option>
                                 </select>
                             </div>
 
                             <div>
-                                <label class="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Target Audience</label>
+                                <label class="block text-[11px] font-semibold text-slate-600 uppercase tracking-wider mb-1">Target Audience</label>
                                 <select
                                     v-model="form.audience"
-                                    class="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-slate-400 focus:outline-none focus:border-teal-500/50"
+                                    class="w-full bg-stone-100 border border-stone-300 rounded-lg px-2.5 py-2 text-xs text-slate-600 focus:outline-none focus:border-blue-500"
                                 >
                                     <option v-for="a in audienceOptions" :key="a" :value="a">{{ a }}</option>
                                 </select>
@@ -166,24 +166,24 @@ function submitNotice() {
 
                         <div
                             v-if="showPreview && form.title"
-                            class="rounded-lg border p-3 bg-slate-950/60 border-slate-800 space-y-1 text-xs"
+                            class="rounded-lg border p-3 bg-stone-50 border-stone-300 space-y-1 text-xs"
                         >
-                            <span class="text-[9px] font-bold uppercase tracking-wider text-teal-400 block">Live Form Preview Drawer:</span>
-                            <h5 class="font-bold text-zinc-200 truncate">{{ form.title }}</h5>
-                            <p class="text-slate-400 line-clamp-2 text-[11px] italic leading-tight">{{ form.message || 'No description body drafted...' }}</p>
+                            <span class="text-[9px] font-bold uppercase tracking-wider text-blue-700 block">Live Form Preview Drawer:</span>
+                            <h5 class="font-bold text-slate-900 truncate">{{ form.title }}</h5>
+                            <p class="text-slate-600 line-clamp-2 text-[11px] italic leading-tight">{{ form.message || 'No description body drafted...' }}</p>
                         </div>
 
                         <div class="pt-2 flex gap-2">
                             <button
                                 type="button"
-                                class="flex-1 rounded-lg border border-slate-800 px-3 py-2 text-xs font-medium text-slate-400 hover:bg-slate-900/50 hover:text-slate-200 transition-colors"
+                                class="flex-1 rounded-lg border border-stone-300 px-3 py-2 text-xs font-medium text-slate-600 hover:bg-white hover:text-slate-800 transition-colors"
                                 @click="togglePreview"
                             >
                                 {{ showPreview ? 'Hide Preview' : 'Preview Notice' }}
                             </button>
                             <button
                                 type="button"
-                                class="flex-1 rounded-lg bg-teal-600 hover:bg-teal-500 text-slate-950 font-bold text-xs py-2 px-3 transition-colors shadow-lg shadow-teal-950/20 disabled:cursor-not-allowed disabled:opacity-40"
+                                class="flex-1 rounded-lg bg-blue-700 hover:bg-blue-700 text-slate-950 font-bold text-xs py-2 px-3 transition-colors shadow-lg shadow-none disabled:cursor-not-allowed disabled:opacity-40"
                                 :disabled="!form.title || !form.message"
                                 @click="submitNotice"
                             >
