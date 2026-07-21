@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ProxyRun;
 use App\Models\Routine;
 use App\Services\RoutineGenerator;
 use App\Services\RoutineDocxImporter;
@@ -44,21 +45,13 @@ class RoutineController extends Controller
 
     public function create(): Response
     {
+        $teachers = config('routine_demo.teachers', []);
+
         return Inertia::render('Routines/Create', [
-            'classesConfig' => ['numberOfClasses' => 3, 'maxPeriodsPerDay' => 7],
-            'classes' => [
-                ['id' => 1, 'name' => 'Class 1', 'sections' => ['Section A', 'Section B'], 'subjects' => ['English 1st Paper', 'Bangla 1st Paper', 'Mathematics', 'Science']],
-                ['id' => 2, 'name' => 'Class 2', 'sections' => ['Section A'], 'subjects' => ['English', 'Bangla', 'Mathematics', 'General Science']],
-                ['id' => 3, 'name' => 'Class 3', 'sections' => ['Section A'], 'subjects' => ['English', 'Bangla', 'Mathematics', 'Science']],
-            ],
-            'teachersConfig' => ['numberOfTeachers' => 5],
-            'teachers' => [
-                ['id' => 1, 'name' => 'Mr. Rahman', 'phone' => '+8801711000001', 'subjects' => ['Mathematics']],
-                ['id' => 2, 'name' => 'Ms. Karim', 'phone' => '+8801711000002', 'subjects' => ['English']],
-                ['id' => 3, 'name' => 'Mr. Ahmed', 'phone' => '+8801711000003', 'subjects' => ['Bangla']],
-                ['id' => 4, 'name' => 'Mr. Hossain', 'phone' => '+8801711000004', 'subjects' => ['Science']],
-                ['id' => 5, 'name' => 'Ms. Islam', 'phone' => '+8801711000005', 'subjects' => ['History']],
-            ],
+            'classesConfig' => config('routine_demo.classes_config'),
+            'classes' => config('routine_demo.classes', []),
+            'teachersConfig' => ['numberOfTeachers' => count($teachers)],
+            'teachers' => $teachers,
         ]);
     }
 
@@ -115,7 +108,13 @@ class RoutineController extends Controller
     public function show(Routine $routine): Response
     {
         $days = $routine->days ?? [];
-        $teacherSchedule = $routine->teacher_schedule ?? [];
+        $activeProxy = ProxyRun::where('routine_id', $routine->id)
+            ->where('status', 'Approved')
+            ->whereDate('date', '>=', now()->toDateString())
+            ->orderBy('date')
+            ->first();
+        $generatedGrid = $activeProxy?->proxy_generated_grid ?: ($routine->generated_grid ?? []);
+        $teacherSchedule = $activeProxy?->proxy_teacher_schedule ?: ($routine->teacher_schedule ?? []);
 
         return Inertia::render('Routines/Show', [
             'routine' => [
@@ -133,8 +132,14 @@ class RoutineController extends Controller
             'classes' => $routine->classes ?? [],
             'teacherPool' => $routine->teachers ?? [],
             'generationRules' => $routine->generation_rules ?? [],
-            'generatedGrid' => $routine->generated_grid ?? [],
+            'generatedGrid' => $generatedGrid,
             'metrics' => $routine->metrics ?? [],
+            'activeProxyNotice' => $activeProxy ? [
+                'id' => $activeProxy->id,
+                'name' => $activeProxy->name,
+                'date' => optional($activeProxy->date)->toDateString(),
+                'day' => $activeProxy->day_label,
+            ] : null,
         ]);
     }
 

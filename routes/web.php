@@ -2,6 +2,7 @@
 
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\ProxyRunController;
 use App\Http\Controllers\RoutineController;
 use Inertia\Inertia;
 
@@ -111,45 +112,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('/routines/{routine}', [RoutineController::class, 'destroy'])->name('routines.destroy');
     Route::post('/routines/{routine}/regenerate', [RoutineController::class, 'regenerate'])->name('routines.regenerate');
 
-    Route::get('/proxy-manager', function () {
-        return Inertia::render('ProxyManager/Index', [
-            'summary' => [
-                'routineName' => 'Main Routine', 'absentTeachers' => 3, 'availableTeachers' => 9, 'proxyClassesTomorrow' => 11,
-            ],
-            'markDate' => 'Wed 12 Jun',
-            'teacherOptions' => [
-                ['id' => 1, 'name' => 'Mr. Rahman', 'subject' => 'Mathematics', 'periodsToday' => 4, 'present' => false],
-                ['id' => 2, 'name' => 'Ms. Karim', 'subject' => 'English', 'periodsToday' => 3, 'present' => false],
-                ['id' => 3, 'name' => 'Mr. Hossain', 'subject' => 'Physics', 'periodsToday' => 2, 'present' => true],
-                ['id' => 4, 'name' => 'Ms. Islam', 'subject' => 'History', 'periodsToday' => 3, 'present' => true],
-                ['id' => 5, 'name' => 'Mr. Ahmed', 'subject' => 'Bangla', 'periodsToday' => 2, 'present' => true],
-            ],
-            'subjectOptions' => [
-                'English 1st Paper', 'English 2nd Paper', 'Mathematics', 'Higher Mathematics',
-                'Physics', 'Chemistry', 'Biology', 'History', 'Bangla 1st Paper', 'Bangla 2nd Paper',
-            ],
-            'classOptions' => ['6', '7', '8', '9', '10', 'XI (A)', 'XI (B)'],
-            'periodOptions' => ['1st Pd', '2nd Pd', '3rd Pd', '4th Pd', '5th Pd', '6th Pd', '7th Pd'],
-            'proxyGroups' => [
-                [
-                    'period' => 'P1', 'label' => '1st Period',
-                    'items' => [
-                        ['class' => 'Class 6', 'subject' => 'Bangla 1st Paper', 'absentTeacher' => 'Mr. Ahmed', 'status' => 'resolved', 'assignedTeacher' => 'Ms. Sultana'],
-                        ['class' => 'Class 7', 'subject' => 'Biology 1st Paper', 'absentTeacher' => 'Mr. Hossain', 'status' => 'resolved', 'assignedTeacher' => 'Mr. Talukder'],
-                        ['class' => 'Class 11 (Section A)', 'subject' => 'Higher Mathematics', 'absentTeacher' => 'Ms. Karim', 'status' => 'resolved', 'assignedTeacher' => 'Mr. Sarkar'],
-                    ],
-                ],
-                [
-                    'period' => 'P2', 'label' => '2nd Period',
-                    'items' => [
-                        ['class' => 'Class 11 (Section A)', 'subject' => 'English 1st Paper', 'absentTeacher' => 'Shakif Niaz', 'status' => 'resolved', 'assignedTeacher' => 'Mrs. Akter'],
-                        ['class' => 'Class 11 (B)', 'subject' => 'Higher Mathematics', 'absentTeacher' => null, 'status' => 'unresolved', 'assignedTeacher' => null],
-                    ],
-                ],
-            ],
-            'availableTeachers' => ['Mr. Sarkar', 'Mrs. Akter', 'Mr. Talukder', 'Ms. Nasrin', 'Mr. Rahman'],
-        ]);
-    })->name('proxy-manager.index');
+    Route::get('/proxy-manager', [ProxyRunController::class, 'index'])->name('proxy-manager.index');
+    Route::post('/proxy-manager', [ProxyRunController::class, 'store'])->name('proxy-manager.store');
+    Route::put('/proxy-manager/subject-groups', [ProxyRunController::class, 'saveSubjectGroups'])->name('proxy-manager.subject-groups.save');
+    Route::get('/proxy-manager/{proxyRun}', [ProxyRunController::class, 'show'])->name('proxy-manager.show');
+    Route::put('/proxy-manager/{proxyRun}/routine', [ProxyRunController::class, 'updateRoutine'])->name('proxy-manager.routine.update');
+    Route::post('/proxy-manager/{proxyRun}/approve', [ProxyRunController::class, 'approve'])->name('proxy-manager.approve');
 
     Route::get('/exam-schedule', function () {
         return Inertia::render('ExamSchedule/Index', [

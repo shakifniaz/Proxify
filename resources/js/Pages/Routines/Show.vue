@@ -30,10 +30,13 @@ const props = defineProps({
     generationRules: { type: Object, default: () => ({}) },
     metrics: { type: Object, default: () => ({}) },
     generatedGrid: { type: Object, default: () => ({}) },
+    proxyContext: { type: Object, default: null },
+    activeProxyNotice: { type: Object, default: null },
 });
 
 const viewMode = ref('teachers');
-const selectedDay = ref(props.days[0] ?? 'Sun');
+const routineSource = ref(props.proxyContext ? 'proxy' : 'routine');
+const selectedDay = ref(props.proxyContext?.day ?? props.days[0] ?? 'Sun');
 const dayNames = { Sun: 'Sunday', Mon: 'Monday', Tue: 'Tuesday', Wed: 'Wednesday', Thu: 'Thursday', Fri: 'Friday', Sat: 'Saturday' };
 
 function defaultDailyPeriodsByDay(value = 7) {
@@ -128,7 +131,41 @@ function compareClassLabels(a, b) {
 }
 
 const localTeacherSchedule = ref(Object.keys(props.teacherSchedule).length ? JSON.parse(JSON.stringify(props.teacherSchedule)) : { [selectedDay.value]: props.teachers.map((teacher) => ({ ...teacher, cells: { ...teacher.cells } })) });
-const gridTeachers = computed(() => localTeacherSchedule.value[selectedDay.value] ?? []);
+const isProxyRoutine = computed(() => Boolean(props.proxyContext));
+const isOriginalRoutineSource = computed(() => isProxyRoutine.value && routineSource.value === 'original');
+const displayedTeacherSchedule = computed(() =>
+    isOriginalRoutineSource.value ? (props.proxyContext?.originalTeacherSchedule ?? {}) : localTeacherSchedule.value
+);
+const displayedGeneratedGrid = computed(() =>
+    isOriginalRoutineSource.value ? (props.proxyContext?.originalGeneratedGrid ?? {}) : (props.generatedGrid ?? {})
+);
+const gridTeachers = computed(() => displayedTeacherSchedule.value[selectedDay.value] ?? []);
+const originalTeacherCellLookup = computed(() => {
+    const lookup = {};
+    Object.entries(props.proxyContext?.originalTeacherSchedule ?? {}).forEach(([day, teachers]) => {
+        teachers.forEach((teacher) => {
+            const teacherId = String(teacher.id ?? teacher.name ?? '');
+            if (!teacherId) return;
+            Object.entries(teacher.cells ?? {}).forEach(([periodKey, cell]) => {
+                lookup[`${day}|${teacherId}|${periodKey}`] = normalizedCell(cell, teacher);
+            });
+        });
+    });
+    return lookup;
+});
+const originalClassCellLookup = computed(() => {
+    const lookup = {};
+    Object.values(props.proxyContext?.originalGeneratedGrid ?? {}).forEach((section) => {
+        Object.entries(section.days ?? {}).forEach(([day, cells]) => {
+            Object.entries(cells ?? {}).forEach(([periodKey, cell]) => {
+                const label = cell.classLabel ?? section.label ?? '';
+                if (!label) return;
+                lookup[`${day}|${label}|${periodKey}`] = normalizedCell({ ...cell, classLabel: label });
+            });
+        });
+    });
+    return lookup;
+});
 
 const teacherPool = ref(
     (props.teacherPool.length ? props.teacherPool : props.teachers).map((teacher, index) => ({
@@ -248,20 +285,20 @@ const classRoutineSections = computed(() => {
         return sections.get(cleanLabel);
     };
 
-    Object.values(props.generatedGrid ?? {}).forEach((section) => {
+    Object.values(displayedGeneratedGrid.value ?? {}).forEach((section) => {
         const base = ensureSection(section.label);
         if (!base) return;
         base.id = section.id ?? base.id;
         base.dailyPeriods = section.dailyPeriods ?? base.dailyPeriods;
         base.dailyPeriodsByDay = { ...(base.dailyPeriodsByDay ?? {}), ...(section.dailyPeriodsByDay ?? {}) };
-        base.days = Object.fromEntries(
-            Object.entries(section.days ?? {}).map(([day, cells]) => [day, { ...cells }])
-        );
+        base.days = isProxyRoutine.value
+            ? {}
+            : Object.fromEntries(Object.entries(section.days ?? {}).map(([day, cells]) => [day, { ...cells }]));
     });
 
     props.classOptions.forEach((label) => ensureSection(label));
 
-    Object.entries(localTeacherSchedule.value ?? {}).forEach(([day, teachers]) => {
+    Object.entries(displayedTeacherSchedule.value ?? {}).forEach(([day, teachers]) => {
         teachers.forEach((teacher) => {
             Object.entries(teacher.cells ?? {}).forEach(([periodKey, cell]) => {
                 if (!cell?.classLabel || !['class', 'proxy', 'unresolved'].includes(cell.type)) return;
@@ -288,6 +325,61 @@ function teacherNameForCell(cell = {}) {
     if (cell.teacherName) return cell.teacherName;
     if (!cell.teacherId) return '';
     return teacherLookup.value[String(cell.teacherId)] ?? 'Unassigned';
+}
+
+function normalizedCell(cell = {}, teacher = {}) {
+    if (!cell || cell.type === 'empty') {
+        return { type: 'empty', subject: '', classLabel: '', teacherId: '' };
+    }
+
+    return {
+        type: cell.type ?? 'empty',
+        subject: String(cell.subject ?? '').trim().toLowerCase(),
+        classLabel: String(cell.classLabel ?? '').trim().toLowerCase(),
+        teacherId: String(cell.teacherId ?? teacher.id ?? '').trim(),
+    };
+}
+
+function cellsDiffer(a = {}, b = {}) {
+    const left = normalizedCell(a);
+    const right = normalizedCell(b);
+    return ['type', 'subject', 'classLabel', 'teacherId'].some((key) => left[key] !== right[key]);
+}
+
+function teacherCellChanged(teacher = {}, periodKey) {
+    if (!isProxyRoutine.value || isOriginalRoutineSource.value) return false;
+    const teacherId = String(teacher.id ?? teacher.name ?? '');
+    const original = originalTeacherCellLookup.value[`${selectedDay.value}|${teacherId}|${periodKey}`] ?? { type: 'empty' };
+    const current = teacher.cells?.[periodKey] ?? { type: 'empty' };
+    return cellsDiffer(current, original);
+}
+
+function teacherCellClasses(teacher = {}, periodKey) {
+    const cell = teacher.cells?.[periodKey];
+    const changed = teacherCellChanged(teacher, periodKey);
+    if ((!cell || cell.type === 'empty') && changed) {
+        return 'border-[3px] border-amber-400 bg-amber-50 font-bold shadow-[inset_5px_0_0_rgba(217,119,6,0.55)] ring-2 ring-amber-100';
+    }
+
+    return cellClasses(cell, changed);
+}
+
+function classCellChanged(cell = {}, section = {}, day, periodKey) {
+    if (!isProxyRoutine.value || isOriginalRoutineSource.value) return false;
+    const label = cell.classLabel ?? section.label ?? '';
+    const original = originalClassCellLookup.value[`${day}|${label}|${periodKey}`] ?? { type: 'empty' };
+    return cellsDiffer(cell, original);
+}
+
+function classDisplayCellClasses(section = {}, day, period) {
+    if (!isScheduledClassPeriod(section, day, period)) return 'border border-stone-200 bg-stone-50';
+    const cell = classCell(section, day, period.key);
+    const changed = classCellChanged(cell, section, day, period.key);
+    if ((!cell || cell.type === 'empty') && changed) {
+        return 'border-[3px] border-amber-400 bg-amber-50 font-bold shadow-[inset_5px_0_0_rgba(217,119,6,0.55)] ring-2 ring-amber-100';
+    }
+
+    return classRoutineCellClasses(cell, changed);
 }
 
 function isClassCellUnresolved(cell = {}) {
@@ -374,16 +466,22 @@ function teacherName(id) {
     return teacherPool.value.find((teacher) => teacher.id === id)?.name ?? 'Unassigned';
 }
 
-function cellClasses(cell) {
+function cellClasses(cell, changed = false) {
     if (!cell || cell.type === 'empty') return 'border border-stone-200 bg-stone-100';
-    if (cell.type === 'unresolved') return 'border border-red-200 bg-red-50';
-    if (cell.type === 'proxy') return 'border border-blue-200 bg-blue-50';
+    if (cell.type === 'unresolved') return 'border-2 border-red-300 bg-red-50 font-bold ring-2 ring-red-100';
+    if (cell.proxyChangeKind === 'swap') return 'border-[3px] border-violet-400 bg-violet-50 font-bold shadow-[inset_5px_0_0_rgba(124,58,237,0.55)] ring-2 ring-violet-100';
+    if (cell.proxyChangeKind === 'manual' || cell.proxyChangeKind === 'moved') return 'border-[3px] border-amber-400 bg-amber-50 font-bold shadow-[inset_5px_0_0_rgba(217,119,6,0.55)] ring-2 ring-amber-100';
+    if (cell.type === 'proxy') return 'border-[3px] border-blue-400 bg-blue-50 font-bold shadow-[inset_5px_0_0_rgba(37,99,235,0.55)] ring-2 ring-blue-100';
+    if (changed) return 'border-[3px] border-amber-400 bg-amber-50 font-bold shadow-[inset_5px_0_0_rgba(217,119,6,0.55)] ring-2 ring-amber-100';
     return 'border bg-white hover:brightness-[0.98]';
 }
 
-function classRoutineCellClasses(cell) {
-    if (isClassCellUnresolved(cell)) return 'border border-red-200 bg-red-50';
-    if (cell.type === 'proxy') return 'border border-blue-200 bg-blue-50';
+function classRoutineCellClasses(cell, changed = false) {
+    if (isClassCellUnresolved(cell)) return 'border-2 border-red-300 bg-red-50 font-bold ring-2 ring-red-100';
+    if (cell.proxyChangeKind === 'swap') return 'border-[3px] border-violet-400 bg-violet-50 font-bold shadow-[inset_5px_0_0_rgba(124,58,237,0.55)] ring-2 ring-violet-100';
+    if (cell.proxyChangeKind === 'manual' || cell.proxyChangeKind === 'moved') return 'border-[3px] border-amber-400 bg-amber-50 font-bold shadow-[inset_5px_0_0_rgba(217,119,6,0.55)] ring-2 ring-amber-100';
+    if (cell.type === 'proxy') return 'border-[3px] border-blue-400 bg-blue-50 font-bold shadow-[inset_5px_0_0_rgba(37,99,235,0.55)] ring-2 ring-blue-100';
+    if (changed) return 'border-[3px] border-amber-400 bg-amber-50 font-bold shadow-[inset_5px_0_0_rgba(217,119,6,0.55)] ring-2 ring-amber-100';
     return 'border bg-white';
 }
 
@@ -413,6 +511,7 @@ function onDragLeaveCell() {
 
 function onDrop(teacherIndex, periodKey, event) {
     event.preventDefault();
+    if (isOriginalRoutineSource.value) return;
     dragOverKey.value = null;
     const from = dragSource.value;
     dragSource.value = null;
@@ -420,8 +519,12 @@ function onDrop(teacherIndex, periodKey, event) {
 
     const fromCell = gridTeachers.value[from.teacherIndex].cells[from.periodKey];
     const toCell = gridTeachers.value[teacherIndex].cells[periodKey];
-    gridTeachers.value[from.teacherIndex].cells[from.periodKey] = toCell;
-    gridTeachers.value[teacherIndex].cells[periodKey] = fromCell;
+    gridTeachers.value[from.teacherIndex].cells[from.periodKey] = toCell && toCell.type !== 'empty'
+        ? { ...toCell, proxyChanged: true, proxyChangeKind: 'moved', proxyChangeLabel: 'Moved' }
+        : toCell;
+    gridTeachers.value[teacherIndex].cells[periodKey] = fromCell && fromCell.type !== 'empty'
+        ? { ...fromCell, proxyChanged: true, proxyChangeKind: 'moved', proxyChangeLabel: 'Moved' }
+        : fromCell;
 }
 
 function onDragEnd() {
@@ -476,6 +579,7 @@ function sortClassBlueprint() {
 const editing = ref(null);
 
 function openEditor(teacherIndex, periodKey) {
+    if (isOriginalRoutineSource.value) return;
     const cell = gridTeachers.value[teacherIndex].cells[periodKey] ?? { type: 'empty' };
     editing.value = {
         teacherIndex,
@@ -494,7 +598,17 @@ function closeEditor() {
 function saveEditor() {
     if (!editing.value || !editing.value.subject || !editing.value.classLabel) return;
     const { teacherIndex, periodKey, subject, classLabel } = editing.value;
-    gridTeachers.value[teacherIndex].cells[periodKey] = { type: 'class', subject, classLabel };
+    const teacher = gridTeachers.value[teacherIndex];
+    gridTeachers.value[teacherIndex].cells[periodKey] = {
+        type: 'class',
+        subject,
+        classLabel,
+        teacherId: teacher.id,
+        teacherName: teacher.name,
+        proxyChanged: true,
+        proxyChangeKind: 'manual',
+        proxyChangeLabel: editing.value.isNew ? 'Added' : 'Edited',
+    };
     closeEditor();
 }
 
@@ -570,25 +684,130 @@ function regenerateRoutine() {
         generationRules: generationRules.value,
     }, { preserveScroll: true });
 }
+
+function buildProxyGeneratedGridPayload() {
+    const grid = JSON.parse(JSON.stringify(props.generatedGrid ?? {}));
+    Object.values(grid).forEach((section) => {
+        section.days = Object.fromEntries(props.days.map((day) => [day, {}]));
+    });
+    const byLabel = Object.fromEntries(Object.entries(grid).map(([key, section]) => [section.label, key]));
+
+    Object.entries(localTeacherSchedule.value ?? {}).forEach(([day, teachers]) => {
+        teachers.forEach((teacher) => {
+            Object.entries(teacher.cells ?? {}).forEach(([periodKey, cell]) => {
+                if (!cell?.classLabel || !['class', 'proxy', 'unresolved'].includes(cell.type)) return;
+                const sectionKey = cell.sectionKey ?? byLabel[cell.classLabel];
+                if (!sectionKey || !grid[sectionKey]) return;
+
+                grid[sectionKey].days ??= {};
+                grid[sectionKey].days[day] ??= {};
+                grid[sectionKey].days[day][periodKey] = {
+                    ...cell,
+                    teacherId: cell.type === 'unresolved' ? null : (cell.teacherId ?? teacher.id),
+                    teacherName: cell.type === 'unresolved' ? null : (cell.teacherName ?? teacher.name),
+                    classLabel: cell.classLabel,
+                };
+            });
+        });
+    });
+
+    return grid;
+}
+
+function saveProxyRoutine() {
+    if (!props.proxyContext?.id) return;
+
+    router.put(`/proxy-manager/${props.proxyContext.id}/routine`, {
+        teacherSchedule: localTeacherSchedule.value,
+        generatedGrid: buildProxyGeneratedGridPayload(),
+    }, { preserveScroll: true });
+}
+
+function approveProxyRoutine() {
+    if (!props.proxyContext?.id) return;
+    router.put(`/proxy-manager/${props.proxyContext.id}/routine`, {
+        teacherSchedule: localTeacherSchedule.value,
+        generatedGrid: buildProxyGeneratedGridPayload(),
+    }, {
+        preserveScroll: true,
+        onSuccess: () => {
+            router.post(`/proxy-manager/${props.proxyContext.id}/approve`, {}, { preserveScroll: true });
+        },
+    });
+}
 </script>
 
 <template>
-    <AppLayout :title="`${routine.name} - Edit`">
+    <AppLayout :title="isProxyRoutine ? `${proxyContext.name} - Proxy Routine` : `${routine.name} - Edit`">
         <div class="space-y-5">
             <div class="flex flex-wrap items-start justify-between gap-4">
                 <div>
-                    <h2 class="page-title">{{ routine.name }} - {{ routine.term }}</h2>
-                    <p class="mt-1 text-sm text-slate-500">Review the generated routine, adjust cells manually, or update generation settings and try again.</p>
+                    <h2 class="page-title">
+                        {{ isProxyRoutine ? proxyContext.name : routine.name }}
+                    </h2>
+                    <p class="mt-1 text-sm text-slate-500">
+                        <template v-if="isProxyRoutine">
+                            Temporary proxy routine for {{ proxyContext.day }}<span v-if="proxyContext.date">, {{ proxyContext.date }}</span>. The original routine stays unchanged.
+                        </template>
+                        <template v-else>
+                            Review the generated routine, adjust cells manually, or update generation settings and try again.
+                        </template>
+                    </p>
                 </div>
                 <div class="flex flex-wrap items-center gap-2">
-                    <Link href="/routines" class="btn-secondary">All routines</Link>
-                    <button type="button" class="btn-secondary">Versions</button>
-                    <button type="button" class="btn-primary">Save routine</button>
+                    <Link :href="isProxyRoutine ? '/proxy-manager' : '/routines'" class="btn-secondary">
+                        {{ isProxyRoutine ? 'Proxy manager' : 'All routines' }}
+                    </Link>
+                    <template v-if="isProxyRoutine">
+                        <button type="button" class="btn-secondary" :disabled="isOriginalRoutineSource" @click="saveProxyRoutine">Save proxy draft</button>
+                        <button type="button" class="btn-primary" :disabled="isOriginalRoutineSource" @click="approveProxyRoutine">
+                            {{ proxyContext.approvedAt ? 'Approved' : 'Approve proxy routine' }}
+                        </button>
+                    </template>
+                    <template v-else>
+                        <button type="button" class="btn-secondary">Versions</button>
+                        <button type="button" class="btn-primary">Save routine</button>
+                    </template>
+                </div>
+            </div>
+
+            <div v-if="isProxyRoutine" class="surface-card p-2">
+                <div class="grid gap-2 sm:grid-cols-2">
+                    <button
+                        type="button"
+                        class="rounded-lg px-4 py-2 text-sm font-semibold transition-colors"
+                        :class="routineSource === 'proxy' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-stone-50'"
+                        @click="routineSource = 'proxy'"
+                    >
+                        Proxy routine
+                    </button>
+                    <button
+                        type="button"
+                        class="rounded-lg px-4 py-2 text-sm font-semibold transition-colors"
+                        :class="routineSource === 'original' ? 'bg-stone-100 text-slate-950' : 'text-slate-600 hover:bg-stone-50'"
+                        @click="routineSource = 'original'"
+                    >
+                        Original routine
+                    </button>
+                </div>
+            </div>
+
+            <div v-if="activeProxyNotice && !isProxyRoutine" class="surface-card border-blue-200 bg-blue-50/70 p-4">
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                        <p class="text-sm font-semibold text-blue-900">Temporary proxy routine active</p>
+                        <p class="mt-1 text-sm text-blue-800">
+                            Showing {{ activeProxyNotice.name }} for {{ activeProxyNotice.day }}<span v-if="activeProxyNotice.date">, {{ activeProxyNotice.date }}</span>. The saved routine has not been permanently changed.
+                        </p>
+                    </div>
+                    <Link :href="`/proxy-manager/${activeProxyNotice.id}`" class="btn-secondary bg-white">
+                        View proxy/original
+                    </Link>
                 </div>
             </div>
 
             <div class="surface-card p-2">
-                <div class="grid gap-2 md:grid-cols-3">
+                <div class="grid gap-2" :class="isProxyRoutine ? 'md:grid-cols-2' : 'md:grid-cols-3'">
                     <button
                         type="button"
                         class="flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors"
@@ -608,6 +827,7 @@ function regenerateRoutine() {
                         Class routine
                     </button>
                     <button
+                        v-if="!isProxyRoutine"
                         type="button"
                         class="flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors"
                         :class="viewMode === 'settings' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-stone-50'"
@@ -667,6 +887,12 @@ function regenerateRoutine() {
                     <span class="flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 font-medium text-blue-700">
                         <Repeat class="h-3 w-3" /> Proxy
                     </span>
+                    <span v-if="isProxyRoutine" class="rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 font-medium text-violet-700">
+                        Thick violet outline = swap
+                    </span>
+                    <span v-if="isProxyRoutine" class="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 font-medium text-amber-700">
+                        Thick amber outline = moved or edited
+                    </span>
                     <span class="flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2.5 py-1 font-medium text-red-700">
                         <AlertTriangle class="h-3 w-3" /> Unresolved
                     </span>
@@ -701,10 +927,11 @@ function regenerateRoutine() {
                                 <button
                                     v-else
                                     type="button"
-                                    :draggable="period.type !== 'break' && (teacher.cells[period.key]?.type ?? 'empty') !== 'empty'"
+                                    :disabled="isOriginalRoutineSource"
+                                    :draggable="!isOriginalRoutineSource && period.type !== 'break' && (teacher.cells[period.key]?.type ?? 'empty') !== 'empty'"
                                     class="group relative flex min-h-16 w-full flex-col items-start justify-center gap-1 rounded-lg px-3 py-2 text-left transition-colors"
                                     :class="[
-                                        cellClasses(teacher.cells[period.key]),
+                                        teacherCellClasses(teacher, period.key),
                                         dragOverKey === cellKey(teacherIndex, period.key) ? 'ring-2 ring-blue-500' : '',
                                         dragSource && dragSource.teacherIndex === teacherIndex && dragSource.periodKey === period.key ? 'opacity-40' : '',
                                     ]"
@@ -716,7 +943,7 @@ function regenerateRoutine() {
                                     @dragleave="onDragLeaveCell"
                                     @drop="onDrop(teacherIndex, period.key, $event)"
                                 >
-                                    <Pencil class="absolute right-1.5 top-1.5 h-3 w-3 text-slate-500 opacity-0 transition-opacity group-hover:opacity-100" />
+                                    <Pencil v-if="!isOriginalRoutineSource" class="absolute right-1.5 top-1.5 h-3 w-3 text-slate-500 opacity-0 transition-opacity group-hover:opacity-100" />
 
                                     <template v-if="!teacher.cells[period.key] || teacher.cells[period.key].type === 'empty'">
                                         <span class="mx-auto text-xs font-semibold text-stone-400">Gap</span>
@@ -733,7 +960,7 @@ function regenerateRoutine() {
                                         <span class="flex items-center gap-1 text-xs font-semibold text-blue-700">
                                             <Repeat class="h-3 w-3" /> {{ teacher.cells[period.key].subject }}
                                         </span>
-                                        <span class="text-xs text-slate-600">Proxy - {{ teacher.cells[period.key].classLabel }}</span>
+                                        <span class="text-xs text-slate-700">{{ teacher.cells[period.key].classLabel }}</span>
                                     </template>
 
                                     <template v-else>
@@ -826,8 +1053,8 @@ function regenerateRoutine() {
                                         </div>
                                         <div
                                             v-else
-                                            class="flex min-h-16 flex-col items-start justify-center gap-1 rounded-lg px-3 py-2"
-                                            :class="!isScheduledClassPeriod(section, day, period) ? 'border border-stone-200 bg-stone-50' : classRoutineCellClasses(classCell(section, day, period.key))"
+                                            class="relative flex min-h-16 flex-col items-start justify-center gap-1 rounded-lg px-3 py-2"
+                                            :class="classDisplayCellClasses(section, day, period)"
                                             :style="subjectCellStyle(classCell(section, day, period.key))"
                                         >
                                             <template v-if="!isScheduledClassPeriod(section, day, period)"></template>
