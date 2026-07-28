@@ -23,7 +23,7 @@ defineProps({
 
     <AppLayout title="Teacher Dashboard">
         <div class="space-y-6">
-            <div class="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+            <div class="surface-card flex flex-col justify-between gap-4 p-5 sm:flex-row sm:items-end">
                 <div>
                     <h1 class="text-2xl font-bold tracking-tight text-slate-950">Welcome back, {{ teacherName }}</h1>
                     <p class="mt-1 text-sm text-slate-500">{{ dateLabel }}</p>
@@ -31,8 +31,8 @@ defineProps({
             </div>
 
             <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
-                <div class="flex items-center gap-4 rounded-lg border border-stone-200 bg-white p-5 shadow-sm">
-                    <div class="flex h-12 w-12 items-center justify-center rounded-lg border border-blue-100 bg-blue-50 text-blue-700">
+                <div class="surface-card flex items-center gap-4 p-5">
+                    <div class="flex h-12 w-12 items-center justify-center rounded-lg border border-[#8BED9A]/70 bg-[#8BED9A]/15 text-[#09B884]">
                         <BookOpen class="h-6 w-6" />
                     </div>
                     <div>
@@ -41,7 +41,7 @@ defineProps({
                     </div>
                 </div>
                 
-                <div class="flex items-center gap-4 rounded-lg border border-stone-200 bg-white p-5 shadow-sm">
+                <div class="surface-card flex items-center gap-4 p-5">
                     <div class="flex h-12 w-12 items-center justify-center rounded-lg border border-amber-100 bg-amber-50 text-amber-700">
                         <AlertCircle class="h-6 w-6" />
                     </div>
@@ -51,8 +51,8 @@ defineProps({
                     </div>
                 </div>
 
-                <div class="flex items-center gap-4 rounded-lg border border-stone-200 bg-white p-5 shadow-sm">
-                    <div class="flex h-12 w-12 items-center justify-center rounded-lg border border-stone-200 bg-stone-100 text-slate-700">
+                <div class="surface-card flex items-center gap-4 p-5">
+                    <div class="flex h-12 w-12 items-center justify-center rounded-lg border border-[#8BED9A]/70 bg-[#8BED9A]/15 text-[#1e2924]">
                         <Calendar class="h-6 w-6" />
                     </div>
                     <div>
@@ -77,7 +77,7 @@ defineProps({
                         </div>
                     </div>
 
-                    <div class="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm">
+                    <div class="surface-card overflow-hidden">
                         <div class="border-b border-stone-200 px-5 py-4">
                             <h2 class="text-base font-semibold text-slate-950">Today's Timeline</h2>
                         </div>
@@ -102,7 +102,7 @@ defineProps({
                                 <div v-else class="flex flex-1 flex-col justify-between gap-3 sm:flex-row sm:items-center">
                                     <div>
                                         <div class="flex items-center gap-2">
-                                            <p class="text-sm font-bold" :class="period.isProxy ? 'text-amber-700' : 'text-blue-700'">
+                                            <p class="text-sm font-bold" :class="period.isProxy ? 'text-amber-700' : 'text-[#1e2924]'">
                                                 {{ period.subject }}
                                             </p>
                                             <span v-if="period.isProxy" class="rounded border border-amber-200 bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-800">Proxy</span>
@@ -114,7 +114,7 @@ defineProps({
                                         </div>
                                     </div>
                                     
-                                    <button class="shrink-0 rounded-lg border border-stone-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:border-stone-400 hover:text-slate-950">
+                                    <button class="shrink-0 rounded-lg border border-stone-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:border-[#8BED9A]/70 hover:bg-[#8BED9A]/10 hover:text-[#1e2924]">
                                         View Classroom
                                     </button>
                                 </div>
@@ -145,7 +145,7 @@ defineProps({
                         </div>
                     </div>
 
-                    <div class="rounded-lg border border-stone-200 bg-white p-5 shadow-sm">
+                    <div class="surface-card p-5">
                         <h2 class="mb-4 text-sm font-semibold text-slate-950">Tomorrow at a glance</h2>
                         <div class="space-y-3">
                             <div v-for="c in tomorrowSchedule" :key="c.period" class="flex items-center justify-between border-b border-stone-200 pb-2 last:border-0 last:pb-0">

@@ -407,10 +407,9 @@ function submitRoutine() {
 <template>
     <AppLayout title="Create Routine">
         <div class="space-y-6">
-            <div class="flex flex-wrap items-start justify-between gap-4">
+            <div class="surface-card flex flex-wrap items-center justify-between gap-4 p-4">
                 <div>
                     <h2 class="page-title">Create Routine</h2>
-                    <p class="mt-1 text-sm text-slate-500">Build the full routine blueprint before running the automatic scheduler.</p>
                 </div>
                 <div class="flex items-center gap-2">
                     <Link href="/routines" class="btn-secondary">Cancel</Link>
@@ -422,14 +421,14 @@ function submitRoutine() {
             </div>
 
             <div class="grid gap-4 lg:grid-cols-[16rem_minmax(0,1fr)]">
-                <aside class="surface-card p-4">
+                <aside class="surface-card p-2">
                     <div class="space-y-1">
                         <button
                             v-for="step in steps"
                             :key="step"
                             type="button"
-                            class="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors"
-                            :class="activeStep === step ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-stone-50 hover:text-slate-950'"
+                            class="flex min-h-11 w-full items-center justify-between rounded-lg px-3 text-left text-sm font-bold transition-all"
+                            :class="activeStep === step ? 'bg-[#1e2924]/95 text-white shadow-sm shadow-black/10' : 'text-[#1e2924] hover:bg-[#8BED9A]/15'"
                             @click="activeStep = step"
                         >
                             <span>{{ step }}</span>
@@ -437,7 +436,7 @@ function submitRoutine() {
                         </button>
                     </div>
 
-                    <div class="mt-5 space-y-3 border-t border-stone-200 pt-4 text-sm">
+                    <div class="m-2 mt-4 space-y-3 rounded-lg border border-stone-200 bg-stone-50/70 p-3 text-sm">
                         <div class="flex justify-between">
                             <span class="text-slate-500">Classes</span>
                             <span class="font-semibold text-slate-900">{{ classes.length }}</span>
@@ -476,9 +475,9 @@ function submitRoutine() {
                                         v-for="day in availableWeekdays"
                                         :key="day"
                                         class="inline-flex items-center gap-2 rounded-lg border border-stone-200 px-3 py-2 text-sm font-medium text-slate-700"
-                                        :class="weekdays.includes(day) ? 'bg-blue-50 text-blue-700' : 'bg-white'"
+                                        :class="weekdays.includes(day) ? 'border-[#8BED9A]/70 bg-[#8BED9A]/20 text-[#1e2924]' : 'bg-white'"
                                     >
-                                        <input v-model="weekdays" :value="day" type="checkbox" class="rounded border-stone-300 text-blue-700 focus:ring-blue-500" />
+                                        <input v-model="weekdays" :value="day" type="checkbox" class="rounded border-stone-300 text-[#09B884] focus:ring-[#09B884]" />
                                         {{ day }}
                                     </label>
                                 </div>
@@ -550,10 +549,10 @@ function submitRoutine() {
                                                         v-model.number="section.dailyPeriods"
                                                         min="0"
                                                         type="number"
-                                                        class="mt-1 h-9 w-20 rounded-lg border border-stone-300 bg-white px-3 text-sm font-semibold text-slate-900 focus:border-blue-500 focus:outline-none"
+                                                        class="mt-1 h-9 w-20 rounded-lg border border-stone-300 bg-white px-3 text-sm font-semibold text-slate-900 focus:border-[#09B884] focus:outline-none"
                                                     />
                                                 </label>
-                                                <button type="button" class="h-9 rounded-lg border border-blue-200 bg-blue-50 px-3 text-xs font-semibold text-blue-700 hover:bg-blue-100" @click="applyPeriodsToAllDays(section)">
+                                                <button type="button" class="h-9 rounded-lg border border-[#8BED9A]/70 bg-[#8BED9A]/15 px-3 text-xs font-semibold text-[#1e2924] hover:bg-[#8BED9A]/25" @click="applyPeriodsToAllDays(section)">
                                                     Apply to week
                                                 </button>
                                             </div>
@@ -566,9 +565,9 @@ function submitRoutine() {
                                                     <p class="text-[11px] text-slate-500">First {{ section.dailyPeriodsByDay[day] ?? 0 }} periods</p>
                                                 </div>
                                                 <div class="flex items-center rounded-lg border border-stone-200 bg-stone-50">
-                                                    <button type="button" class="flex h-8 w-8 items-center justify-center text-slate-500 hover:text-blue-700" @click="adjustDayPeriods(section, day, -1)">-</button>
+                                                    <button type="button" class="flex h-8 w-8 items-center justify-center text-slate-500 hover:text-[#09B884]" @click="adjustDayPeriods(section, day, -1)">-</button>
                                                     <input v-model.number="section.dailyPeriodsByDay[day]" inputmode="numeric" type="text" class="h-8 w-12 border-x border-stone-200 bg-white text-center text-sm font-semibold text-slate-900 focus:outline-none" />
-                                                    <button type="button" class="flex h-8 w-8 items-center justify-center text-slate-500 hover:text-blue-700" @click="adjustDayPeriods(section, day, 1)">+</button>
+                                                    <button type="button" class="flex h-8 w-8 items-center justify-center text-slate-500 hover:text-[#09B884]" @click="adjustDayPeriods(section, day, 1)">+</button>
                                                 </div>
                                             </div>
                                         </div>
@@ -592,7 +591,7 @@ function submitRoutine() {
 
                         <div v-for="cls in classes" :key="cls.id" class="surface-card p-5">
                             <div class="flex items-center gap-2">
-                                <Layers class="h-4 w-4 text-blue-700" />
+                                <Layers class="h-4 w-4 text-[#09B884]" />
                                 <p class="font-semibold text-slate-950">{{ cls.name }}</p>
                                 <span class="text-xs text-slate-500">{{ Math.max(...cls.sections.flatMap((section) => Object.values(section.dailyPeriodsByDay ?? { default: section.dailyPeriods ?? cls.dailyPeriods }))) }} max periods/day</span>
                             </div>
@@ -645,12 +644,12 @@ function submitRoutine() {
                                                     </td>
                                                     <td class="px-3 py-2">
                                                         <label class="inline-flex items-center gap-2 text-xs text-slate-600">
-                                                            <input v-model="subject.autoBalance" type="checkbox" class="rounded border-stone-300 text-blue-700 focus:ring-blue-500" />
+                                                            <input v-model="subject.autoBalance" type="checkbox" class="rounded border-stone-300 text-[#09B884] focus:ring-[#09B884]" />
                                                             Auto average
                                                         </label>
                                                     </td>
                                                     <td class="px-3 py-2">
-                                                        <button type="button" class="rounded-lg border border-stone-200 px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700" @click="openManualAllocation(section, subject)">
+                                                        <button type="button" class="rounded-lg border border-stone-200 px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:border-[#8BED9A]/70 hover:bg-[#8BED9A]/15 hover:text-[#1e2924]" @click="openManualAllocation(section, subject)">
                                                             {{ manualSlotCount(subject) ? `${manualSlotCount(subject)} set` : 'Allocate' }}
                                                         </button>
                                                     </td>
@@ -700,7 +699,7 @@ function submitRoutine() {
                                     >
                                         <GripVertical class="h-5 w-5" />
                                     </div>
-                                    <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-700">
+                                    <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-[#8BED9A]/15 text-[#09B884]">
                                         <UserRound class="h-5 w-5" />
                                     </div>
                                     <div class="min-w-0 flex-1">
@@ -762,19 +761,19 @@ function submitRoutine() {
                                 </div>
                                 <div class="space-y-3">
                                     <label class="flex items-center gap-2 text-sm text-slate-700">
-                                        <input v-model="generationRules.preferGapBetweenPeriods" type="checkbox" class="rounded border-stone-300 text-blue-700 focus:ring-blue-500" />
+                                        <input v-model="generationRules.preferGapBetweenPeriods" type="checkbox" class="rounded border-stone-300 text-[#09B884] focus:ring-[#09B884]" />
                                         Prefer gaps between teacher periods
                                     </label>
                                     <label class="flex items-center gap-2 text-sm text-slate-700">
-                                        <input v-model="generationRules.autoBalanceUnsetSubjectLoads" type="checkbox" class="rounded border-stone-300 text-blue-700 focus:ring-blue-500" />
+                                        <input v-model="generationRules.autoBalanceUnsetSubjectLoads" type="checkbox" class="rounded border-stone-300 text-[#09B884] focus:ring-[#09B884]" />
                                         Auto-balance unset weekly subject loads
                                     </label>
                                     <label class="flex items-center gap-2 text-sm text-slate-700">
-                                        <input v-model="generationRules.keepClassTeacherFirstPeriod" type="checkbox" class="rounded border-stone-300 text-blue-700 focus:ring-blue-500" />
+                                        <input v-model="generationRules.keepClassTeacherFirstPeriod" type="checkbox" class="rounded border-stone-300 text-[#09B884] focus:ring-[#09B884]" />
                                         Prioritize class teacher in first period
                                     </label>
                                     <label class="flex items-center gap-2 text-sm text-slate-700">
-                                        <input v-model="generationRules.flagUnallocatedSlots" type="checkbox" class="rounded border-stone-300 text-blue-700 focus:ring-blue-500" />
+                                        <input v-model="generationRules.flagUnallocatedSlots" type="checkbox" class="rounded border-stone-300 text-[#09B884] focus:ring-[#09B884]" />
                                         Flag unallocated routine gaps for manual edits
                                     </label>
                                 </div>
@@ -787,7 +786,7 @@ function submitRoutine() {
                                 <p class="mt-1 text-sm text-slate-500">auto-balanced subjects</p>
                             </div>
                             <div class="surface-card p-5">
-                                <p class="text-3xl font-bold" :class="unassignedSubjects.length ? 'text-red-700' : 'text-blue-700'">{{ unassignedSubjects.length }}</p>
+                                <p class="text-3xl font-bold" :class="unassignedSubjects.length ? 'text-red-700' : 'text-[#1e2924]'">{{ unassignedSubjects.length }}</p>
                                 <p class="mt-1 text-sm text-slate-500">unassigned subject rows</p>
                             </div>
                             <div class="surface-card p-5">
@@ -822,7 +821,7 @@ function submitRoutine() {
                                 <h3 class="text-base font-semibold text-slate-950">Manual allocation</h3>
                                 <p class="mt-1 text-sm text-slate-500">{{ manualAllocation.subject.name }} - {{ manualAllocation.section.name }}</p>
                             </div>
-                            <p class="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">{{ manualAllocation.selectedKeys.length }} selected</p>
+                            <p class="rounded-full border border-[#8BED9A]/70 bg-[#8BED9A]/20 px-3 py-1 text-xs font-semibold text-[#1e2924]">{{ manualAllocation.selectedKeys.length }} selected</p>
                         </div>
 
                         <div class="mt-5 overflow-x-auto">
@@ -843,8 +842,8 @@ function submitRoutine() {
                                                 !isManualSlotAllowed(manualAllocation.section, day, period)
                                                     ? 'cursor-not-allowed border-stone-100 bg-stone-50 text-stone-300'
                                                     : isManualSlotSelected(day, period.label)
-                                                        ? 'border-blue-600 bg-blue-600 text-white'
-                                                        : 'border-stone-200 bg-white text-transparent hover:border-blue-300 hover:bg-blue-50'
+                                                        ? 'border-[#09B884] bg-[#09B884] text-white'
+                                                        : 'border-stone-200 bg-white text-transparent hover:border-[#8BED9A] hover:bg-[#8BED9A]/15'
                                             ]"
                                             :disabled="!isManualSlotAllowed(manualAllocation.section, day, period)"
                                             @click="toggleManualSlot(day, period)"

@@ -4,6 +4,8 @@ use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ProxyRunController;
 use App\Http\Controllers\RoutineController;
+use App\Models\Routine;
+use App\Models\TeacherLeaveAllowance;
 use Inertia\Inertia;
 
 Route::get('/', function () {
@@ -170,57 +172,69 @@ Route::middleware(['auth', 'verified'])->group(function () {
     })->name('exam-schedule.index');
 
     Route::get('/leave-requests', function () {
+        $year = 2026;
+        $routine = Routine::where('status', 'Active')->latest()->first() ?? Routine::latest()->first();
+        $mockRequests = [
+            ['id' => 1, 'teacherName' => 'Mr. Ahmed', 'initials' => 'NA', 'subject' => 'Bangla', 'type' => 'Paid leave', 'dateRange' => '24/07/26 - 24/07/26', 'days' => 1, 'duration' => 'Full day', 'status' => 'pending', 'reason' => 'Medical appointment confirmed for the morning, with rest advised for the day.', 'submittedAt' => 'Today, 8:15 AM', 'proxyRelevant' => false, 'periods' => []],
+            ['id' => 2, 'teacherName' => 'Ms. Begum', 'initials' => 'PB', 'subject' => 'Biology', 'type' => 'Casual leave', 'dateRange' => '24/07/26 - 24/07/26', 'days' => 1, 'duration' => 'Selected periods', 'status' => 'pending', 'reason' => 'Family obligation during the middle of the school day.', 'submittedAt' => 'Today, 8:40 AM', 'proxyRelevant' => false, 'periods' => ['P3', 'P4']],
+            ['id' => 3, 'teacherName' => 'Ms. Karim', 'initials' => 'SK', 'subject' => 'English', 'type' => 'Paid leave', 'dateRange' => '23/07/26 - 23/07/26', 'days' => 1, 'duration' => 'Full day', 'status' => 'approved', 'reason' => 'Approved medical leave.', 'submittedAt' => 'Yesterday, 2:20 PM', 'proxyRelevant' => true, 'periods' => []],
+            ['id' => 4, 'teacherName' => 'Ms. Islam', 'initials' => 'FI', 'subject' => 'History', 'type' => 'Discretionary leave', 'dateRange' => '23/07/26 - 23/07/26', 'days' => 1, 'duration' => 'Morning only', 'status' => 'approved', 'reason' => 'Administrative approval for an exceptional family matter.', 'submittedAt' => 'Yesterday, 1:10 PM', 'proxyRelevant' => true, 'periods' => ['P1', 'P2', 'P3']],
+            ['id' => 5, 'teacherName' => 'Shakif Niaz', 'initials' => 'SN', 'subject' => 'Mathematics', 'type' => 'Paid leave', 'dateRange' => '28/07/26 - 29/07/26', 'days' => 2, 'duration' => 'Full day', 'status' => 'pending', 'reason' => 'Doctor advised rest and follow-up appointment.', 'submittedAt' => 'Today, 9:05 AM', 'proxyRelevant' => false, 'periods' => []],
+            ['id' => 6, 'teacherName' => 'Shakif Niaz', 'initials' => 'SN', 'subject' => 'Mathematics', 'type' => 'Casual leave', 'dateRange' => '10/05/26 - 10/05/26', 'days' => 1, 'duration' => 'Full day', 'status' => 'approved', 'reason' => 'Attending a family wedding out of town.', 'submittedAt' => 'May 4, 11:00 AM', 'proxyRelevant' => false, 'periods' => []],
+            ['id' => 7, 'teacherName' => 'Shakif Niaz', 'initials' => 'SN', 'subject' => 'Mathematics', 'type' => 'Unpaid leave', 'dateRange' => '02/04/26 - 05/04/26', 'days' => 4, 'duration' => 'Full day', 'status' => 'rejected', 'reason' => 'Requested during midterm evaluations.', 'submittedAt' => 'Mar 25, 10:30 AM', 'proxyRelevant' => false, 'periods' => []],
+        ];
+        $requestsByTeacher = collect($mockRequests)->groupBy('teacherName');
+        $allowances = collect($routine?->teachers ?? [])->map(function (array $teacher, int $index) use ($routine, $year, $requestsByTeacher) {
+            $teacherId = (string) ($teacher['id'] ?? $index + 1);
+            $teacherName = trim((string) ($teacher['name'] ?? 'Teacher '.($index + 1)));
+            $subjects = array_values($teacher['primarySubjects'] ?? $teacher['subjects'] ?? []);
+            $record = TeacherLeaveAllowance::firstOrCreate(
+                ['routine_id' => $routine->id, 'teacher_id' => $teacherId, 'year' => $year],
+                ['teacher_name' => $teacherName, 'max_leaves' => 12]
+            );
+            $teacherRequests = $requestsByTeacher->get($teacherName, collect());
+
+            return [
+                'id' => $teacherId,
+                'routineId' => $routine->id,
+                'teacher' => $teacherName,
+                'subject' => $teacher['subjectHint'] ?? implode(', ', array_slice($subjects, 0, 3)),
+                'maxLeaves' => $record->max_leaves,
+                'used' => $teacherRequests->where('status', 'approved')->sum('days'),
+                'pending' => $teacherRequests->where('status', 'pending')->count(),
+                'paid' => $teacherRequests->where('status', 'approved')->where('type', 'Paid leave')->sum('days'),
+                'casual' => $teacherRequests->where('status', 'approved')->where('type', 'Casual leave')->sum('days'),
+                'unpaid' => $teacherRequests->where('status', 'approved')->where('type', 'Unpaid leave')->sum('days'),
+                'discretionary' => $teacherRequests->where('status', 'approved')->where('type', 'Discretionary leave')->sum('days'),
+            ];
+        })->values();
+
         return Inertia::render('LeaveRequests/Index', [
-            'requests' => [
-                [
-                    'id' => 1, 'teacherName' => 'Mr. Ahmed', 'initials' => 'NA', 'avatarColor' => 'emerald',
-                    'type' => 'Sick leave', 'dateRange' => 'Jun 15–17', 'days' => 3, 'status' => 'pending',
-                    'reason' => 'High fever — doctor advised 3 days rest. Medical certificate attached.',
-                    'attachment' => 'medical_cert.pdf',
-                ],
-                [
-                    'id' => 2, 'teacherName' => 'Ms. Begum', 'initials' => 'PB', 'avatarColor' => 'violet',
-                    'type' => 'Casual leave', 'dateRange' => 'Jun 18', 'days' => 1, 'status' => 'pending',
-                    'reason' => 'Family function.', 'attachment' => null,
-                ],
-                [
-                    'id' => 3, 'teacherName' => 'Ms. Karim', 'initials' => 'SK', 'avatarColor' => 'sky',
-                    'type' => 'Annual leave', 'dateRange' => 'Jun 5–6', 'days' => 2, 'status' => 'approved',
-                    'reason' => '', 'attachment' => null,
-                ],
-                [
-                    'id' => 4, 'teacherName' => 'Ms. Islam', 'initials' => 'FI', 'avatarColor' => 'amber',
-                    'type' => 'Sick leave', 'dateRange' => 'Jun 1', 'days' => 1, 'status' => 'approved',
-                    'reason' => '', 'attachment' => null,
-                ],
-                [
-                    'id' => 5, 'teacherName' => 'Shakif Niaz', 'initials' => 'SN', 'avatarColor' => 'emerald',
-                    'type' => 'Sick leave', 'dateRange' => 'Jun 25–26', 'days' => 2, 'status' => 'pending',
-                    'reason' => 'Severe fever and doctor appointments.', 'attachment' => 'medical_receipt.pdf',
-                ],
-                [
-                    'id' => 6, 'teacherName' => 'Shakif Niaz', 'initials' => 'SN', 'avatarColor' => 'emerald',
-                    'type' => 'Casual leave', 'dateRange' => 'May 10', 'days' => 1, 'status' => 'approved',
-                    'reason' => 'Attending a family wedding out of town.', 'attachment' => null,
-                ],
-                [
-                    'id' => 7, 'teacherName' => 'Shakif Niaz', 'initials' => 'SN', 'avatarColor' => 'emerald',
-                    'type' => 'Annual leave', 'dateRange' => 'Apr 2–5', 'days' => 4, 'status' => 'rejected',
-                    'reason' => 'Personal vacation during midterm evaluations.', 'attachment' => null,
-                ],
-            ],
-            'leaveBalances' => [
-                ['teacher' => 'Mr. Rahman', 'sick' => 10, 'casual' => 7, 'annual' => 15, 'used' => 5],
-                ['teacher' => 'Ms. Karim', 'sick' => 10, 'casual' => 7, 'annual' => 15, 'used' => 2],
-                ['teacher' => 'Mr. Ahmed', 'sick' => 10, 'casual' => 7, 'annual' => 15, 'used' => 8],
-                ['teacher' => 'Ms. Islam', 'sick' => 10, 'casual' => 7, 'annual' => 15, 'used' => 1],
-                ['teacher' => 'Mr. Hossain', 'sick' => 10, 'casual' => 7, 'annual' => 15, 'used' => 3],
-                ['teacher' => 'Shakif Niaz', 'sick' => 10, 'casual' => 7, 'annual' => 15, 'used' => 7],
-            ],
-            'typeOptions' => ['Sick leave', 'Casual leave', 'Annual leave', 'Emergency leave'],
-            'year' => 2026,
+            'requests' => $mockRequests,
+            'leaveBalances' => $allowances,
+            'typeOptions' => ['Paid leave', 'Casual leave', 'Unpaid leave', 'Discretionary leave'],
+            'year' => $year,
+            'activeRoutineName' => $routine?->name,
+            'routinePeriods' => $routine?->periods ?? [],
         ]);
     })->name('leave-requests.index');
+
+    Route::put('/leave-requests/allowances', function (\Illuminate\Http\Request $request) {
+        $data = $request->validate([
+            'routineId' => ['required', 'integer', 'exists:routines,id'],
+            'teacherId' => ['required', 'string', 'max:80'],
+            'teacherName' => ['required', 'string', 'max:120'],
+            'year' => ['required', 'integer', 'min:2020', 'max:2100'],
+            'maxLeaves' => ['required', 'integer', 'min:0', 'max:365'],
+        ]);
+
+        TeacherLeaveAllowance::updateOrCreate(
+            ['routine_id' => $data['routineId'], 'teacher_id' => $data['teacherId'], 'year' => $data['year']],
+            ['teacher_name' => $data['teacherName'], 'max_leaves' => $data['maxLeaves']]
+        );
+
+        return back()->with('success', 'Leave allowance updated.');
+    })->name('leave-requests.allowances.update');
 
     Route::get('/noticeboard', function () {
         return Inertia::render('Noticeboard/Index', [

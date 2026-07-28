@@ -22,7 +22,7 @@ const displayedRoutines = computed(() => {
 });
 
 const statusBadge = {
-    Active: 'border border-blue-200 bg-blue-50 text-blue-700',
+    Active: 'border border-[#8BED9A]/70 bg-[#8BED9A]/20 text-[#1e2924]',
     Draft: 'border border-slate-700 bg-white text-slate-600',
 };
 
@@ -91,14 +91,15 @@ function importRoutine(event) {
 <template>
     <AppLayout title="Routines">
         <div class="space-y-6">
-            <div class="flex flex-wrap items-center justify-between gap-3">
-                <h2 class="text-xl font-semibold text-slate-950">Routines</h2>
+            <div class="surface-card p-2">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                    <h2 class="px-3 text-lg font-bold text-slate-950">Routines</h2>
                 
                 <div v-if="isAdmin" class="flex items-center gap-2">
                     <input ref="importInput" type="file" accept=".docx" class="hidden" @change="importRoutine" />
                     <button
                         type="button"
-                        class="flex items-center gap-2 rounded-lg border border-stone-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-60"
+                        class="flex min-h-11 items-center gap-2 rounded-lg border border-stone-300 bg-white px-4 text-sm font-bold text-slate-700 shadow-sm transition hover:border-[#09B884]/40 hover:bg-[#8BED9A]/10 hover:text-[#1e2924] disabled:cursor-not-allowed disabled:opacity-60"
                         :disabled="importing"
                         @click="openImportPicker"
                     >
@@ -107,11 +108,12 @@ function importRoutine(event) {
                     </button>
                     <Link
                         href="/routines/create"
-                        class="flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800"
+                        class="flex min-h-11 items-center gap-2 rounded-lg bg-[#1e2924]/95 px-4 text-sm font-bold text-white shadow-sm shadow-black/10 transition hover:bg-[#1e2924]"
                     >
                         <Plus class="h-4 w-4" />
                         Create routine
                     </Link>
+                </div>
                 </div>
             </div>
 
@@ -119,24 +121,24 @@ function importRoutine(event) {
                 <div
                     v-for="routine in displayedRoutines"
                     :key="routine.id"
-                    class="relative flex cursor-pointer items-center gap-4 rounded-lg border bg-white p-4 transition-colors hover:bg-white"
-                    :class="routine.status === 'Active' ? 'border-blue-300' : 'border-stone-300'"
+                    class="surface-card relative flex cursor-pointer items-center gap-4 p-4 transition hover:border-[#8BED9A]/70 hover:shadow-md"
+                    :class="routine.status === 'Active' ? 'border-[#8BED9A]/70 bg-[#8BED9A]/10 shadow-sm shadow-[#1e2924]/5' : 'border-stone-200 bg-white'"
                     @click="router.visit(`/routines/${routine.id}`)"
                 >
                     <div
-                        class="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg"
-                        :class="routine.status === 'Active' ? 'bg-blue-50' : 'bg-white'"
+                        class="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border"
+                        :class="routine.status === 'Active' ? 'border-[#8BED9A]/70 bg-white' : 'border-stone-200 bg-stone-50'"
                     >
                         <CalendarDays
                             class="h-5 w-5"
-                            :class="routine.status === 'Active' ? 'text-blue-700' : 'text-slate-500'"
+                            :class="routine.status === 'Active' ? 'text-[#09B884]' : 'text-slate-500'"
                         />
                     </div>
 
                     <div class="min-w-0 flex-1">
                         <div class="flex flex-wrap items-center gap-2">
                             <p class="font-semibold text-slate-950">{{ routine.name }}</p>
-                            <span v-if="routine.status === 'Active'" class="rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700">Current active</span>
+                            <span v-if="routine.status === 'Active'" class="rounded-full border border-[#8BED9A]/70 bg-[#8BED9A]/20 px-2 py-0.5 text-[11px] font-semibold text-[#1e2924]">Current active</span>
                         </div>
                         <p class="mt-0.5 text-sm text-slate-500">
                             {{ routine.days }} Days &middot; {{ routine.classes }} Classes &middot;
@@ -144,7 +146,7 @@ function importRoutine(event) {
                         </p>
                         <p
                             class="mt-0.5 text-sm font-medium"
-                            :class="routine.proxyClassesWeek > 0 ? 'text-red-700' : 'text-blue-700'"
+                            :class="routine.proxyClassesWeek > 0 ? 'text-red-700' : 'text-[#1e2924]'"
                         >
                             {{ routine.proxyClassesWeek }} Total Proxy Classes this Week
                         </p>
@@ -157,7 +159,7 @@ function importRoutine(event) {
                     <div v-if="isAdmin" class="relative" @click.stop>
                         <button
                             type="button"
-                            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-stone-300 text-slate-500 hover:bg-stone-100/70 hover:text-slate-700"
+                            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-stone-300 text-slate-500 shadow-sm transition hover:border-[#09B884]/40 hover:bg-[#8BED9A]/10 hover:text-[#1e2924]"
                             :aria-expanded="openMenuId === routine.id"
                             aria-haspopup="menu"
                             @click="toggleMenu(routine.id)"
@@ -173,7 +175,7 @@ function importRoutine(event) {
                             <button
                                 v-if="routine.status !== 'Active'"
                                 type="button"
-                                class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-700"
+                                class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-medium text-slate-700 hover:bg-[#8BED9A]/15 hover:text-[#1e2924]"
                                 @click="makeActive(routine)"
                             >
                                 <CheckCircle2 class="h-4 w-4" />
@@ -202,7 +204,7 @@ function importRoutine(event) {
 
             <Teleport to="body">
                 <div v-if="renamingRoutine" class="fixed inset-0 z-50 flex items-center justify-center bg-stone-100/70 p-4" @click.self="closeRename">
-                    <form class="w-full max-w-sm rounded-lg border border-stone-200 bg-white p-5 shadow-xl" @submit.prevent="submitRename">
+                    <form class="surface-card w-full max-w-sm p-5 shadow-xl" @submit.prevent="submitRename">
                         <div class="flex items-start justify-between gap-3">
                             <div>
                                 <h3 class="text-base font-semibold text-slate-950">Rename routine</h3>

@@ -469,18 +469,18 @@ function teacherName(id) {
 function cellClasses(cell, changed = false) {
     if (!cell || cell.type === 'empty') return 'border border-stone-200 bg-stone-100';
     if (cell.type === 'unresolved') return 'border-2 border-red-300 bg-red-50 font-bold ring-2 ring-red-100';
-    if (cell.proxyChangeKind === 'swap') return 'border-[3px] border-violet-400 bg-violet-50 font-bold shadow-[inset_5px_0_0_rgba(124,58,237,0.55)] ring-2 ring-violet-100';
+    if (cell.proxyChangeKind === 'swap') return 'border-[3px] border-[#09B884] bg-[#8BED9A]/15 font-bold shadow-[inset_5px_0_0_rgba(9,184,132,0.45)] ring-2 ring-[#8BED9A]/35';
     if (cell.proxyChangeKind === 'manual' || cell.proxyChangeKind === 'moved') return 'border-[3px] border-amber-400 bg-amber-50 font-bold shadow-[inset_5px_0_0_rgba(217,119,6,0.55)] ring-2 ring-amber-100';
-    if (cell.type === 'proxy') return 'border-[3px] border-blue-400 bg-blue-50 font-bold shadow-[inset_5px_0_0_rgba(37,99,235,0.55)] ring-2 ring-blue-100';
+    if (cell.type === 'proxy') return 'border-[3px] border-[#09B884] bg-[#8BED9A]/15 font-bold shadow-[inset_5px_0_0_rgba(9,184,132,0.45)] ring-2 ring-[#8BED9A]/35';
     if (changed) return 'border-[3px] border-amber-400 bg-amber-50 font-bold shadow-[inset_5px_0_0_rgba(217,119,6,0.55)] ring-2 ring-amber-100';
     return 'border bg-white hover:brightness-[0.98]';
 }
 
 function classRoutineCellClasses(cell, changed = false) {
     if (isClassCellUnresolved(cell)) return 'border-2 border-red-300 bg-red-50 font-bold ring-2 ring-red-100';
-    if (cell.proxyChangeKind === 'swap') return 'border-[3px] border-violet-400 bg-violet-50 font-bold shadow-[inset_5px_0_0_rgba(124,58,237,0.55)] ring-2 ring-violet-100';
+    if (cell.proxyChangeKind === 'swap') return 'border-[3px] border-[#09B884] bg-[#8BED9A]/15 font-bold shadow-[inset_5px_0_0_rgba(9,184,132,0.45)] ring-2 ring-[#8BED9A]/35';
     if (cell.proxyChangeKind === 'manual' || cell.proxyChangeKind === 'moved') return 'border-[3px] border-amber-400 bg-amber-50 font-bold shadow-[inset_5px_0_0_rgba(217,119,6,0.55)] ring-2 ring-amber-100';
-    if (cell.type === 'proxy') return 'border-[3px] border-blue-400 bg-blue-50 font-bold shadow-[inset_5px_0_0_rgba(37,99,235,0.55)] ring-2 ring-blue-100';
+    if (cell.type === 'proxy') return 'border-[3px] border-[#09B884] bg-[#8BED9A]/15 font-bold shadow-[inset_5px_0_0_rgba(9,184,132,0.45)] ring-2 ring-[#8BED9A]/35';
     if (changed) return 'border-[3px] border-amber-400 bg-amber-50 font-bold shadow-[inset_5px_0_0_rgba(217,119,6,0.55)] ring-2 ring-amber-100';
     return 'border bg-white';
 }
@@ -740,19 +740,11 @@ function approveProxyRoutine() {
 <template>
     <AppLayout :title="isProxyRoutine ? `${proxyContext.name} - Proxy Routine` : `${routine.name} - Edit`">
         <div class="space-y-5">
-            <div class="flex flex-wrap items-start justify-between gap-4">
+            <div class="surface-card flex flex-wrap items-center justify-between gap-4 p-4">
                 <div>
                     <h2 class="page-title">
                         {{ isProxyRoutine ? proxyContext.name : routine.name }}
                     </h2>
-                    <p class="mt-1 text-sm text-slate-500">
-                        <template v-if="isProxyRoutine">
-                            Temporary proxy routine for {{ proxyContext.day }}<span v-if="proxyContext.date">, {{ proxyContext.date }}</span>. The original routine stays unchanged.
-                        </template>
-                        <template v-else>
-                            Review the generated routine, adjust cells manually, or update generation settings and try again.
-                        </template>
-                    </p>
                 </div>
                 <div class="flex flex-wrap items-center gap-2">
                     <Link :href="isProxyRoutine ? '/proxy-manager' : '/routines'" class="btn-secondary">
@@ -772,19 +764,19 @@ function approveProxyRoutine() {
             </div>
 
             <div v-if="isProxyRoutine" class="surface-card p-2">
-                <div class="grid gap-2 sm:grid-cols-2">
+                <div class="grid gap-2 rounded-xl bg-stone-100 p-1 sm:grid-cols-2">
                     <button
                         type="button"
-                        class="rounded-lg px-4 py-2 text-sm font-semibold transition-colors"
-                        :class="routineSource === 'proxy' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-stone-50'"
+                        class="min-h-11 rounded-lg px-4 text-sm font-bold transition-all"
+                        :class="routineSource === 'proxy' ? 'bg-[#1e2924]/95 text-white shadow-sm shadow-black/10' : 'text-[#1e2924] hover:bg-white hover:shadow-sm'"
                         @click="routineSource = 'proxy'"
                     >
                         Proxy routine
                     </button>
                     <button
                         type="button"
-                        class="rounded-lg px-4 py-2 text-sm font-semibold transition-colors"
-                        :class="routineSource === 'original' ? 'bg-stone-100 text-slate-950' : 'text-slate-600 hover:bg-stone-50'"
+                        class="min-h-11 rounded-lg px-4 text-sm font-bold transition-all"
+                        :class="routineSource === 'original' ? 'bg-[#1e2924]/95 text-white shadow-sm shadow-black/10' : 'text-[#1e2924] hover:bg-white hover:shadow-sm'"
                         @click="routineSource = 'original'"
                     >
                         Original routine
@@ -792,11 +784,11 @@ function approveProxyRoutine() {
                 </div>
             </div>
 
-            <div v-if="activeProxyNotice && !isProxyRoutine" class="surface-card border-blue-200 bg-blue-50/70 p-4">
+            <div v-if="activeProxyNotice && !isProxyRoutine" class="surface-card border-[#8BED9A]/70 bg-[#8BED9A]/15 p-4">
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                        <p class="text-sm font-semibold text-blue-900">Temporary proxy routine active</p>
-                        <p class="mt-1 text-sm text-blue-800">
+                        <p class="text-sm font-semibold text-[#1e2924]">Temporary proxy routine active</p>
+                        <p class="mt-1 text-sm text-[#04795a]">
                             Showing {{ activeProxyNotice.name }} for {{ activeProxyNotice.day }}<span v-if="activeProxyNotice.date">, {{ activeProxyNotice.date }}</span>. The saved routine has not been permanently changed.
                         </p>
                     </div>
@@ -807,11 +799,11 @@ function approveProxyRoutine() {
             </div>
 
             <div class="surface-card p-2">
-                <div class="grid gap-2" :class="isProxyRoutine ? 'md:grid-cols-2' : 'md:grid-cols-3'">
+                <div class="grid gap-2 rounded-xl bg-stone-100 p-1" :class="isProxyRoutine ? 'md:grid-cols-2' : 'md:grid-cols-3'">
                     <button
                         type="button"
-                        class="flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors"
-                        :class="viewMode === 'teachers' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-stone-50'"
+                        class="flex min-h-11 items-center justify-center gap-2 rounded-lg px-4 text-sm font-bold transition-all"
+                        :class="viewMode === 'teachers' ? 'bg-[#1e2924]/95 text-white shadow-sm shadow-black/10' : 'text-[#1e2924] hover:bg-white hover:shadow-sm'"
                         @click="viewMode = 'teachers'"
                     >
                         <Table2 class="h-4 w-4" />
@@ -819,8 +811,8 @@ function approveProxyRoutine() {
                     </button>
                     <button
                         type="button"
-                        class="flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors"
-                        :class="viewMode === 'classes' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-stone-50'"
+                        class="flex min-h-11 items-center justify-center gap-2 rounded-lg px-4 text-sm font-bold transition-all"
+                        :class="viewMode === 'classes' ? 'bg-[#1e2924]/95 text-white shadow-sm shadow-black/10' : 'text-[#1e2924] hover:bg-white hover:shadow-sm'"
                         @click="viewMode = 'classes'"
                     >
                         <Layers class="h-4 w-4" />
@@ -829,8 +821,8 @@ function approveProxyRoutine() {
                     <button
                         v-if="!isProxyRoutine"
                         type="button"
-                        class="flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors"
-                        :class="viewMode === 'settings' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-stone-50'"
+                        class="flex min-h-11 items-center justify-center gap-2 rounded-lg px-4 text-sm font-bold transition-all"
+                        :class="viewMode === 'settings' ? 'bg-[#1e2924]/95 text-white shadow-sm shadow-black/10' : 'text-[#1e2924] hover:bg-white hover:shadow-sm'"
                         @click="viewMode = 'settings'"
                     >
                         <Settings2 class="h-4 w-4" />
@@ -860,7 +852,7 @@ function approveProxyRoutine() {
                         <ChevronLeft class="h-4 w-4" />
                     </button>
 
-                    <p class="flex-1 text-center text-base font-bold uppercase tracking-widest text-blue-700">
+                    <p class="flex-1 text-center text-base font-bold uppercase tracking-widest text-[#1e2924]">
                         {{ dayNames[selectedDay] ?? selectedDay }}
                     </p>
 
@@ -874,7 +866,7 @@ function approveProxyRoutine() {
                             :key="day"
                             type="button"
                             class="rounded-lg px-3 py-1.5 text-xs font-semibold"
-                            :class="day === selectedDay ? 'bg-blue-700 text-white' : 'text-slate-600 hover:bg-stone-100 hover:text-slate-900'"
+                            :class="day === selectedDay ? 'bg-[#1e2924]/95 text-white shadow-sm shadow-black/10' : 'text-[#1e2924] hover:bg-[#8BED9A]/15'"
                             @click="selectDay(day)"
                         >
                             {{ day }}
@@ -884,11 +876,11 @@ function approveProxyRoutine() {
 
                 <div class="flex flex-wrap items-center gap-2 text-xs">
                     <span class="text-slate-500">Cell markers:</span>
-                    <span class="flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 font-medium text-blue-700">
+                    <span class="flex items-center gap-1 rounded-full border border-[#8BED9A]/70 bg-[#8BED9A]/15 px-2.5 py-1 font-medium text-[#1e2924]">
                         <Repeat class="h-3 w-3" /> Proxy
                     </span>
-                    <span v-if="isProxyRoutine" class="rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 font-medium text-violet-700">
-                        Thick violet outline = swap
+                    <span v-if="isProxyRoutine" class="rounded-full border border-[#8BED9A]/70 bg-[#8BED9A]/15 px-2.5 py-1 font-medium text-[#1e2924]">
+                        Thick green outline = swap
                     </span>
                     <span v-if="isProxyRoutine" class="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 font-medium text-amber-700">
                         Thick amber outline = moved or edited
@@ -932,7 +924,7 @@ function approveProxyRoutine() {
                                     class="group relative flex min-h-16 w-full flex-col items-start justify-center gap-1 rounded-lg px-3 py-2 text-left transition-colors"
                                     :class="[
                                         teacherCellClasses(teacher, period.key),
-                                        dragOverKey === cellKey(teacherIndex, period.key) ? 'ring-2 ring-blue-500' : '',
+                                        dragOverKey === cellKey(teacherIndex, period.key) ? 'ring-2 ring-[#09B884]' : '',
                                         dragSource && dragSource.teacherIndex === teacherIndex && dragSource.periodKey === period.key ? 'opacity-40' : '',
                                     ]"
                                     :style="subjectCellStyle(teacher.cells[period.key])"
@@ -957,7 +949,7 @@ function approveProxyRoutine() {
                                     </template>
 
                                     <template v-else-if="teacher.cells[period.key].type === 'proxy'">
-                                        <span class="flex items-center gap-1 text-xs font-semibold text-blue-700">
+                                        <span class="flex items-center gap-1 text-xs font-semibold text-[#1e2924]">
                                             <Repeat class="h-3 w-3" /> {{ teacher.cells[period.key].subject }}
                                         </span>
                                         <span class="text-xs text-slate-700">{{ teacher.cells[period.key].classLabel }}</span>
@@ -1122,7 +1114,7 @@ function approveProxyRoutine() {
                                     <div class="mt-1 grid gap-2 sm:grid-cols-3 lg:grid-cols-5">
                                         <label v-for="day in days" :key="`${section.id}-${day}`" class="rounded-lg border border-stone-200 bg-white px-2.5 py-2">
                                             <span class="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">{{ day }}</span>
-                                            <input v-model.number="section.dailyPeriodsByDay[day]" min="0" type="number" class="mt-1 w-full rounded border border-stone-200 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none" />
+                                            <input v-model.number="section.dailyPeriodsByDay[day]" min="0" type="number" class="mt-1 w-full rounded border border-stone-200 px-2 py-1 text-sm focus:border-[#09B884] focus:outline-none" />
                                         </label>
                                     </div>
                                 </div>
@@ -1169,7 +1161,7 @@ function approveProxyRoutine() {
                                             </td>
                                             <td class="px-3 py-2">
                                                 <label class="inline-flex items-center gap-2 text-xs text-slate-600">
-                                                    <input v-model="subject.autoBalance" type="checkbox" class="rounded border-stone-300 text-blue-700 focus:ring-blue-500" />
+                                                    <input v-model="subject.autoBalance" type="checkbox" class="rounded border-stone-300 text-[#09B884] focus:ring-[#09B884]" />
                                                     Auto average
                                                 </label>
                                             </td>
@@ -1248,19 +1240,19 @@ function approveProxyRoutine() {
                                     <input v-model.number="generationRules.maxConsecutivePeriods" type="number" min="1" max="5" class="field-control mt-1 w-full" />
                                 </div>
                                 <label class="flex items-center gap-2 text-sm text-slate-700">
-                                    <input v-model="generationRules.preferGapBetweenPeriods" type="checkbox" class="rounded border-stone-300 text-blue-700 focus:ring-blue-500" />
+                                    <input v-model="generationRules.preferGapBetweenPeriods" type="checkbox" class="rounded border-stone-300 text-[#09B884] focus:ring-[#09B884]" />
                                     Prefer teacher gaps
                                 </label>
                                 <label class="flex items-center gap-2 text-sm text-slate-700">
-                                    <input v-model="generationRules.autoBalanceUnsetSubjectLoads" type="checkbox" class="rounded border-stone-300 text-blue-700 focus:ring-blue-500" />
+                                    <input v-model="generationRules.autoBalanceUnsetSubjectLoads" type="checkbox" class="rounded border-stone-300 text-[#09B884] focus:ring-[#09B884]" />
                                     Auto-balance unset subject loads
                                 </label>
                                 <label class="flex items-center gap-2 text-sm text-slate-700">
-                                    <input v-model="generationRules.keepClassTeacherFirstPeriod" type="checkbox" class="rounded border-stone-300 text-blue-700 focus:ring-blue-500" />
+                                    <input v-model="generationRules.keepClassTeacherFirstPeriod" type="checkbox" class="rounded border-stone-300 text-[#09B884] focus:ring-[#09B884]" />
                                     Class teacher first-period priority
                                 </label>
                                 <label class="flex items-center gap-2 text-sm text-slate-700">
-                                    <input v-model="generationRules.flagUnallocatedSlots" type="checkbox" class="rounded border-stone-300 text-blue-700 focus:ring-blue-500" />
+                                    <input v-model="generationRules.flagUnallocatedSlots" type="checkbox" class="rounded border-stone-300 text-[#09B884] focus:ring-[#09B884]" />
                                     Flag unallocated gaps
                                 </label>
                             </div>

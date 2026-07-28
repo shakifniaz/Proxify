@@ -23,18 +23,18 @@ const props = defineProps({
 });
 
 const colorClasses = {
-    teal: { text: 'text-blue-700', dot: 'bg-blue-600', bar: 'bg-blue-600', ring: 'border-blue-200' },
-    emerald: { text: 'text-blue-700', dot: 'bg-blue-600', bar: 'bg-blue-600', ring: 'border-blue-200' },
+    teal: { text: 'text-[#1e2924]', dot: 'bg-[#09B884]', bar: 'bg-[#09B884]', ring: 'border-[#8BED9A]/70' },
+    emerald: { text: 'text-[#1e2924]', dot: 'bg-[#09B884]', bar: 'bg-[#09B884]', ring: 'border-[#8BED9A]/70' },
     rose: { text: 'text-red-700', dot: 'bg-red-600', bar: 'bg-red-600', ring: 'border-red-200' },
     amber: { text: 'text-amber-700', dot: 'bg-amber-600', bar: 'bg-amber-600', ring: 'border-amber-200' },
-    sky: { text: 'text-sky-700', dot: 'bg-sky-600', bar: 'bg-sky-600', ring: 'border-sky-200' },
-    violet: { text: 'text-indigo-700', dot: 'bg-indigo-600', bar: 'bg-indigo-600', ring: 'border-indigo-200' },
+    sky: { text: 'text-[#04795a]', dot: 'bg-[#09B884]', bar: 'bg-[#09B884]', ring: 'border-[#8BED9A]/70' },
+    violet: { text: 'text-[#1e2924]', dot: 'bg-[#1e2924]', bar: 'bg-[#1e2924]', ring: 'border-[#09B884]/30' },
     slate: { text: 'text-slate-700', dot: 'bg-slate-500', bar: 'bg-slate-500', ring: 'border-slate-200' },
 };
 
 const statusBadge = {
     Unresolved: 'bg-red-50 text-red-700 border border-red-200',
-    Assigned: 'bg-blue-50 text-blue-700 border border-blue-200',
+    Assigned: 'bg-[#8BED9A]/20 text-[#1e2924] border border-[#8BED9A]/70',
 };
 
 const quickActionIcons = { UserX, CheckCircle2, Megaphone, CalendarPlus };
@@ -58,7 +58,7 @@ function getSafeColor(colorKey) {
             </div>
 
             <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div class="flex items-center justify-between rounded-lg border border-stone-200 bg-white p-5 shadow-sm">
+                <div class="surface-card flex items-center justify-between p-5 transition hover:border-[#8BED9A]/70 hover:shadow-md">
                     <div>
                         <p class="text-base font-semibold text-slate-950">Master Routine</p>
                         <p class="mt-1 text-sm text-slate-500">
@@ -66,17 +66,17 @@ function getSafeColor(colorKey) {
                             {{ routineSummary?.teachers }} teachers
                         </p>
                         <span
-                            class="mt-3 inline-flex rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-800"
+                            class="mt-3 inline-flex rounded-full border border-[#8BED9A]/70 bg-[#8BED9A]/20 px-2.5 py-1 text-xs font-medium text-[#1e2924]"
                         >
                             {{ routineSummary?.termLabel }}
                         </span>
                     </div>
-                    <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-blue-100 bg-blue-50">
-                        <CalendarDays class="h-5 w-5 text-blue-700" />
+                    <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-[#8BED9A]/70 bg-[#8BED9A]/15">
+                        <CalendarDays class="h-5 w-5 text-[#09B884]" />
                     </div>
                 </div>
 
-                <div class="flex items-center justify-between rounded-lg border border-stone-200 bg-white p-5 shadow-sm">
+                <div class="surface-card flex items-center justify-between p-5 transition hover:border-[#8BED9A]/70 hover:shadow-md">
                     <div>
                         <p class="text-base font-semibold text-slate-950">Proxy Classes</p>
                         <p class="mt-1 text-sm text-slate-500">
@@ -95,10 +95,10 @@ function getSafeColor(colorKey) {
                 </div>
             </div>
 
-            <div class="rounded-lg border border-stone-200 bg-white shadow-sm">
+            <div class="surface-card overflow-hidden">
                 <div class="flex items-center justify-between border-b border-stone-200 px-5 py-3">
                     <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">This Week</p>
-                    <a href="/analytics" class="flex items-center gap-1 text-sm font-medium text-blue-700 transition-colors hover:text-blue-900">
+                    <a href="/analytics" class="flex items-center gap-1 text-sm font-semibold text-[#1e2924] transition-colors hover:text-[#09B884]">
                         See All <ArrowRight class="h-3.5 w-3.5" />
                     </a>
                 </div>
@@ -119,7 +119,7 @@ function getSafeColor(colorKey) {
             </div>
 
             <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
-                <div class="rounded-lg border border-stone-200 bg-white p-6 shadow-sm lg:col-span-2">
+                <div class="surface-card p-6 lg:col-span-2">
                     <div class="flex items-center justify-between">
                         <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Today at a Glance</p>
                         <span
@@ -136,7 +136,7 @@ function getSafeColor(colorKey) {
                     <div class="mt-6 space-y-3">
                         <div class="flex items-center justify-between rounded-lg border border-stone-200 bg-stone-50 px-4 py-3">
                             <span class="text-sm text-slate-600">Proxies assigned</span>
-                            <span class="text-sm font-semibold text-blue-700">{{ today?.proxiesAssigned }}</span>
+                            <span class="text-sm font-semibold text-[#1e2924]">{{ today?.proxiesAssigned }}</span>
                         </div>
                         <div class="flex items-center justify-between rounded-lg border border-stone-200 bg-stone-50 px-4 py-3">
                             <span class="text-sm text-slate-600">Unresolved periods</span>
@@ -154,7 +154,7 @@ function getSafeColor(colorKey) {
                         <div
                             v-for="stat in monthStats"
                             :key="stat.label"
-                            class="rounded-lg border border-stone-200 bg-white p-3 shadow-sm"
+                            class="surface-card p-3"
                         >
                             <p class="text-[10px] font-semibold uppercase leading-tight tracking-wider text-slate-500">
                                 {{ stat.label }}
@@ -167,11 +167,11 @@ function getSafeColor(colorKey) {
                         </div>
                     </div>
 
-                    <div class="rounded-lg border border-stone-200 bg-white p-5 shadow-sm">
+                    <div class="surface-card p-5">
                         <div class="flex items-center justify-between">
                             <p class="text-sm font-semibold text-slate-950">Live Activity</p>
-                            <span class="flex items-center gap-1.5 text-xs font-medium text-blue-700">
-                                <span class="h-1.5 w-1.5 animate-pulse rounded-full bg-blue-600"></span>
+                            <span class="flex items-center gap-1.5 text-xs font-semibold text-[#1e2924]">
+                                <span class="h-1.5 w-1.5 animate-pulse rounded-full bg-[#09B884]"></span>
                                 Live
                             </span>
                         </div>
@@ -187,10 +187,10 @@ function getSafeColor(colorKey) {
             </div>
 
             <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
-                <div class="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm lg:col-span-2">
+                <div class="surface-card overflow-hidden lg:col-span-2">
                     <div class="flex items-center justify-between border-b border-stone-200 px-5 py-4">
                         <p class="text-sm font-semibold text-slate-950">Today's Absences</p>
-                        <a href="/proxy-manager" class="flex items-center gap-1 text-sm font-medium text-blue-700 transition-colors hover:text-blue-900">
+                        <a href="/proxy-manager" class="flex items-center gap-1 text-sm font-semibold text-[#1e2924] transition-colors hover:text-[#09B884]">
                             Manage proxies <ArrowRight class="h-3.5 w-3.5" />
                         </a>
                     </div>
@@ -222,16 +222,16 @@ function getSafeColor(colorKey) {
                     </div>
                 </div>
 
-                <div class="rounded-lg border border-stone-200 bg-white p-5 shadow-sm">
+                <div class="surface-card p-5">
                     <p class="text-sm font-semibold text-slate-950">Quick Actions</p>
                     <div class="mt-4 space-y-2">
                         <a
                             v-for="action in quickActions"
                             :key="action.label"
                             :href="action.href"
-                            class="flex items-center gap-3 rounded-lg border border-stone-200 bg-stone-50 px-4 py-3 text-sm font-medium text-slate-700 transition-colors hover:border-stone-300 hover:bg-white hover:text-slate-950"
+                            class="flex items-center gap-3 rounded-lg border border-stone-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:border-[#8BED9A]/70 hover:bg-[#8BED9A]/10 hover:text-[#1e2924]"
                         >
-                            <component :is="quickActionIcons[action.icon]" class="h-4 w-4 text-blue-700" />
+                            <component :is="quickActionIcons[action.icon]" class="h-4 w-4 text-[#09B884]" />
                             {{ action.label }}
                         </a>
                     </div>

@@ -31,6 +31,7 @@ const isSavingGroups = ref(false);
 const groupsDirty = ref(false);
 const subjectPicker = ref({ groupId: null, query: '', draft: [] });
 const activeTab = ref('plan');
+const showApprovedLeaves = ref(false);
 const query = ref('');
 const defaultRunTarget = nextRoutineTarget(props.activeRoutine?.days ?? []);
 const selectedDay = ref(defaultRunTarget.day);
@@ -96,6 +97,7 @@ const runDateDisplay = computed({
     },
 });
 const selectedDayBadge = computed(() => `${selectedDay.value} - ${runDateDisplay.value}`);
+const approvedLeavePreview = computed(() => approvedLeaveAbsences.value.slice(0, 2));
 const latestResolvedRate = computed(() => {
     const affected = props.latestRun?.metrics?.affectedPeriods ?? 0;
     if (!affected) return 0;
@@ -322,22 +324,22 @@ function generateProxyRun() {
 
 function statusClass(status) {
     if (status === 'Needs Review') return 'border-amber-200 bg-amber-50 text-amber-800';
-    if (status === 'Finalized' || status === 'Approved') return 'border-emerald-200 bg-emerald-50 text-emerald-700';
-    return 'border-blue-200 bg-blue-50 text-blue-700';
+    if (status === 'Finalized' || status === 'Approved') return 'border-[#8BED9A]/70 bg-[#8BED9A]/20 text-[#1e2924]';
+    return 'border-[#09B884]/30 bg-[#8BED9A]/15 text-[#1e2924]';
 }
 
 function assignmentClass(item) {
     if (item.status === 'unresolved') return 'border-red-200 bg-red-50';
     if (item.status === 'review') return 'border-amber-200 bg-amber-50';
-    if (item.strategy === 'period_swap') return 'border-blue-200 bg-blue-50';
+    if (item.strategy === 'period_swap') return 'border-[#09B884]/30 bg-[#8BED9A]/15';
     return 'border-stone-200 bg-white';
 }
 
 function strategyTone(item) {
     if (item.status === 'unresolved') return 'text-red-700';
     if (item.status === 'review') return 'text-amber-800';
-    if (item.strategy === 'period_swap') return 'text-blue-700';
-    return 'text-emerald-700';
+    if (item.strategy === 'period_swap') return 'text-[#1e2924]';
+    return 'text-[#09B884]';
 }
 </script>
 
@@ -347,19 +349,18 @@ function strategyTone(item) {
             <div v-if="!activeRoutine" class="surface-card p-8 text-center">
                 <AlertTriangle class="mx-auto h-8 w-8 text-amber-600" />
                 <p class="mt-3 text-base font-semibold text-slate-950">No active routine found</p>
-                <p class="mt-1 text-sm text-slate-500">Create or activate a routine before running the proxy engine.</p>
             </div>
 
             <template v-else>
                 <div class="surface-card p-2">
                     <div class="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-                        <div class="flex flex-wrap gap-2">
+                        <div class="inline-flex rounded-xl border border-stone-200 bg-stone-100 p-1 shadow-inner shadow-stone-200/60">
                             <button
                                 v-for="tab in tabs"
                                 :key="tab.key"
                                 type="button"
-                                class="rounded-md px-4 py-2 text-sm font-semibold transition"
-                                :class="activeTab === tab.key ? 'bg-slate-950 text-white shadow-sm' : 'text-slate-600 hover:bg-stone-100 hover:text-slate-950'"
+                                class="min-h-11 rounded-lg px-5 text-sm font-bold transition-all focus:outline-none focus:ring-2 focus:ring-[#09B884]/35"
+                                :class="activeTab === tab.key ? 'bg-[#1e2924]/95 text-white shadow-sm shadow-black/10 ring-1 ring-white/10' : 'text-[#1e2924] hover:bg-white hover:text-[#1e2924] hover:shadow-sm'"
                                 @click="activeTab = tab.key"
                             >
                                 {{ tab.label }}
@@ -367,16 +368,16 @@ function strategyTone(item) {
                         </div>
 
                         <div class="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-[minmax(16rem,1fr)_6.5rem_6.5rem] xl:w-[38rem]">
-                            <div class="col-span-2 rounded-md bg-stone-50 px-3 py-2 sm:col-span-1">
-                                <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Active routine</p>
+                            <div class="col-span-2 rounded-md bg-[#8BED9A]/10 px-3 py-2 sm:col-span-1">
+                                <p class="text-[10px] font-semibold uppercase tracking-wider text-[#1e2924]/55">Active routine</p>
                                 <p class="mt-1 truncate text-sm font-semibold text-slate-950" :title="activeRoutine.name">{{ activeRoutine.name }}</p>
                             </div>
-                            <div class="rounded-md bg-stone-50 px-3 py-2 text-center">
-                                <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Sections</p>
+                            <div class="rounded-md bg-[#8BED9A]/10 px-3 py-2 text-center">
+                                <p class="text-[10px] font-semibold uppercase tracking-wider text-[#1e2924]/55">Sections</p>
                                 <p class="mt-1 text-sm font-bold text-slate-950">{{ activeRoutine.summary.sections }}</p>
                             </div>
-                            <div class="rounded-md bg-stone-50 px-3 py-2 text-center">
-                                <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Teachers</p>
+                            <div class="rounded-md bg-[#8BED9A]/10 px-3 py-2 text-center">
+                                <p class="text-[10px] font-semibold uppercase tracking-wider text-[#1e2924]/55">Teachers</p>
                                 <p class="mt-1 text-sm font-bold text-slate-950">{{ activeRoutine.summary.teachers }}</p>
                             </div>
                         </div>
@@ -384,66 +385,82 @@ function strategyTone(item) {
                 </div>
 
                 <div v-if="activeTab === 'plan'" class="space-y-5">
-                    <div class="surface-card overflow-hidden">
-                        <div class="border-b border-stone-200 bg-stone-50/70 p-5">
-                            <div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_26rem] xl:items-stretch">
-                                <div class="rounded-lg border border-stone-200 bg-white p-4 shadow-sm">
-                                    <div class="mb-3 flex items-center justify-between gap-3">
-                                        <p class="text-sm font-semibold text-slate-950">Plan setup</p>
-                                        <span class="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-800 shadow-sm">
-                                            <CalendarDays class="h-3.5 w-3.5" />
+                    <div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_26rem] xl:items-stretch">
+                                <div class="surface-card bg-white p-4 shadow-sm">
+                                    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                        <div class="flex items-center gap-3">
+                                            <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#8BED9A]/70 bg-white text-[#09B884] shadow-sm">
+                                                <CalendarDays class="h-4 w-4" />
+                                            </div>
+                                            <p class="text-sm font-semibold text-slate-950">Plan setup</p>
+                                        </div>
+                                        <span class="inline-flex items-center justify-center rounded-lg border border-[#09B884]/30 bg-white px-3 py-2 text-xs font-bold text-[#1e2924] shadow-sm">
                                             {{ selectedDayBadge }}
                                         </span>
                                     </div>
 
-                                    <div class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_11rem_11rem]">
+                                    <div class="mt-4">
                                         <div>
                                             <label class="section-title">Proxy run name</label>
                                             <input v-model="runName" type="text" class="field-control mt-1 w-full bg-white" />
                                         </div>
-                                        <div>
-                                            <label class="section-title">Date</label>
-                                            <input
-                                                v-model="runDateDisplay"
-                                                type="text"
-                                                inputmode="numeric"
-                                                placeholder="dd/mm/yy"
-                                                class="field-control mt-1 w-full bg-white"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label class="section-title">Routine day</label>
-                                            <select v-model="selectedDay" class="field-control mt-1 w-full bg-white">
-                                                <option v-for="day in activeRoutine.days" :key="day" :value="day">{{ day }}</option>
-                                            </select>
+                                        <div class="mt-3 grid gap-3 sm:grid-cols-2">
+                                            <div>
+                                                <label class="section-title">Date</label>
+                                                <input
+                                                    v-model="runDateDisplay"
+                                                    type="text"
+                                                    inputmode="numeric"
+                                                    placeholder="dd/mm/yy"
+                                                    class="field-control mt-1 w-full bg-white"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label class="section-title">Routine day</label>
+                                                <select v-model="selectedDay" class="field-control mt-1 w-full bg-white">
+                                                    <option v-for="day in activeRoutine.days" :key="day" :value="day">{{ day }}</option>
+                                                </select>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
 
-                                <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm xl:min-w-[26rem]">
-                                    <div class="mb-3 flex items-center justify-between gap-3">
-                                        <p class="text-sm font-semibold text-slate-950">Readiness</p>
-                                        <span class="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">Swap first</span>
+                                <div class="surface-card flex flex-col border-[#8BED9A]/60 bg-[#8BED9A]/10 p-5 shadow-sm shadow-[#1e2924]/5 xl:min-w-[26rem]">
+                                    <div class="flex items-center justify-between gap-3">
+                                        <div>
+                                            <p class="text-sm font-semibold text-slate-950">Readiness</p>
+                                            <p class="mt-1 text-xs font-semibold uppercase tracking-wider text-[#1e2924]/55">Engine inputs</p>
+                                        </div>
+                                        <span class="rounded-full border border-[#8BED9A]/70 bg-white px-3 py-1.5 text-xs font-bold text-[#1e2924] shadow-sm">Swap first</span>
                                     </div>
 
-                                    <div class="grid grid-cols-3 gap-2">
-                                        <div class="rounded-md bg-stone-50 px-3 py-2.5 text-center">
-                                            <p class="text-lg font-bold text-slate-950">{{ selectedTeacherIds.size }}</p>
-                                            <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Teachers</p>
+                                    <div class="mt-4 grid grid-cols-3 gap-3">
+                                        <div class="rounded-lg border border-[#8BED9A]/70 bg-white p-3 shadow-sm">
+                                            <div class="mb-3 flex h-8 w-8 items-center justify-center rounded-md bg-[#8BED9A]/20 text-[#09B884]">
+                                                <UserX class="h-4 w-4" />
+                                            </div>
+                                            <p class="text-2xl font-bold leading-none text-[#1e2924]">{{ selectedTeacherIds.size }}</p>
+                                            <p class="mt-1 text-[10px] font-bold uppercase tracking-wider text-[#1e2924]/55">Teachers</p>
                                         </div>
-                                        <div class="rounded-md bg-stone-50 px-3 py-2.5 text-center">
-                                            <p class="text-lg font-bold text-slate-950">{{ subjectGroups.length }}</p>
-                                            <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Groups</p>
+                                        <div class="rounded-lg border border-[#8BED9A]/70 bg-white p-3 shadow-sm">
+                                            <div class="mb-3 flex h-8 w-8 items-center justify-center rounded-md bg-[#8BED9A]/20 text-[#09B884]">
+                                                <SlidersHorizontal class="h-4 w-4" />
+                                            </div>
+                                            <p class="text-2xl font-bold leading-none text-[#1e2924]">{{ subjectGroups.length }}</p>
+                                            <p class="mt-1 text-[10px] font-bold uppercase tracking-wider text-[#1e2924]/55">Groups</p>
                                         </div>
-                                        <div class="rounded-md bg-stone-50 px-3 py-2.5 text-center">
-                                            <p class="text-lg font-bold text-slate-950">{{ selectedPeriodCount }}</p>
-                                            <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Periods</p>
+                                        <div class="rounded-lg border border-[#8BED9A]/70 bg-white p-3 shadow-sm">
+                                            <div class="mb-3 flex h-8 w-8 items-center justify-center rounded-md bg-[#8BED9A]/20 text-[#09B884]">
+                                                <Clock3 class="h-4 w-4" />
+                                            </div>
+                                            <p class="text-2xl font-bold leading-none text-[#1e2924]">{{ selectedPeriodCount }}</p>
+                                            <p class="mt-1 text-[10px] font-bold uppercase tracking-wider text-[#1e2924]/55">Periods</p>
                                         </div>
                                     </div>
 
                                     <button
                                         type="button"
-                                        class="mt-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-slate-950 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+                                        class="mt-4 flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-[#1e2924]/95 px-5 text-sm font-bold text-white shadow-sm shadow-black/10 transition hover:bg-[#1e2924] disabled:cursor-not-allowed disabled:bg-slate-300"
                                         :disabled="!canGenerate"
                                         @click="generateProxyRun"
                                     >
@@ -452,38 +469,63 @@ function strategyTone(item) {
                                     </button>
                                 </div>
                             </div>
-                        </div>
 
-                        <div v-if="approvedLeaveAbsences.length" class="border-b border-stone-200 bg-white px-5 py-4">
-                            <div class="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-                                <div class="flex items-center gap-2">
-                                    <ShieldCheck class="h-4 w-4 text-emerald-600" />
-                                    <div>
-                                        <p class="text-sm font-semibold text-slate-950">Approved leaves imported</p>
-                                        <p class="text-xs text-slate-500">These are pre-selected from Leave Management. You can still add teachers manually below.</p>
+                        <div v-if="approvedLeaveAbsences.length" class="surface-card overflow-hidden">
+                            <div class="flex flex-col gap-3 px-5 py-4 xl:flex-row xl:items-center xl:justify-between">
+                                <div class="flex min-w-0 items-center gap-3">
+                                    <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#8BED9A]/70 bg-[#8BED9A]/15 text-[#09B884]">
+                                        <ShieldCheck class="h-4 w-4" />
+                                    </div>
+                                    <div class="min-w-0">
+                                        <div class="flex flex-wrap items-center gap-2">
+                                            <p class="text-sm font-semibold text-slate-950">Approved leaves imported</p>
+                                            <span class="rounded-full bg-[#8BED9A]/20 px-2.5 py-1 text-xs font-bold text-[#1e2924]">
+                                                {{ approvedLeaveAbsences.length }}
+                                            </span>
+                                        </div>
                                     </div>
                                 </div>
-                                <div class="flex flex-wrap gap-2">
+
+                                <div class="flex flex-wrap items-center gap-2 xl:justify-end">
                                     <span
+                                        v-for="absence in approvedLeavePreview"
+                                        :key="`preview-${absence.id}`"
+                                        class="inline-flex max-w-[15rem] items-center gap-2 rounded-lg border border-[#8BED9A]/70 bg-[#8BED9A]/15 px-3 py-2 text-xs font-semibold text-[#1e2924]"
+                                    >
+                                        <span class="truncate">{{ absence.teacherName }}</span>
+                                        <span class="shrink-0 text-[#09B884]">{{ periodSummary(absence.periodKeys) }}</span>
+                                    </span>
+                                    <button
+                                        type="button"
+                                        class="inline-flex min-h-9 items-center justify-center rounded-lg border border-stone-300 bg-white px-3 text-xs font-bold text-slate-800 shadow-sm transition hover:border-[#09B884]/40 hover:bg-[#8BED9A]/10 hover:text-[#1e2924]"
+                                        @click="showApprovedLeaves = !showApprovedLeaves"
+                                    >
+                                        {{ showApprovedLeaves ? 'Hide' : approvedLeaveAbsences.length > 2 ? `View ${approvedLeaveAbsences.length}` : 'View' }}
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div v-if="showApprovedLeaves" class="border-t border-stone-200 bg-stone-50/70 p-3">
+                                <div class="grid max-h-52 gap-2 overflow-y-auto pr-1 sm:grid-cols-2 xl:grid-cols-3">
+                                    <div
                                         v-for="absence in approvedLeaveAbsences"
                                         :key="absence.id"
-                                        class="inline-flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800"
+                                        class="rounded-lg border border-stone-200 bg-white px-3 py-2 shadow-sm"
                                     >
-                                        <span>{{ absence.teacherName }}</span>
-                                        <span class="text-emerald-600">{{ periodSummary(absence.periodKeys) }}</span>
-                                    </span>
+                                        <p class="truncate text-sm font-semibold text-slate-950">{{ absence.teacherName }}</p>
+                                        <p class="mt-1 text-xs font-semibold text-[#09B884]">{{ periodSummary(absence.periodKeys) }}</p>
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
-                        <div class="grid gap-px bg-stone-200 xl:grid-cols-[21rem_minmax(0,1fr)]">
+                        <div class="surface-card grid gap-px overflow-hidden bg-stone-200 xl:grid-cols-[21rem_minmax(0,1fr)]">
                             <div class="bg-white p-5">
                                 <div class="flex items-center justify-between gap-3">
                                     <div>
                                         <p class="text-sm font-semibold text-slate-950">Unavailable teachers</p>
-                                        <p class="mt-1 text-xs text-slate-500">Imported leaves and manual additions live in the same list.</p>
                                     </div>
-                                    <span class="rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700">
+                                    <span class="rounded-full border border-[#09B884]/30 bg-[#8BED9A]/15 px-2.5 py-1 text-xs font-semibold text-[#1e2924]">
                                         {{ selectedTeacherIds.size }} selected
                                     </span>
                                 </div>
@@ -499,20 +541,20 @@ function strategyTone(item) {
                                         :key="teacher.id"
                                         type="button"
                                         class="group w-full rounded-lg border px-3 py-3 text-left transition"
-                                        :class="selectedTeacherIds.has(String(teacher.id)) ? 'border-rose-300 bg-rose-50 shadow-sm' : 'border-stone-200 bg-white hover:border-slate-300 hover:bg-stone-50'"
+                                        :class="selectedTeacherIds.has(String(teacher.id)) ? 'border-[#09B884]/50 bg-[#8BED9A]/15 shadow-sm' : 'border-stone-200 bg-white hover:border-[#8BED9A] hover:bg-[#8BED9A]/10'"
                                         @click="toggleTeacher(teacher.id)"
                                     >
                                         <span class="flex items-center gap-3">
                                             <span
                                                 class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border text-xs font-bold"
-                                                :class="selectedTeacherIds.has(String(teacher.id)) ? 'border-rose-200 bg-white text-rose-700' : 'border-stone-200 bg-stone-50 text-slate-500 group-hover:text-slate-800'"
+                                                :class="selectedTeacherIds.has(String(teacher.id)) ? 'border-[#8BED9A]/70 bg-white text-[#1e2924]' : 'border-stone-200 bg-stone-50 text-slate-500 group-hover:text-[#1e2924]'"
                                             >
                                                 {{ initials(teacher.name) }}
                                             </span>
                                             <span class="min-w-0 flex-1">
                                                 <span class="flex items-center gap-2">
                                                     <span class="block truncate text-sm font-semibold text-slate-950">{{ teacher.name }}</span>
-                                                    <span v-if="approvedLeaveTeacherIds.has(String(teacher.id))" class="shrink-0 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-700">
+                                                    <span v-if="approvedLeaveTeacherIds.has(String(teacher.id))" class="shrink-0 rounded-full bg-[#8BED9A]/25 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#1e2924]">
                                                         Leave
                                                     </span>
                                                 </span>
@@ -520,7 +562,7 @@ function strategyTone(item) {
                                             </span>
                                             <UserX
                                                 class="h-4 w-4 shrink-0"
-                                                :class="selectedTeacherIds.has(String(teacher.id)) ? 'text-rose-700' : 'text-slate-300'"
+                                                :class="selectedTeacherIds.has(String(teacher.id)) ? 'text-[#09B884]' : 'text-slate-300'"
                                             />
                                         </span>
                                     </button>
@@ -531,9 +573,8 @@ function strategyTone(item) {
                                 <div class="flex items-center justify-between gap-3">
                                     <div>
                                         <p class="text-sm font-semibold text-slate-950">Availability window</p>
-                                        <p class="mt-1 text-xs text-slate-500">Select specific periods only when the teacher is unavailable for part of the day.</p>
                                     </div>
-                                    <span class="rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">
+                                    <span class="rounded-full border border-[#8BED9A]/70 bg-[#8BED9A]/20 px-2.5 py-1 text-xs font-semibold text-[#1e2924]">
                                         {{ selectedPeriodCount }} period marks
                                     </span>
                                 </div>
@@ -550,7 +591,7 @@ function strategyTone(item) {
                                             <div class="min-w-0">
                                                 <div class="flex flex-wrap items-center gap-2">
                                                     <p class="truncate text-sm font-semibold text-slate-950">{{ teacher.name }}</p>
-                                                    <span v-if="approvedLeaveTeacherIds.has(String(teacher.id))" class="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-700">
+                                                    <span v-if="approvedLeaveTeacherIds.has(String(teacher.id))" class="rounded-full bg-[#8BED9A]/25 px-2 py-0.5 text-[11px] font-bold text-[#1e2924]">
                                                         Approved leave
                                                     </span>
                                                 </div>
@@ -558,7 +599,7 @@ function strategyTone(item) {
                                                     {{ periodSummary(teacherPeriods[String(teacher.id)] ?? []) }}
                                                 </p>
                                             </div>
-                                            <button type="button" class="rounded-md border border-blue-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-50" @click="markFullDay(teacher.id)">
+                                            <button type="button" class="rounded-md border border-[#8BED9A]/70 bg-white px-2.5 py-1.5 text-xs font-semibold text-[#1e2924] hover:bg-[#8BED9A]/15" @click="markFullDay(teacher.id)">
                                                 Mark full day
                                             </button>
                                         </div>
@@ -568,7 +609,7 @@ function strategyTone(item) {
                                                 :key="period.key"
                                                 type="button"
                                                 class="rounded-md border px-2 py-2 text-xs font-semibold transition"
-                                                :class="(teacherPeriods[String(teacher.id)] ?? []).includes(period.key) ? 'border-rose-400 bg-rose-50 text-rose-700 shadow-sm' : 'border-stone-200 bg-white text-slate-600 hover:bg-stone-50'"
+                                                :class="(teacherPeriods[String(teacher.id)] ?? []).includes(period.key) ? 'border-[#09B884] bg-[#8BED9A]/15 text-[#1e2924] shadow-sm' : 'border-stone-200 bg-white text-slate-600 hover:bg-[#8BED9A]/10'"
                                                 @click="togglePeriod(teacher.id, period.key)"
                                             >
                                                 {{ period.label }}
@@ -578,14 +619,11 @@ function strategyTone(item) {
                                 </div>
                             </div>
                         </div>
-                    </div>
-
                     <div class="grid grid-cols-1 gap-4 xl:grid-cols-[0.75fr_1.25fr]">
                         <div class="surface-card p-5">
                             <div class="flex items-center justify-between">
                                 <div>
                                     <p class="text-sm font-semibold text-slate-950">Recent proxy runs</p>
-                                    <p class="mt-1 text-xs text-slate-500">Saved plans from the current database.</p>
                                 </div>
                                 <Layers3 class="h-4 w-4 text-slate-400" />
                             </div>
@@ -610,9 +648,9 @@ function strategyTone(item) {
                                             <p class="text-base font-bold text-slate-950">{{ run.affected }}</p>
                                             <p class="text-[11px] text-slate-500">affected</p>
                                         </div>
-                                        <div class="rounded-md bg-emerald-50 px-2 py-2">
-                                            <p class="text-base font-bold text-emerald-700">{{ run.resolved }}</p>
-                                            <p class="text-[11px] text-emerald-700">resolved</p>
+                                        <div class="rounded-md bg-[#8BED9A]/20 px-2 py-2">
+                                            <p class="text-base font-bold text-[#1e2924]">{{ run.resolved }}</p>
+                                            <p class="text-[11px] text-[#1e2924]">resolved</p>
                                         </div>
                                         <div class="rounded-md bg-red-50 px-2 py-2">
                                             <p class="text-base font-bold text-red-700">{{ run.unresolved }}</p>
@@ -633,18 +671,15 @@ function strategyTone(item) {
                             <div class="flex flex-col gap-3 border-b border-stone-200 pb-4 sm:flex-row sm:items-start sm:justify-between">
                                 <div>
                                     <p class="text-sm font-semibold text-slate-950">Latest generated plan</p>
-                                    <p class="mt-1 text-sm text-slate-500">
-                                        {{ latestRun ? `${latestRun.name} - ${latestRun.day}` : 'Run the engine to review proxy decisions here.' }}
-                                    </p>
                                 </div>
                                 <div v-if="latestRun" class="grid grid-cols-3 gap-2 text-center">
-                                    <div class="rounded-md border border-blue-200 bg-blue-50 px-3 py-2">
-                                        <p class="text-sm font-bold text-blue-700">{{ latestRun.metrics.swapCount ?? 0 }}</p>
-                                        <p class="text-[10px] font-semibold uppercase tracking-wider text-blue-700">Swaps</p>
+                                    <div class="rounded-md border border-[#09B884]/30 bg-[#8BED9A]/15 px-3 py-2">
+                                        <p class="text-sm font-bold text-[#1e2924]">{{ latestRun.metrics.swapCount ?? 0 }}</p>
+                                        <p class="text-[10px] font-semibold uppercase tracking-wider text-[#1e2924]">Swaps</p>
                                     </div>
-                                    <div class="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2">
-                                        <p class="text-sm font-bold text-emerald-700">{{ latestRun.metrics.proxyCount ?? 0 }}</p>
-                                        <p class="text-[10px] font-semibold uppercase tracking-wider text-emerald-700">Proxies</p>
+                                    <div class="rounded-md border border-[#8BED9A]/70 bg-[#8BED9A]/20 px-3 py-2">
+                                        <p class="text-sm font-bold text-[#1e2924]">{{ latestRun.metrics.proxyCount ?? 0 }}</p>
+                                        <p class="text-[10px] font-semibold uppercase tracking-wider text-[#1e2924]">Proxies</p>
                                     </div>
                                     <div class="rounded-md border border-slate-200 bg-white px-3 py-2">
                                         <p class="text-sm font-bold text-slate-950">{{ latestResolvedRate }}%</p>
@@ -654,7 +689,7 @@ function strategyTone(item) {
                             </div>
 
                             <div v-if="latestRun" class="mt-4 flex flex-wrap items-center justify-end gap-2">
-                                <Link :href="`/proxy-manager/${latestRun.id}`" class="btn-primary">
+                            <Link :href="`/proxy-manager/${latestRun.id}`" class="inline-flex items-center justify-center gap-2 rounded-lg bg-[#1e2924]/95 px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-black/10 transition-colors hover:bg-[#1e2924]">
                                     Open proxy routine
                                 </Link>
                             </div>
@@ -662,17 +697,16 @@ function strategyTone(item) {
                             <div v-if="!latestRun" class="py-12 text-center">
                                 <ShieldCheck class="mx-auto h-9 w-9 text-slate-300" />
                                 <p class="mt-3 text-sm font-semibold text-slate-950">No proxy plan generated yet</p>
-                                <p class="mt-1 text-sm text-slate-500">Select unavailable teachers and generate a plan.</p>
                             </div>
 
                             <div v-else class="mt-5 space-y-5">
-                                <div v-if="latestRun.adjustments?.length" class="rounded-lg border border-blue-200 bg-blue-50 p-4">
-                                    <div class="flex items-center gap-2 text-sm font-semibold text-blue-800">
+                                <div v-if="latestRun.adjustments?.length" class="rounded-lg border border-[#09B884]/30 bg-[#8BED9A]/15 p-4">
+                                    <div class="flex items-center gap-2 text-sm font-semibold text-[#1e2924]">
                                         <ArrowRightLeft class="h-4 w-4" />
                                         Period swaps applied
                                     </div>
                                     <div class="mt-3 space-y-2">
-                                        <div v-for="adjustment in latestRun.adjustments" :key="`${adjustment.classLabel}-${adjustment.from}-${adjustment.to}`" class="text-sm text-blue-900">
+                                        <div v-for="adjustment in latestRun.adjustments" :key="`${adjustment.classLabel}-${adjustment.from}-${adjustment.to}`" class="text-sm text-[#1e2924]">
                                             {{ adjustment.classLabel }}: {{ adjustment.coverTeacher }} covers {{ adjustment.from }}, {{ adjustment.absentTeacher }} moves to {{ adjustment.to }}.
                                         </div>
                                     </div>
@@ -725,34 +759,33 @@ function strategyTone(item) {
                 </div>
 
                 <div v-else class="surface-card overflow-visible">
-                    <div class="border-b border-stone-200 bg-stone-50/70 p-5">
+                    <div class="border-b border-stone-200 bg-white p-5">
                         <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
                             <div class="max-w-2xl">
                                 <p class="text-sm font-semibold text-slate-950">Subject grouping</p>
-                                <p class="mt-1 text-sm text-slate-500">Used only after swaps and same-class coverage fail. A subject can belong to multiple groups.</p>
                             </div>
 
-                            <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
-                                <div class="grid grid-cols-2 gap-2 sm:w-44">
-                                    <div class="rounded-md bg-white px-3 py-2 text-center shadow-sm ring-1 ring-stone-200">
-                                        <p class="text-lg font-bold text-slate-950">{{ subjectGroups.length }}</p>
-                                        <p class="text-[11px] text-slate-500">groups</p>
+                            <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+                                <div class="grid grid-cols-2 gap-2">
+                                    <div class="flex h-12 min-w-28 items-center gap-3 rounded-lg border border-stone-200 bg-white px-3 shadow-sm">
+                                        <p class="text-lg font-bold leading-none text-slate-950">{{ subjectGroups.length }}</p>
+                                        <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Groups</p>
                                     </div>
-                                    <div class="rounded-md bg-white px-3 py-2 text-center shadow-sm ring-1 ring-stone-200">
-                                        <p class="text-lg font-bold text-slate-950">{{ subjectOptions.length }}</p>
-                                        <p class="text-[11px] text-slate-500">subjects</p>
+                                    <div class="flex h-12 min-w-28 items-center gap-3 rounded-lg border border-stone-200 bg-white px-3 shadow-sm">
+                                        <p class="text-lg font-bold leading-none text-slate-950">{{ subjectOptions.length }}</p>
+                                        <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Subjects</p>
                                     </div>
                                 </div>
 
                                 <div class="flex gap-2">
-                                    <button type="button" class="btn-primary flex items-center justify-center gap-2 whitespace-nowrap" @click="addSubjectGroup">
+                                    <button type="button" class="inline-flex h-12 items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-[#1e2924]/95 px-5 text-sm font-bold text-white shadow-sm shadow-black/10 transition-colors hover:bg-[#1e2924]" @click="addSubjectGroup">
                                         <Plus class="h-4 w-4" />
                                         Add group
                                     </button>
                                     <button
                                         type="button"
-                                        class="flex items-center justify-center gap-2 whitespace-nowrap rounded-md px-4 py-2 text-sm font-semibold shadow-sm transition disabled:cursor-default"
-                                        :class="groupsDirty ? 'bg-blue-700 text-white hover:bg-blue-800 disabled:opacity-70' : 'border border-emerald-200 bg-emerald-50 text-emerald-700'"
+                                        class="flex h-12 min-w-28 items-center justify-center gap-2 whitespace-nowrap rounded-lg px-4 text-sm font-bold shadow-sm transition disabled:cursor-default"
+                                        :class="groupsDirty ? 'bg-[#1e2924]/95 text-white shadow-sm shadow-black/10 hover:bg-[#1e2924] disabled:opacity-70' : 'border border-[#8BED9A]/70 bg-[#8BED9A]/20 text-[#1e2924]'"
                                         :disabled="!groupsDirty || isSavingGroups"
                                         @click="saveSubjectGroups"
                                     >
@@ -768,13 +801,11 @@ function strategyTone(item) {
                         <div v-if="!subjectOptions.length" class="rounded-lg border border-dashed border-stone-300 bg-stone-50 p-8 text-center">
                             <SlidersHorizontal class="mx-auto h-7 w-7 text-slate-300" />
                             <p class="mt-2 text-sm font-semibold text-slate-950">No subjects found in the active routine</p>
-                            <p class="mt-1 text-sm text-slate-500">Generate or import a routine with assigned subjects before configuring subject groups.</p>
                         </div>
 
                         <div v-else-if="!subjectGroups.length" class="rounded-lg border border-dashed border-stone-300 bg-stone-50 p-8 text-center">
                             <Plus class="mx-auto h-7 w-7 text-slate-300" />
                             <p class="mt-2 text-sm font-semibold text-slate-950">No subject groups yet</p>
-                            <p class="mt-1 text-sm text-slate-500">Use Add group to create your first proxy fallback group.</p>
                         </div>
 
                         <div v-else class="space-y-4">
@@ -795,7 +826,7 @@ function strategyTone(item) {
                                             <span
                                                 v-for="subject in group.subjects"
                                                 :key="`${group.id}-selected-${subject}`"
-                                                class="inline-flex items-center gap-1.5 rounded-md border border-blue-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 shadow-sm"
+                                                class="inline-flex items-center gap-1.5 rounded-md border border-[#8BED9A]/70 bg-white px-2.5 py-1 text-xs font-semibold text-[#1e2924] shadow-sm"
                                             >
                                                 {{ subject }}
                                                 <button type="button" class="rounded text-slate-400 hover:text-rose-700" @click="removeGroupSubject(group, subject)">
@@ -846,13 +877,13 @@ function strategyTone(item) {
                                                     :key="`${group.id}-picker-${subject}`"
                                                     type="button"
                                                     class="flex w-full items-center justify-between gap-3 rounded-md border px-3 py-2 text-left text-sm transition"
-                                                    :class="draftHasSubject(subject) ? 'border-blue-300 bg-blue-50 text-blue-800' : 'border-stone-200 bg-white text-slate-700 hover:bg-stone-50'"
+                                                    :class="draftHasSubject(subject) ? 'border-[#09B884]/50 bg-[#8BED9A]/15 text-[#1e2924]' : 'border-stone-200 bg-white text-slate-700 hover:bg-stone-50'"
                                                     @click="toggleDraftSubject(subject)"
                                                 >
                                                     <span class="font-medium">{{ subject }}</span>
                                                     <span
                                                         class="flex h-4 w-4 items-center justify-center rounded border"
-                                                        :class="draftHasSubject(subject) ? 'border-blue-600 bg-blue-600' : 'border-stone-300 bg-white'"
+                                                        :class="draftHasSubject(subject) ? 'border-[#09B884] bg-[#09B884]' : 'border-stone-300 bg-white'"
                                                     >
                                                         <span v-if="draftHasSubject(subject)" class="h-1.5 w-1.5 rounded-full bg-white"></span>
                                                     </span>
@@ -864,7 +895,7 @@ function strategyTone(item) {
                                                 <button type="button" class="rounded-md border border-stone-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-stone-50" @click="closeSubjectPicker">
                                                     Cancel
                                                 </button>
-                                                <button type="button" class="rounded-md bg-slate-950 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-800" @click="confirmSubjectPicker(group)">
+                                                <button type="button" class="rounded-md bg-[#1e2924]/95 px-3 py-2 text-sm font-semibold text-white shadow-sm shadow-black/10 hover:bg-[#1e2924]" @click="confirmSubjectPicker(group)">
                                                     Done
                                                 </button>
                                             </div>
