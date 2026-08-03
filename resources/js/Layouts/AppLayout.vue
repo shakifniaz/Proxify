@@ -9,13 +9,13 @@ const props = defineProps({
 });
 
 const sidebarCollapsed = ref(
-    typeof localStorage !== 'undefined' && localStorage.getItem('proxify_sidebar_collapsed') === '1'
+    typeof localStorage !== 'undefined' && localStorage.getItem('campulse_sidebar_collapsed') === '1'
 );
 
 function toggleSidebar() {
     sidebarCollapsed.value = !sidebarCollapsed.value;
     if (typeof localStorage !== 'undefined') {
-        localStorage.setItem('proxify_sidebar_collapsed', sidebarCollapsed.value ? '1' : '0');
+        localStorage.setItem('campulse_sidebar_collapsed', sidebarCollapsed.value ? '1' : '0');
     }
 }
 </script>

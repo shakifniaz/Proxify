@@ -175,6 +175,11 @@ const unassignedSubjects = computed(() =>
         )
     )
 );
+const missingSetup = computed(() => {
+    if (!classes.value.length) return 'Add classes in the Classrooms tab before generating a routine.';
+    if (!teacherPool.value.length) return 'Add teachers in the Teachers tab before generating a routine.';
+    return '';
+});
 const autoBalancedSubjects = computed(() =>
     classes.value.reduce(
         (sum, cls) =>
@@ -413,7 +418,7 @@ function submitRoutine() {
                 </div>
                 <div class="flex items-center gap-2">
                     <Link href="/routines" class="btn-secondary">Cancel</Link>
-                    <button type="button" class="btn-primary" :disabled="isSubmitting || unassignedSubjects.length > 0" @click="submitRoutine">
+                    <button type="button" class="btn-primary" :disabled="isSubmitting || unassignedSubjects.length > 0 || Boolean(missingSetup)" @click="submitRoutine">
                         <RefreshCw class="h-4 w-4" :class="isSubmitting ? 'animate-spin' : ''" />
                         {{ isSubmitting ? 'Creating...' : 'Create routine' }}
                     </button>
@@ -488,16 +493,20 @@ function submitRoutine() {
                             <div class="flex flex-wrap items-center justify-between gap-3">
                                 <div>
                                     <p class="section-title">Classes and Sections</p>
-                                    <p class="mt-1 text-sm text-slate-500">Drag classes to order custom names, or use the standard Nursery, KG, 1, 2 sequence.</p>
+                                    <p class="mt-1 text-sm text-slate-500">Classes are managed in the Classrooms tab. You can still reorder them and reassign class teachers for this routine.</p>
                                 </div>
                                 <div class="flex flex-wrap gap-2">
                                     <button type="button" class="btn-secondary" @click="sortClasses">Sort standard order</button>
-                                    <button type="button" class="btn-secondary" @click="addClass">
+                                    <Link href="/classrooms" class="btn-secondary">
                                         <Plus class="h-4 w-4" />
-                                        Add class
-                                    </button>
+                                        Manage classes
+                                    </Link>
                                 </div>
                             </div>
+                        </div>
+
+                        <div v-if="!classes.length" class="surface-card border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">
+                            Add classes and sections in the Classrooms tab first. This page will use them automatically for routine generation.
                         </div>
 
                         <div
@@ -517,24 +526,14 @@ function submitRoutine() {
                                 />
                                 <div class="min-w-48 flex-1">
                                     <label class="section-title">Class name</label>
-                                    <input v-model="cls.name" type="text" class="field-control mt-1 w-full" />
+                                    <input v-model="cls.name" type="text" class="field-control mt-1 w-full bg-stone-50" readonly />
                                 </div>
-                                <button type="button" class="btn-secondary" @click="addSection(cls)">
-                                    <Plus class="h-4 w-4" />
-                                    Section
-                                </button>
-                                <button type="button" class="flex h-10 w-10 items-center justify-center rounded-lg border border-red-200 text-red-700 hover:bg-red-50" @click="removeClass(classIndex)">
-                                    <Trash2 class="h-4 w-4" />
-                                </button>
                             </div>
 
                             <div class="mt-4 space-y-3">
                                 <div v-for="(section, sectionIndex) in cls.sections" :key="section.id" class="surface-muted p-4">
                                     <div class="flex items-center gap-2">
-                                        <input v-model="section.name" type="text" class="field-control-sm min-w-0 flex-1" />
-                                        <button type="button" class="text-slate-400 hover:text-red-700" @click="removeSection(cls, sectionIndex)">
-                                            <Trash2 class="h-4 w-4" />
-                                        </button>
+                                        <input v-model="section.name" type="text" class="field-control-sm min-w-0 flex-1 bg-stone-50" readonly />
                                     </div>
                                     <div class="mt-3 overflow-hidden rounded-lg border border-stone-200 bg-white">
                                         <div class="flex flex-wrap items-end justify-between gap-3 border-b border-stone-200 bg-stone-50 px-3 py-3">
@@ -577,7 +576,7 @@ function submitRoutine() {
                                         <option :value="null">Select teacher</option>
                                         <option v-for="teacher in teacherPool" :key="teacher.id" :value="teacher.id">{{ teacher.name }}</option>
                                     </select>
-                                    <p class="mt-2 text-xs text-slate-500">First-period priority applies when this teacher has a subject in this section.</p>
+                                    <p class="mt-2 text-xs text-slate-500">This can override the directory class teacher for this generated routine.</p>
                                 </div>
                             </div>
                         </div>
@@ -672,13 +671,17 @@ function submitRoutine() {
                             <div class="flex items-center justify-between gap-3">
                                 <div>
                                     <p class="section-title">Teacher Pool</p>
-                                    <p class="mt-1 text-sm text-slate-500">Teachers can carry multiple subjects across many classes. The engine will prevent period overlap.</p>
+                                    <p class="mt-1 text-sm text-slate-500">Teachers are managed in the Teachers tab. Drag here to choose the order used by the routine engine.</p>
                                 </div>
-                                <button type="button" class="btn-secondary" @click="addTeacher">
+                                <Link href="/teachers" class="btn-secondary">
                                     <Plus class="h-4 w-4" />
-                                    Add teacher
-                                </button>
+                                    Manage teachers
+                                </Link>
                             </div>
+                        </div>
+
+                        <div v-if="!teacherPool.length" class="surface-card border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">
+                            Add teachers in the Teachers tab first. They will appear here automatically for subject assignment.
                         </div>
 
                         <div class="space-y-3">
@@ -703,14 +706,11 @@ function submitRoutine() {
                                         <UserRound class="h-5 w-5" />
                                     </div>
                                     <div class="min-w-0 flex-1">
-                                        <input v-model="teacher.name" type="text" class="field-control w-full" />
+                                        <input v-model="teacher.name" type="text" class="field-control w-full bg-stone-50" readonly />
                                     </div>
                                     <div class="w-full sm:w-64">
-                                        <input v-model="teacher.phone" type="text" placeholder="WhatsApp number" class="field-control-sm w-full" />
+                                        <input v-model="teacher.phone" type="text" placeholder="WhatsApp number" class="field-control-sm w-full bg-stone-50" readonly />
                                     </div>
-                                    <button type="button" class="ml-auto text-slate-400 hover:text-red-700" @click="removeTeacher(teacherIndex)">
-                                        <Trash2 class="h-4 w-4" />
-                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -805,7 +805,11 @@ function submitRoutine() {
                             </div>
                         </div>
 
-                        <button type="button" class="btn-primary w-full py-3 text-base" :disabled="isSubmitting || unassignedSubjects.length > 0" @click="submitRoutine">
+                        <div v-if="missingSetup" class="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-900">
+                            {{ missingSetup }}
+                        </div>
+
+                        <button type="button" class="btn-primary w-full py-3 text-base" :disabled="isSubmitting || unassignedSubjects.length > 0 || Boolean(missingSetup)" @click="submitRoutine">
                             <CalendarClock class="h-5 w-5" :class="isSubmitting ? 'animate-spin' : ''" />
                             {{ isSubmitting ? 'Generating...' : 'Generate routine draft' }}
                         </button>

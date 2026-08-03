@@ -21,7 +21,7 @@ defineProps({
 <template>
     <Head title="My Dashboard" />
 
-    <AppLayout title="Teacher Dashboard">
+    <AppLayout title="Teacher Workspace">
         <div class="space-y-6">
             <div class="surface-card flex flex-col justify-between gap-4 p-5 sm:flex-row sm:items-end">
                 <div>

@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\ProxyRun;
 use App\Models\Routine;
+use App\Models\ClassSection;
+use App\Models\TeacherProfile;
 use App\Services\RoutineGenerator;
 use App\Services\RoutineDocxImporter;
 use Illuminate\Http\RedirectResponse;
@@ -45,11 +47,45 @@ class RoutineController extends Controller
 
     public function create(): Response
     {
-        $teachers = config('routine_demo.teachers', []);
+        $institutionId = request()->user()?->institution_id;
+        $teachers = TeacherProfile::query()
+            ->when($institutionId, fn ($query) => $query->where('institution_id', $institutionId))
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get()
+            ->map(fn (TeacherProfile $teacher) => [
+                'id' => $teacher->id,
+                'name' => $teacher->name,
+                'phone' => $teacher->whatsapp_number ?? '',
+            ])
+            ->values()
+            ->all();
+
+        $sections = ClassSection::query()
+            ->with('classTeacher:id,name')
+            ->when($institutionId, fn ($query) => $query->where('institution_id', $institutionId))
+            ->orderBy('sort_order')
+            ->orderBy('class_name')
+            ->orderBy('section_name')
+            ->get()
+            ->groupBy('class_name')
+            ->map(fn ($group, $className) => [
+                'id' => 'class-'.md5((string) $className),
+                'name' => $className,
+                'dailyPeriods' => 7,
+                'sections' => $group->map(fn (ClassSection $section) => [
+                    'id' => $section->id,
+                    'name' => $section->section_name,
+                    'classTeacherId' => $section->class_teacher_profile_id,
+                    'subjects' => ($section->subjects && count($section->subjects)) ? $section->subjects : ['Mathematics', 'English'],
+                ])->values()->all(),
+            ])
+            ->values()
+            ->all();
 
         return Inertia::render('Routines/Create', [
             'classesConfig' => config('routine_demo.classes_config'),
-            'classes' => config('routine_demo.classes', []),
+            'classes' => $sections,
             'teachersConfig' => ['numberOfTeachers' => count($teachers)],
             'teachers' => $teachers,
         ]);
@@ -62,6 +98,7 @@ class RoutineController extends Controller
 
         $routine = Routine::create([
             'user_id' => $request->user()?->id,
+            'institution_id' => $request->user()?->institution_id,
             'name' => $data['name'],
             'term_label' => $data['termLabel'] ?? null,
             'status' => 'Draft',
@@ -89,6 +126,7 @@ class RoutineController extends Controller
 
         $routine = Routine::create([
             'user_id' => $request->user()?->id,
+            'institution_id' => $request->user()?->institution_id,
             'name' => $imported['name'],
             'term_label' => $imported['termLabel'],
             'status' => 'Draft',
@@ -115,6 +153,27 @@ class RoutineController extends Controller
             ->first();
         $generatedGrid = $activeProxy?->proxy_generated_grid ?: ($routine->generated_grid ?? []);
         $teacherSchedule = $activeProxy?->proxy_teacher_schedule ?: ($routine->teacher_schedule ?? []);
+        $classes = $routine->classes ?? [];
+
+        if (($requestUser = request()->user()) && $requestUser->role === 'student' && $requestUser->class_section_id) {
+            $sectionId = (string) $requestUser->class_section_id;
+            $generatedGrid = collect($generatedGrid)
+                ->filter(fn ($section) => (string) ($section['sectionId'] ?? '') === $sectionId)
+                ->all();
+
+            $classes = collect($classes)
+                ->map(function ($class) use ($sectionId) {
+                    $class['sections'] = array_values(array_filter(
+                        $class['sections'] ?? [],
+                        fn ($section) => (string) ($section['id'] ?? '') === $sectionId
+                    ));
+
+                    return $class;
+                })
+                ->filter(fn ($class) => count($class['sections'] ?? []) > 0)
+                ->values()
+                ->all();
+        }
 
         return Inertia::render('Routines/Show', [
             'routine' => [
@@ -126,10 +185,10 @@ class RoutineController extends Controller
             'days' => $days,
             'periods' => $routine->periods ?? [],
             'legend' => [],
-            'classOptions' => collect($routine->generated_grid ?? [])->pluck('label')->values(),
+            'classOptions' => collect($generatedGrid)->pluck('label')->values(),
             'teachers' => $teacherSchedule[$days[0] ?? ''] ?? [],
             'teacherSchedule' => $teacherSchedule,
-            'classes' => $routine->classes ?? [],
+            'classes' => $classes,
             'teacherPool' => $routine->teachers ?? [],
             'generationRules' => $routine->generation_rules ?? [],
             'generatedGrid' => $generatedGrid,

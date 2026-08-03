@@ -37,6 +37,13 @@ class ProfileController extends Controller
 
         $request->user()->save();
 
+        if ($request->user()->teacher_profile_id) {
+            $request->user()->teacherProfile?->update([
+                'name' => $request->user()->name,
+                'whatsapp_number' => $request->user()->phone,
+            ]);
+        }
+
         return Redirect::route('profile.edit');
     }
 

@@ -2,8 +2,10 @@
 
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\ClassSectionController;
 use App\Http\Controllers\ProxyRunController;
 use App\Http\Controllers\RoutineController;
+use App\Http\Controllers\TeacherController;
 use App\Models\Routine;
 use App\Models\TeacherLeaveAllowance;
 use Inertia\Inertia;
@@ -54,10 +56,41 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ]);
         }
 
+        if (strtolower($role) === 'student') {
+            return Inertia::render('StudentDashboard', [
+                'studentName' => $request->user()?->name ?? 'Student',
+                'classLabel' => 'Class 9A',
+                'dateLabel' => 'Tuesday, June 23, 2026',
+                'stats' => [
+                    'classesToday' => 6,
+                    'notices' => 3,
+                    'assignments' => 4,
+                ],
+                'todayRoutine' => [
+                    ['period' => 'P1', 'time' => '08:00 - 08:45', 'subject' => 'Mathematics', 'teacher' => 'Mr. Rahman', 'room' => 'Room 301'],
+                    ['period' => 'P2', 'time' => '08:45 - 09:30', 'subject' => 'English', 'teacher' => 'Ms. Karim', 'room' => 'Room 301'],
+                    ['period' => 'Break', 'time' => '09:30 - 09:45', 'subject' => 'Morning break', 'teacher' => null, 'room' => null],
+                    ['period' => 'P3', 'time' => '09:45 - 10:30', 'subject' => 'Physics', 'teacher' => 'Mr. Hossain', 'room' => 'Science Lab'],
+                    ['period' => 'P4', 'time' => '10:30 - 11:15', 'subject' => 'Bangla', 'teacher' => 'Mr. Ahmed', 'room' => 'Room 301'],
+                    ['period' => 'P5', 'time' => '11:15 - 12:00', 'subject' => 'BGS', 'teacher' => 'Ms. Islam', 'room' => 'Room 301'],
+                ],
+                'notices' => [
+                    ['id' => 1, 'title' => 'Mid-term exam schedule published', 'urgency' => 'Important', 'date' => 'Today'],
+                    ['id' => 2, 'title' => 'Science lab notebook check tomorrow', 'urgency' => 'Normal', 'date' => 'Yesterday'],
+                    ['id' => 3, 'title' => 'Assembly starts 10 minutes early', 'urgency' => 'Urgent', 'date' => 'Jun 21'],
+                ],
+                'classroomUpdates' => [
+                    ['subject' => 'Mathematics', 'message' => 'Complete exercise 5.2, problems 1-8.', 'due' => 'Tomorrow'],
+                    ['subject' => 'English', 'message' => 'Bring the literature workbook for group reading.', 'due' => 'Next class'],
+                    ['subject' => 'Physics', 'message' => 'Lab safety sheet must be signed before experiment.', 'due' => 'Today'],
+                ],
+            ]);
+        }
+
         // Return the existing admin dashboard for everyone else
         return Inertia::render('Dashboard', [
             'alerts' => [
-                '2 proxy periods unresolved',
+                '2 coverage periods unresolved',
                 '2 leave requests pending',
                 'Mr. Ahmed absent 3 days running',
             ],
@@ -69,7 +102,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ],
             'weekStats' => [
                 ['label' => 'Absent Teachers', 'sub' => 'Mon–Fri', 'value' => 3, 'color' => 'rose'],
-                ['label' => 'Proxy Classes', 'sub' => 'Total assigned', 'value' => 35, 'color' => 'amber'],
+                ['label' => 'Coverage Classes', 'sub' => 'Total assigned', 'value' => 35, 'color' => 'amber'],
                 ['label' => 'Unresolved Classes', 'sub' => 'Need attention', 'value' => 2, 'color' => 'rose'],
             ],
             'today' => [
@@ -77,12 +110,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
                 'unresolvedPeriods' => 2, 'ackRate' => 69,
             ],
             'monthStats' => [
-                ['label' => 'Proxies this month', 'value' => 47, 'sub' => '18 teachers involved', 'color' => 'emerald'],
+                ['label' => 'Coverage this month', 'value' => 47, 'sub' => '18 teachers involved', 'color' => 'emerald'],
                 ['label' => 'Absence streak', 'value' => 3, 'sub' => 'Mr. Ahmed — flagged', 'color' => 'rose'],
                 ['label' => 'Leave pending', 'value' => 2, 'sub' => 'needs approval', 'color' => 'amber'],
             ],
             'liveActivity' => [
-                ['id' => 1, 'text' => 'Proxy engine ran — 11 of 13 periods assigned', 'time' => '8:42', 'color' => 'teal'],
+                ['id' => 1, 'text' => 'Coverage engine ran — 11 of 13 periods assigned', 'time' => '8:42', 'color' => 'teal'],
                 ['id' => 2, 'text' => 'Mr. Ahmed marked absent — 2 periods affected', 'time' => '8:38', 'color' => 'rose'],
                 ['id' => 3, 'text' => 'P4 · Class 7C flagged — no teacher available', 'time' => '8:38', 'color' => 'amber'],
                 ['id' => 4, 'text' => 'Ms. Karim submitted leave request', 'time' => '8:25', 'color' => 'sky'],
@@ -96,8 +129,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
                 ['teacher' => 'Mr. Chowdhury', 'subject' => 'Chemistry', 'section' => '9A', 'periods' => 3, 'proxy' => '—', 'status' => 'Unresolved'],
             ],
             'quickActions' => [
-                ['label' => 'Mark Teacher Absent', 'icon' => 'UserX', 'href' => '#'],
-                ['label' => 'Finalize Proxies', 'icon' => 'CheckCircle2', 'href' => '#'],
+                ['label' => 'Record Staff Absence', 'icon' => 'UserX', 'href' => '#'],
+                ['label' => 'Finalize Coverage', 'icon' => 'CheckCircle2', 'href' => '#'],
                 ['label' => 'Post Notice', 'icon' => 'Megaphone', 'href' => '#'],
                 ['label' => 'Create Routine', 'icon' => 'CalendarPlus', 'href' => '#'],
             ],
@@ -262,70 +295,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
     })->name('noticeboard.index');
 
     Route::get('/staff-room', function () {
-        return Inertia::render('StaffRoom/Index', [
-            'boards' => [
-                [
-                    'id' => 'handovers',
-                    'name' => 'Class Handovers',
-                    'description' => 'Context notes for the next teacher stepping into a classroom today.',
-                    'notes' => [
-                        [
-                            'id' => 1,
-                            'author' => 'Mrs. Ananya (English)',
-                            'target' => 'Class 10-A',
-                            'time' => '10 mins ago',
-                            'content' => 'Started the presentation late. They need exactly 5 minutes at the start of the next period to shut down their laptop slides.',
-                            'tag' => 'Urgent Context',
-                            'color' => 'rose'
-                        ],
-                        [
-                            'id' => 2,
-                            'author' => 'Mr. Zayan (Chemistry)',
-                            'target' => 'Class 9-B',
-                            'time' => '2 hours ago',
-                            'content' => 'Distributed standard carbon compounds sheets. Remind them they must write in blue ink for their in-person submission.',
-                            'tag' => 'Task Reminder',
-                            'color' => 'violet'
-                        ]
-                    ]
-                ],
-                [
-                    'id' => 'resources',
-                    'name' => 'Shared Equipment & Labs',
-                    'description' => 'Coordination notes regarding science apparatus, keys, and facility usage settings.',
-                    'notes' => [
-                        [
-                            'id' => 3,
-                            'author' => 'Shakif Niaz (Physics)',
-                            'target' => 'Science Lab B',
-                            'time' => '1 hour ago',
-                            'content' => 'Left the circuit calibration meters wired on row 3 for the 6th period labs. Kindly let them sit undisturbed.',
-                            'tag' => 'Lab Layout',
-                            'color' => 'amber'
-                        ]
-                    ]
-                ],
-                [
-                    'id' => 'favors',
-                    'name' => 'Internal Swap Requests',
-                    'description' => 'Peer-level schedule trade discussions before logging formal proxy absences.',
-                    'notes' => [
-                        [
-                            'id' => 4,
-                            'author' => 'Ms. Khan',
-                            'target' => 'Friday Period 5 Swap',
-                            'time' => '3 hours ago',
-                            'content' => 'Looking to trade my Friday afternoon 5th block for any morning session due to an external conference alignment.',
-                            'tag' => 'Swap Request',
-                            'color' => 'sky'
-                        ]
-                    ]
-                ]
-            ]
-        ]);
+        return redirect()->route('noticeboard.index');
     })->name('staff-room.index');
 
-    Route::get('/classrooms', function () {
+    Route::get('/classrooms', [ClassSectionController::class, 'index'])->name('classrooms.index');
+    Route::post('/classrooms', [ClassSectionController::class, 'store'])->name('classrooms.store');
+    Route::patch('/classrooms/{classSection}', [ClassSectionController::class, 'update'])->name('classrooms.update');
+
+    Route::get('/classrooms-demo', function () {
         return Inertia::render('Classrooms/Index', [
             'classrooms' => [
                 [
@@ -432,7 +409,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
                 ]
             ]
         ]);
-    })->name('classrooms.index');
+    })->name('classrooms.demo');
 
     Route::get('/analytics', function () {
         return Inertia::render('Analytics/Index', [
@@ -468,7 +445,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ]);
     })->name('analytics.index');
     
-    Route::get('/teachers', function () {
+    Route::get('/teachers', [TeacherController::class, 'index'])->name('teachers.index');
+    Route::post('/teachers', [TeacherController::class, 'store'])->name('teachers.store');
+    Route::patch('/teachers/{teacher}', [TeacherController::class, 'update'])->name('teachers.update');
+
+    Route::get('/teachers-demo', function () {
         return Inertia::render('Teachers/Index', [
             'teachers' => [
                 ['id' => 1, 'name' => 'Mr. Rahman', 'phone' => '+8801711000001', 'initials' => 'MR', 'avatarColor' => 'emerald', 'subject' => 'Mathematics', 'proxyLoadThisMonth' => 5, 'leaveUsedDays' => 5, 'status' => 'Active', 'role' => 'Teacher'],
@@ -482,7 +463,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
                 'Biology', 'History', 'Bangla', 'Science',
             ],
         ]);
-    })->name('teachers.index');
+    })->name('teachers.demo');
     Route::get('/settings', function () {
         return Inertia::render('Settings/Index', [
             'general' => [
@@ -523,3 +504,4 @@ Route::middleware('auth')->group(function () {
 });
 
 require __DIR__.'/auth.php';
+

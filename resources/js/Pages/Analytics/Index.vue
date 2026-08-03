@@ -71,7 +71,7 @@ function exportPdf() {
                     <p class="mt-1 text-xs text-slate-500">{{ stats.totalAbsences?.delta }}</p>
                 </div>
                 <div class="surface-card p-5">
-                    <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Proxy Classes</p>
+                    <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Coverage Classes</p>
                     <p class="mt-2 text-3xl font-bold text-slate-950">{{ stats.proxyClasses?.value }}</p>
                     <p class="mt-1 text-xs text-slate-500">{{ stats.proxyClasses?.delta }}</p>
                 </div>

@@ -7,6 +7,7 @@ use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class User extends Authenticatable
 {
@@ -24,6 +25,9 @@ class User extends Authenticatable
         'password',
         'phone',
         'role',
+        'institution_id',
+        'teacher_profile_id',
+        'class_section_id',
     ];
 
     /**
@@ -47,5 +51,15 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+
+    public function teacherProfile(): BelongsTo
+    {
+        return $this->belongsTo(TeacherProfile::class);
+    }
+
+    public function classSection(): BelongsTo
+    {
+        return $this->belongsTo(ClassSection::class);
     }
 }

@@ -1,198 +1,512 @@
 <script setup>
-import { ref, computed } from 'vue';
+import { computed, ref } from 'vue';
 import { usePage } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
-import { Eye, Megaphone, Send } from 'lucide-vue-next';
+import {
+    BadgeCheck,
+    CheckCircle2,
+    ChevronDown,
+    Edit3,
+    Eye,
+    Megaphone,
+    Plus,
+    Search,
+    Send,
+    ShieldCheck,
+    Trash2,
+    Users,
+    X,
+} from 'lucide-vue-next';
 
 const props = defineProps({
     notices: { type: Array, default: () => [] },
-    urgencyOptions: { type: Array, default: () => [] },
-    audienceOptions: { type: Array, default: () => [] },
+    institutionalNotices: { type: Array, default: () => [] },
+    staffNotices: { type: Array, default: () => [] },
+    urgencyOptions: { type: Array, default: () => ['Low', 'Normal', 'Important', 'Urgent'] },
+    visibilityOptions: { type: Array, default: () => ['All', 'Teachers', 'Admins'] },
     totalStaff: { type: Number, default: 18 },
 });
 
-// Role Verification Logic
 const page = usePage();
-const isAdmin = computed(() => page.props.auth?.user?.role === 'admin');
+const authUser = computed(() => ({
+    name: page.props.auth?.user?.name ?? 'Shakif Niaz',
+    role: page.props.auth?.user?.role ?? 'admin',
+}));
+const isAdmin = computed(() => authUser.value.role?.toLowerCase() === 'admin');
+const isTeacher = computed(() => authUser.value.role?.toLowerCase() === 'teacher');
+const canUseStaffBoard = computed(() => isAdmin.value || isTeacher.value);
 
-const urgencyClasses = {
-    Urgent: { border: 'border-red-200 bg-red-50', badge: 'bg-red-50 text-red-700 border border-red-200' },
-    Important: { border: 'border-amber-200 bg-amber-50', badge: 'bg-amber-50 text-amber-700 border border-amber-200' },
-    Normal: { border: 'border-stone-300 bg-white', badge: 'bg-blue-50 text-blue-700 border border-blue-200' },
-};
+const fallbackStaffNotices = [
+    {
+        id: 101,
+        title: 'Class 10-A projector handoff',
+        message: 'Presentation started late. Please give them five minutes at the beginning of next period to close their slides properly.',
+        urgency: 'Important',
+        postedBy: 'Mrs. Ananya',
+        postedDate: '10 mins ago',
+        acknowledgedBy: ['Mr. Rahman', 'Ms. Karim'],
+        owner: false,
+    },
+    {
+        id: 102,
+        title: 'Science Lab B setup',
+        message: 'Circuit calibration meters are wired on row 3 for the sixth period lab. Please keep the layout unchanged.',
+        urgency: 'Normal',
+        postedBy: authUser.value.name,
+        postedDate: '1 hour ago',
+        acknowledgedBy: ['Ms. Islam'],
+        owner: true,
+    },
+    {
+        id: 103,
+        title: 'Friday period swap request',
+        message: 'Looking to trade my Friday afternoon fifth period for a morning slot because of an external conference.',
+        urgency: 'Low',
+        postedBy: 'Ms. Khan',
+        postedDate: '3 hours ago',
+        acknowledgedBy: [],
+        owner: false,
+    },
+];
 
-const localNotices = ref(props.notices.map((n) => ({ ...n })));
+const institutional = ref((props.institutionalNotices.length ? props.institutionalNotices : props.notices).map((notice) => ({
+    visibility: 'All',
+    totalViewers: props.totalStaff,
+    ...notice,
+})));
+const staff = ref((props.staffNotices.length ? props.staffNotices : fallbackStaffNotices).map((notice) => ({
+    acknowledgedBy: [],
+    owner: notice.postedBy === authUser.value.name,
+    ...notice,
+})));
 
-const blankForm = () => ({
+const activeTab = ref('institutional');
+const search = ref('');
+const urgencyFilter = ref('All urgency');
+const visibilityFilter = ref('All visibility');
+const editingNoticeId = ref(null);
+
+const newNotice = () => ({
     title: '',
     message: '',
-    urgency: props.urgencyOptions[0] ?? 'Normal',
-    audience: props.audienceOptions[0] ?? 'All staff',
+    urgency: 'Normal',
+    visibility: 'Teachers',
 });
-const form = ref(blankForm());
-const showPreview = ref(false);
-const titleInput = ref(null);
 
-function togglePreview() {
-    showPreview.value = !showPreview.value;
+const form = ref(newNotice());
+
+const urgencyStyles = {
+    Low: {
+        card: 'border-slate-300 bg-slate-100 shadow-slate-200/70',
+        badge: 'border-slate-300 bg-white/85 text-slate-700',
+        glow: 'from-slate-400/70',
+        dot: 'bg-slate-400',
+    },
+    Normal: {
+        card: 'border-[#8BED9A] bg-[#8BED9A]/35 shadow-[#8BED9A]/30',
+        badge: 'border-[#8BED9A] bg-white/85 text-[#1e2924]',
+        glow: 'from-[#09B884]/80',
+        dot: 'bg-[#09B884]',
+    },
+    Important: {
+        card: 'border-amber-300 bg-amber-100 shadow-amber-200/60',
+        badge: 'border-amber-300 bg-white/85 text-amber-900',
+        glow: 'from-amber-500/80',
+        dot: 'bg-amber-500',
+    },
+    Urgent: {
+        card: 'border-red-300 bg-red-100 shadow-red-200/70',
+        badge: 'border-red-300 bg-white/90 text-red-800',
+        glow: 'from-red-600/85',
+        dot: 'bg-red-500',
+    },
+};
+
+const currentList = computed(() => activeTab.value === 'institutional' ? institutional.value : staff.value);
+const canCreate = computed(() => (activeTab.value === 'institutional' && isAdmin.value) || (activeTab.value === 'staff' && canUseStaffBoard.value));
+const showVisibility = computed(() => activeTab.value === 'institutional');
+const filteredNotices = computed(() => currentList.value.filter((notice) => {
+    const query = search.value.trim().toLowerCase();
+    const matchesQuery = !query || [notice.title, notice.message, notice.postedBy, notice.visibility]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(query));
+    const matchesUrgency = urgencyFilter.value === 'All urgency' || notice.urgency === urgencyFilter.value;
+    const canSeeNotice = activeTab.value !== 'institutional'
+        || isAdmin.value
+        || notice.visibility === 'All'
+        || (notice.visibility === 'Teachers' && isTeacher.value);
+    const matchesVisibility = activeTab.value !== 'institutional'
+        || visibilityFilter.value === 'All visibility'
+        || notice.visibility === visibilityFilter.value;
+
+    return canSeeNotice && matchesQuery && matchesUrgency && matchesVisibility;
+}));
+
+const tabStats = computed(() => ({
+    institutional: institutional.value.length,
+    staff: staff.value.length,
+}));
+
+function styleFor(urgency) {
+    return urgencyStyles[urgency] ?? urgencyStyles.Normal;
+}
+
+function resetForm() {
+    editingNoticeId.value = null;
+    form.value = newNotice();
+    if (activeTab.value === 'institutional') {
+        form.value.visibility = 'Teachers';
+    }
 }
 
 function submitNotice() {
-    if (!form.value.title || !form.value.message) return;
+    if (!form.value.title.trim() || !form.value.message.trim()) return;
 
-    localNotices.value.unshift({
+    const target = activeTab.value === 'institutional' ? institutional : staff;
+    const existing = target.value.find((notice) => notice.id === editingNoticeId.value);
+
+    if (existing) {
+        existing.title = form.value.title;
+        existing.message = form.value.message;
+        existing.urgency = form.value.urgency;
+        existing.visibility = activeTab.value === 'institutional' ? form.value.visibility : undefined;
+        resetForm();
+        return;
+    }
+
+    target.value.unshift({
         id: Date.now(),
         title: form.value.title,
         message: form.value.message,
         urgency: form.value.urgency,
-        postedBy: 'Current User',
+        visibility: activeTab.value === 'institutional' ? form.value.visibility : undefined,
+        postedBy: activeTab.value === 'institutional' ? 'Admin' : authUser.value.name,
         postedDate: 'Just now',
         readCount: 0,
-        totalStaff: props.totalStaff,
+        totalViewers: activeTab.value === 'institutional' ? props.totalStaff : undefined,
+        acknowledgedBy: [],
+        owner: activeTab.value === 'staff',
     });
 
-    form.value = blankForm();
-    showPreview.value = false;
-    titleInput.value?.focus();
+    resetForm();
+}
+
+function editNotice(notice) {
+    editingNoticeId.value = notice.id;
+    form.value = {
+        title: notice.title,
+        message: notice.message,
+        urgency: notice.urgency,
+        visibility: notice.visibility ?? 'Teachers',
+    };
+}
+
+function deleteNotice(notice) {
+    const target = activeTab.value === 'institutional' ? institutional : staff;
+    target.value = target.value.filter((item) => item.id !== notice.id);
+    if (editingNoticeId.value === notice.id) resetForm();
+}
+
+function canManageNotice(notice) {
+    return isAdmin.value || (activeTab.value === 'staff' && notice.owner);
+}
+
+function hasAcknowledged(notice) {
+    return notice.acknowledgedBy?.includes(authUser.value.name);
+}
+
+function toggleAcknowledge(notice) {
+    if (activeTab.value !== 'staff') return;
+    notice.acknowledgedBy ??= [];
+    if (hasAcknowledged(notice)) {
+        notice.acknowledgedBy = notice.acknowledgedBy.filter((name) => name !== authUser.value.name);
+        return;
+    }
+    notice.acknowledgedBy.push(authUser.value.name);
+}
+
+function selectTab(tab) {
+    if (tab === 'staff' && !canUseStaffBoard.value) return;
+    activeTab.value = tab;
+    search.value = '';
+    urgencyFilter.value = 'All urgency';
+    visibilityFilter.value = 'All visibility';
+    resetForm();
 }
 </script>
 
 <template>
-    <AppLayout title="Institutional Noticeboard">
-        <div class="space-y-6">
+    <AppLayout title="Noticeboard">
+        <div class="notice-shell relative overflow-hidden rounded-xl border border-[#8BED9A]/45 bg-white shadow-sm">
+            <div class="pointer-events-none absolute -right-28 -top-28 h-72 w-72 rounded-full bg-[#8BED9A]/30 blur-3xl"></div>
+            <div class="pointer-events-none absolute -bottom-36 left-1/4 h-72 w-72 rounded-full bg-[#09B884]/10 blur-3xl"></div>
 
-            <div class="grid grid-cols-1 gap-6 items-start" :class="isAdmin ? 'lg:grid-cols-3' : 'max-w-4xl mx-auto'">
-                
-                <div class="space-y-4" :class="isAdmin ? 'lg:col-span-2' : ''">
-                    <div class="border-b border-stone-200 pb-2">
-                        <h3 class="text-xs font-bold text-slate-600 uppercase tracking-wider">Active Broadcast Archives</h3>
-                    </div>
-
-                    <div class="space-y-4">
+            <div class="relative border-b border-[#8BED9A]/35 bg-white/80 px-4 py-4 backdrop-blur sm:px-5">
+                <div class="flex flex-col gap-4 xl:flex-row xl:items-center">
+                    <div
+                        class="relative grid w-full overflow-hidden rounded-2xl border border-[#8BED9A]/50 bg-[#8BED9A]/10 p-1.5 shadow-sm shadow-[#8BED9A]/20"
+                        :class="canUseStaffBoard ? 'grid-cols-2 sm:w-[31rem]' : 'grid-cols-1 sm:w-[16rem]'"
+                    >
                         <div
-                            v-for="notice in localNotices"
-                            :key="notice.id"
-                            class="rounded-lg border p-5 space-y-3 transition-colors"
-                            :class="urgencyClasses[notice.urgency]?.border ?? urgencyClasses.Normal.border"
+                            v-if="canUseStaffBoard"
+                            class="absolute inset-y-1.5 left-1.5 w-[calc(50%-0.375rem)] rounded-xl bg-[#1e2924] shadow-lg shadow-[#1e2924]/20 transition-transform duration-300 ease-out"
+                            :class="activeTab === 'staff' ? 'translate-x-full' : 'translate-x-0'"
+                        ></div>
+                        <div v-else class="absolute inset-1.5 rounded-xl bg-[#1e2924] shadow-lg shadow-[#1e2924]/20"></div>
+                        <button
+                            type="button"
+                            class="relative z-10 flex min-h-14 items-center justify-between gap-3 rounded-xl px-3 text-left transition-colors duration-300"
+                            :class="activeTab === 'institutional' ? 'text-white' : 'text-[#1e2924] hover:text-[#09B884]'"
+                            @click="selectTab('institutional')"
                         >
-                            <div class="flex items-start justify-between gap-4">
-                                <div class="space-y-1">
-                                    <span
-                                        class="inline-block rounded px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider"
-                                        :class="urgencyClasses[notice.urgency]?.badge ?? urgencyClasses.Normal.badge"
-                                    >
-                                        {{ notice.urgency }} Notice
-                                    </span>
-                                    <h4 class="text-sm font-bold text-slate-950 tracking-wide pt-1">{{ notice.title }}</h4>
-                                </div>
-                                <span class="text-[11px] text-slate-500 whitespace-nowrap">{{ notice.postedDate }}</span>
-                            </div>
-
-                            <p class="text-xs text-slate-700 leading-relaxed whitespace-pre-line">
-                                {{ notice.message }}
-                            </p>
-
-                            <div class="pt-3 border-t border-stone-200/60 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500">
-                                <div>
-                                    Posted by: <span class="text-slate-600 font-medium">{{ notice.postedBy }}</span>
-                                </div>
-                                <div class="flex items-center gap-1">
-                                    <Eye class="h-3.5 w-3.5 text-slate-500" />
-                                    <span>Read by {{ notice.readCount }}/{{ notice.totalStaff }} staff members</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div v-if="localNotices.length === 0" class="text-center py-12 text-xs text-slate-500 italic border border-dashed border-stone-300 rounded-lg">
-                            No active administrative announcements recorded on the live stream.
-                        </div>
-                    </div>
-                </div>
-
-                <div v-if="isAdmin" class="surface-card p-5 space-y-4">
-                    <div class="space-y-1">
-                        <h4 class="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
-                            <Send class="h-4 w-4 text-blue-700" />
-                            Compose Official Notice
-                        </h4>
-                        <p class="text-[11px] text-slate-500 leading-normal">
-                            Draft a localized bulletin card to instantly distribute across the global staff ecosystem dashboard layout panels.
-                        </p>
-                    </div>
-
-                    <div class="space-y-3 pt-2">
-                        <div>
-                            <label class="block text-[11px] font-semibold text-slate-600 uppercase tracking-wider mb-1">Notice Heading Title</label>
-                            <input
-                                ref="titleInput"
-                                v-model="form.title"
-                                type="text"
-                                placeholder="e.g., Campus Faculty General Meeting rescheduled"
-                                class="w-full bg-stone-100 border border-stone-300 rounded-lg px-3 py-2 text-xs text-slate-800 placeholder-slate-600 focus:outline-none focus:border-blue-500"
-                            />
-                        </div>
-
-                        <div>
-                            <label class="block text-[11px] font-semibold text-slate-600 uppercase tracking-wider mb-1">Detailed Message Context</label>
-                            <textarea
-                                v-model="form.message"
-                                rows="5"
-                                placeholder="State core logistical operational facts concisely..."
-                                class="w-full bg-stone-100 border border-stone-300 rounded-lg px-3 py-2 text-xs text-slate-800 placeholder-slate-600 focus:outline-none focus:border-blue-500 resize-none"
-                            ></textarea>
-                        </div>
-
-                        <div class="grid grid-cols-2 gap-3">
-                            <div>
-                                <label class="block text-[11px] font-semibold text-slate-600 uppercase tracking-wider mb-1">Urgency Level</label>
-                                <select
-                                    v-model="form.urgency"
-                                    class="w-full bg-stone-100 border border-stone-300 rounded-lg px-2.5 py-2 text-xs text-slate-600 focus:outline-none focus:border-blue-500"
+                            <span class="flex min-w-0 items-center gap-3">
+                                <span
+                                    class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border transition-colors duration-300"
+                                    :class="activeTab === 'institutional' ? 'border-white/15 bg-white/14 text-[#BDF8C8]' : 'border-[#8BED9A]/60 bg-white/80 text-[#09B884]'"
                                 >
-                                    <option v-for="u in urgencyOptions" :key="u" :value="u">{{ u }}</option>
-                                </select>
-                            </div>
-
-                            <div>
-                                <label class="block text-[11px] font-semibold text-slate-600 uppercase tracking-wider mb-1">Target Audience</label>
-                                <select
-                                    v-model="form.audience"
-                                    class="w-full bg-stone-100 border border-stone-300 rounded-lg px-2.5 py-2 text-xs text-slate-600 focus:outline-none focus:border-blue-500"
-                                >
-                                    <option v-for="a in audienceOptions" :key="a" :value="a">{{ a }}</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <div
-                            v-if="showPreview && form.title"
-                            class="rounded-lg border p-3 bg-stone-50 border-stone-300 space-y-1 text-xs"
-                        >
-                            <span class="text-[9px] font-bold uppercase tracking-wider text-blue-700 block">Live Form Preview Drawer:</span>
-                            <h5 class="font-bold text-slate-900 truncate">{{ form.title }}</h5>
-                            <p class="text-slate-600 line-clamp-2 text-[11px] italic leading-tight">{{ form.message || 'No description body drafted...' }}</p>
-                        </div>
-
-                        <div class="pt-2 flex gap-2">
-                            <button
-                                type="button"
-                                class="flex-1 rounded-lg border border-stone-300 px-3 py-2 text-xs font-medium text-slate-600 hover:bg-white hover:text-slate-800 transition-colors"
-                                @click="togglePreview"
+                                    <ShieldCheck class="h-4 w-4" />
+                                </span>
+                                <span class="truncate text-sm font-black">Institutional</span>
+                            </span>
+                            <span
+                                class="min-w-8 shrink-0 rounded-full border px-2 py-1 text-center text-xs font-black transition-colors duration-300"
+                                :class="activeTab === 'institutional' ? 'border-white/20 bg-white/16 text-white' : 'border-[#8BED9A]/70 bg-white/80 text-[#1e2924]'"
                             >
-                                {{ showPreview ? 'Hide Preview' : 'Preview Notice' }}
+                                {{ tabStats.institutional }}
+                            </span>
+                        </button>
+                        <button
+                            v-if="canUseStaffBoard"
+                            type="button"
+                            class="relative z-10 flex min-h-14 items-center justify-between gap-3 rounded-xl px-3 text-left transition-colors duration-300"
+                            :class="activeTab === 'staff' ? 'text-white' : 'text-[#1e2924] hover:text-[#09B884]'"
+                            @click="selectTab('staff')"
+                        >
+                            <span class="flex min-w-0 items-center gap-3">
+                                <span
+                                    class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border transition-colors duration-300"
+                                    :class="activeTab === 'staff' ? 'border-white/15 bg-white/14 text-[#BDF8C8]' : 'border-[#8BED9A]/60 bg-white/80 text-[#09B884]'"
+                                >
+                                    <Users class="h-4 w-4" />
+                                </span>
+                                <span class="truncate text-sm font-black">Staff board</span>
+                            </span>
+                            <span
+                                class="min-w-8 shrink-0 rounded-full border px-2 py-1 text-center text-xs font-black transition-colors duration-300"
+                                :class="activeTab === 'staff' ? 'border-white/20 bg-white/16 text-white' : 'border-[#8BED9A]/70 bg-white/80 text-[#1e2924]'"
+                            >
+                                {{ tabStats.staff }}
+                            </span>
+                        </button>
+                    </div>
+
+                </div>
+            </div>
+
+            <div
+                class="relative grid gap-px bg-stone-200/80"
+                :class="canCreate ? 'xl:grid-cols-[minmax(0,1fr)_25rem]' : 'xl:grid-cols-1'"
+            >
+                <section class="min-h-[36rem] bg-white/90 p-4 sm:p-5">
+                    <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                        <div class="flex items-center gap-3">
+                            <div class="flex h-10 w-10 items-center justify-center rounded-lg border border-[#8BED9A]/70 bg-[#8BED9A]/15 text-[#09B884]">
+                                <Megaphone class="h-4 w-4" />
+                            </div>
+                            <p class="text-sm font-bold text-slate-950">
+                                {{ activeTab === 'institutional' ? 'Institutional notices' : 'Staff notices' }}
+                            </p>
+                        </div>
+
+                        <div class="flex flex-col gap-2 sm:flex-row lg:justify-end">
+                            <div class="relative sm:w-72">
+                                <Search class="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                                <input v-model="search" type="text" class="field-control w-full pl-9" placeholder="Search notices" />
+                            </div>
+                            <div class="relative sm:w-44">
+                                <select v-model="urgencyFilter" class="field-control w-full appearance-none bg-white pl-3 pr-10">
+                                    <option>All urgency</option>
+                                    <option v-for="urgency in urgencyOptions" :key="urgency">{{ urgency }}</option>
+                                </select>
+                                <ChevronDown class="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+                            </div>
+                            <div v-if="activeTab === 'institutional'" class="relative sm:w-44">
+                                <select v-model="visibilityFilter" class="field-control w-full appearance-none bg-white pl-3 pr-10">
+                                    <option>All visibility</option>
+                                    <option v-for="visibility in visibilityOptions" :key="visibility">{{ visibility }}</option>
+                                </select>
+                                <ChevronDown class="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-4 grid gap-3">
+                        <article
+                            v-for="notice in filteredNotices"
+                            :key="notice.id"
+                            class="group relative overflow-hidden rounded-xl border p-4 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md"
+                            :class="styleFor(notice.urgency).card"
+                        >
+                            <div class="pointer-events-none absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r to-transparent" :class="styleFor(notice.urgency).glow"></div>
+                            <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                                <div class="min-w-0 flex-1">
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <span class="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide" :class="styleFor(notice.urgency).badge">
+                                            <span class="h-1.5 w-1.5 rounded-full" :class="styleFor(notice.urgency).dot"></span>
+                                            {{ notice.urgency }}
+                                        </span>
+                                        <span v-if="activeTab === 'institutional'" class="rounded-full border border-stone-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600">
+                                            {{ notice.visibility ?? 'Teachers' }}
+                                        </span>
+                                        <span v-else class="rounded-full border border-[#8BED9A]/70 bg-white px-2.5 py-1 text-[11px] font-semibold text-[#1e2924]">
+                                            {{ notice.postedBy }}
+                                        </span>
+                                    </div>
+                                    <h3 class="mt-3 text-base font-bold text-slate-950">{{ notice.title }}</h3>
+                                    <p class="mt-2 max-w-4xl whitespace-pre-line text-sm leading-relaxed text-slate-600">{{ notice.message }}</p>
+                                </div>
+
+                                <div class="flex shrink-0 items-center gap-2">
+                                    <button
+                                        v-if="activeTab === 'staff'"
+                                        type="button"
+                                        class="inline-flex min-h-9 items-center gap-1.5 rounded-lg border px-3 text-xs font-bold transition"
+                                        :class="hasAcknowledged(notice) ? 'border-[#8BED9A]/70 bg-[#8BED9A]/20 text-[#1e2924]' : 'border-stone-200 bg-white text-slate-600 hover:border-[#09B884]/40 hover:text-[#1e2924]'"
+                                        @click="toggleAcknowledge(notice)"
+                                    >
+                                        <CheckCircle2 class="h-3.5 w-3.5" />
+                                        {{ hasAcknowledged(notice) ? 'Acknowledged' : 'Acknowledge' }}
+                                    </button>
+                                    <button
+                                        v-if="canManageNotice(notice)"
+                                        type="button"
+                                        class="flex h-9 w-9 items-center justify-center rounded-lg border border-stone-200 bg-white text-slate-500 transition hover:border-[#09B884]/40 hover:text-[#1e2924]"
+                                        title="Edit notice"
+                                        @click="editNotice(notice)"
+                                    >
+                                        <Edit3 class="h-4 w-4" />
+                                    </button>
+                                    <button
+                                        v-if="canManageNotice(notice)"
+                                        type="button"
+                                        class="flex h-9 w-9 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 transition hover:bg-red-50"
+                                        title="Delete notice"
+                                        @click="deleteNotice(notice)"
+                                    >
+                                        <Trash2 class="h-4 w-4" />
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-white/70 pt-3 text-xs text-slate-500">
+                                <span>Posted by <strong class="font-semibold text-slate-700">{{ notice.postedBy }}</strong> - {{ notice.postedDate }}</span>
+                                <span v-if="activeTab === 'institutional'" class="inline-flex items-center gap-1">
+                                    <Eye class="h-3.5 w-3.5" />
+                                    {{ notice.readCount ?? 0 }}/{{ notice.totalViewers ?? props.totalStaff }} read
+                                </span>
+                                <span v-else class="inline-flex items-center gap-1">
+                                    <BadgeCheck class="h-3.5 w-3.5 text-[#09B884]" />
+                                    {{ notice.acknowledgedBy?.length ?? 0 }} acknowledged
+                                </span>
+                            </div>
+                        </article>
+
+                        <div v-if="filteredNotices.length === 0" class="rounded-xl border border-dashed border-stone-300 bg-white/80 py-14 text-center text-sm font-medium text-slate-500">
+                            No notices match the current filters.
+                        </div>
+                    </div>
+                </section>
+
+                <aside v-if="canCreate" class="bg-white/95 p-4 sm:p-5">
+                    <div class="sticky top-6 rounded-xl border border-[#8BED9A]/55 bg-white p-4 shadow-sm">
+                        <div class="flex items-center justify-between gap-3">
+                            <div class="flex items-center gap-3">
+                                <div class="flex h-10 w-10 items-center justify-center rounded-lg border border-[#8BED9A]/70 bg-[#8BED9A]/15 text-[#09B884]">
+                                    <Send class="h-4 w-4" />
+                                </div>
+                                <p class="text-sm font-bold text-slate-950">
+                                    {{ editingNoticeId ? 'Edit notice' : activeTab === 'institutional' ? 'Create notice' : 'Post staff notice' }}
+                                </p>
+                            </div>
+                            <button
+                                v-if="editingNoticeId"
+                                type="button"
+                                class="flex h-8 w-8 items-center justify-center rounded-lg border border-stone-200 text-slate-500 hover:bg-stone-50"
+                                @click="resetForm"
+                            >
+                                <X class="h-4 w-4" />
                             </button>
+                        </div>
+
+                        <div class="mt-4 space-y-3">
+                            <div>
+                                <label class="section-title">Title</label>
+                                <input v-model="form.title" type="text" class="field-control mt-1 w-full" placeholder="Write a clear notice title" />
+                            </div>
+                            <div>
+                                <label class="section-title">Message</label>
+                                <textarea v-model="form.message" rows="6" class="field-control mt-1 w-full resize-none" placeholder="Keep it direct and useful"></textarea>
+                            </div>
+                            <div class="grid gap-3" :class="showVisibility ? 'sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2' : ''">
+                                <div>
+                                    <label class="section-title">Urgency</label>
+                                    <div class="relative mt-1">
+                                        <select v-model="form.urgency" class="field-control w-full appearance-none bg-white pl-3 pr-10">
+                                            <option v-for="urgency in urgencyOptions" :key="urgency">{{ urgency }}</option>
+                                        </select>
+                                        <ChevronDown class="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+                                    </div>
+                                </div>
+                                <div v-if="showVisibility">
+                                    <label class="section-title">Visibility</label>
+                                    <div class="relative mt-1">
+                                        <select v-model="form.visibility" class="field-control w-full appearance-none bg-white pl-3 pr-10">
+                                            <option v-for="visibility in visibilityOptions" :key="visibility">{{ visibility }}</option>
+                                        </select>
+                                        <ChevronDown class="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="rounded-lg border p-3" :class="styleFor(form.urgency).card">
+                                <div class="flex items-center gap-2">
+                                    <Eye class="h-4 w-4 text-[#09B884]" />
+                                    <p class="truncate text-sm font-bold text-slate-950">{{ form.title || 'Notice preview' }}</p>
+                                </div>
+                                <p class="mt-2 line-clamp-3 text-xs leading-relaxed text-slate-600">{{ form.message || 'Your notice preview will appear here while composing.' }}</p>
+                            </div>
+
                             <button
                                 type="button"
-                                class="flex-1 rounded-lg bg-blue-700 hover:bg-blue-700 text-slate-950 font-bold text-xs py-2 px-3 transition-colors shadow-lg shadow-none disabled:cursor-not-allowed disabled:opacity-40"
-                                :disabled="!form.title || !form.message"
+                                class="btn-primary min-h-11 w-full"
+                                :disabled="!form.title.trim() || !form.message.trim()"
                                 @click="submitNotice"
                             >
-                                Post Notice
+                                <Plus v-if="!editingNoticeId" class="h-4 w-4" />
+                                <Edit3 v-else class="h-4 w-4" />
+                                {{ editingNoticeId ? 'Save changes' : 'Post notice' }}
                             </button>
                         </div>
                     </div>
-                </div>
+                </aside>
             </div>
         </div>
     </AppLayout>
 </template>
+
+<style scoped>
+.notice-shell {
+    animation: notice-rise 420ms ease-out both;
+}
+
+@keyframes notice-rise {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+</style>

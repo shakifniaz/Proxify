@@ -148,7 +148,7 @@ function importRoutine(event) {
                             class="mt-0.5 text-sm font-medium"
                             :class="routine.proxyClassesWeek > 0 ? 'text-red-700' : 'text-[#1e2924]'"
                         >
-                            {{ routine.proxyClassesWeek }} Total Proxy Classes this Week
+                            {{ routine.proxyClassesWeek }} Coverage Classes this Week
                         </p>
                     </div>
 

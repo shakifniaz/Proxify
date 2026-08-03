@@ -45,7 +45,7 @@ function getSafeColor(colorKey) {
 </script>
 
 <template>
-    <AppLayout title="Admin Dashboard">
+    <AppLayout title="School Dashboard">
         <div class="space-y-6">
             <div
                 v-if="alerts && alerts.length"
@@ -60,7 +60,7 @@ function getSafeColor(colorKey) {
             <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div class="surface-card flex items-center justify-between p-5 transition hover:border-[#8BED9A]/70 hover:shadow-md">
                     <div>
-                        <p class="text-base font-semibold text-slate-950">Master Routine</p>
+                        <p class="text-base font-semibold text-slate-950">Academic Schedule</p>
                         <p class="mt-1 text-sm text-slate-500">
                             {{ routineSummary?.days }} days &middot; {{ routineSummary?.classes }} classes &middot;
                             {{ routineSummary?.teachers }} teachers
@@ -78,7 +78,7 @@ function getSafeColor(colorKey) {
 
                 <div class="surface-card flex items-center justify-between p-5 transition hover:border-[#8BED9A]/70 hover:shadow-md">
                     <div>
-                        <p class="text-base font-semibold text-slate-950">Proxy Classes</p>
+                        <p class="text-base font-semibold text-slate-950">Coverage Status</p>
                         <p class="mt-1 text-sm text-slate-500">
                             Today &middot; {{ proxySummary?.absentToday }} absent &middot;
                             {{ proxySummary?.assignedToday }} assigned
@@ -121,7 +121,7 @@ function getSafeColor(colorKey) {
             <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
                 <div class="surface-card p-6 lg:col-span-2">
                     <div class="flex items-center justify-between">
-                        <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Today at a Glance</p>
+                        <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Campus Today</p>
                         <span
                             class="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800"
                         >

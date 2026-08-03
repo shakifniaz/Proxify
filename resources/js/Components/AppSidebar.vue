@@ -8,7 +8,6 @@ import {
     GraduationCap,
     CalendarOff,
     Megaphone,
-    MessagesSquare,
     School,
     BarChart3,
     Users,
@@ -34,6 +33,7 @@ const authUser = computed(() => ({
 }));
 
 const isAdmin = computed(() => authUser.value.role.toLowerCase() === 'admin');
+const isStudent = computed(() => authUser.value.role.toLowerCase() === 'student');
 
 const initials = computed(() =>
     authUser.value.name.split(' ').map((part) => part[0]).slice(0, 2).join('').toUpperCase()
@@ -55,19 +55,18 @@ const adminNavGroups = [
         items: [
             { name: 'Leave Requests', href: '/leave-requests', icon: CalendarOff },
             { name: 'Noticeboard', href: '/noticeboard', icon: Megaphone },
-            { name: 'Staff Room', href: '/staff-room', icon: MessagesSquare },
         ],
     },
     {
         label: 'Academic',
         items: [
-            { name: 'Classrooms', href: '/classrooms', icon: School },
             { name: 'Analytics', href: '/analytics', icon: BarChart3 },
         ],
     },
     {
         label: 'Admin',
         items: [
+            { name: 'Classes', href: '/classrooms', icon: School },
             { name: 'Teachers', href: '/teachers', icon: Users },
             { name: 'Create Routine', href: '/routines/create', icon: CalendarPlus },
             { name: 'Settings', href: '/settings', icon: Settings },
@@ -90,7 +89,6 @@ const teacherNavGroups = [
         items: [
             { name: 'My Leave', href: '/leave-requests', icon: CalendarOff },
             { name: 'Noticeboard', href: '/noticeboard', icon: Megaphone },
-            { name: 'Staff Room', href: '/staff-room', icon: MessagesSquare },
         ],
     },
     {
@@ -101,8 +99,24 @@ const teacherNavGroups = [
     },
 ];
 
+const studentNavGroups = [
+    {
+        label: 'Student',
+        items: [
+            { name: 'My Dashboard', href: '/dashboard', icon: LayoutDashboard },
+            { name: 'Routine', href: '/routines', icon: CalendarDays },
+            { name: 'Noticeboard', href: '/noticeboard', icon: Megaphone },
+            { name: 'Classrooms', href: '/classrooms', icon: School },
+        ],
+    },
+];
+
 // Switch navs dynamically
-const activeNavGroups = computed(() => isAdmin.value ? adminNavGroups : teacherNavGroups);
+const activeNavGroups = computed(() => {
+    if (isAdmin.value) return adminNavGroups;
+    if (isStudent.value) return studentNavGroups;
+    return teacherNavGroups;
+});
 
 function isActive(href) {
     return currentUrl.value === href;
@@ -115,8 +129,8 @@ function isActive(href) {
         :class="collapsed ? 'w-16 overflow-hidden' : 'w-64'"
     >
         <div class="flex h-16 items-center" :class="collapsed ? 'justify-center px-2' : 'justify-start px-6'">
-            <span v-if="!collapsed" class="block translate-y-1 pb-1 text-left text-3xl font-bold leading-tight tracking-wide text-white">Proxify</span>
-            <span v-else class="text-lg font-bold text-white">P</span>
+            <span v-if="!collapsed" class="brand-wordmark block translate-y-1 pb-1 text-left text-[2.05rem] leading-tight text-white">Campulse</span>
+            <span v-else class="brand-wordmark text-lg font-bold text-white">C</span>
         </div>
 
         <nav
