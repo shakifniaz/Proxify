@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue';
 import { router } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
-import { CheckCircle2, KeyRound, Pencil, Plus, Search, UserRound } from 'lucide-vue-next';
+import { CheckCircle2, KeyRound, Pencil, Plus, Search, Trash2, UserRound } from 'lucide-vue-next';
 
 const props = defineProps({
     teachers: { type: Array, default: () => [] },
@@ -11,6 +11,8 @@ const props = defineProps({
 const localTeachers = computed(() => props.teachers);
 const search = ref('');
 const editing = ref(null);
+const deletingTeacher = ref(null);
+const notification = ref(null);
 
 const filteredTeachers = computed(() => {
     const q = search.value.trim().toLowerCase();
@@ -58,16 +60,59 @@ function saveEditor() {
     };
 
     if (editing.value.isNew) {
-        router.post('/teachers', payload, { preserveScroll: true, onSuccess: closeEditor });
+        router.post('/teachers', payload, { preserveScroll: true, onSuccess: () => notifyAndClose('Teacher saved.', closeEditor) });
     } else {
-        router.patch(`/teachers/${editing.value.id}`, payload, { preserveScroll: true, onSuccess: closeEditor });
+        router.patch(`/teachers/${editing.value.id}`, payload, { preserveScroll: true, onSuccess: () => notifyAndClose('Teacher updated.', closeEditor) });
     }
+}
+
+function confirmDeleteTeacher(teacher) {
+    deletingTeacher.value = teacher;
+}
+
+function deleteTeacher() {
+    if (!deletingTeacher.value) return;
+
+    const name = deletingTeacher.value.name;
+    router.delete(`/teachers/${deletingTeacher.value.id}`, {
+        preserveScroll: true,
+        onSuccess: () => notifyAndClose(`${name} deleted.`, () => {
+            deletingTeacher.value = null;
+        }),
+    });
+}
+
+function notifyAndClose(message, callback) {
+    callback?.();
+    notification.value = message;
+    window.setTimeout(() => {
+        if (notification.value === message) notification.value = null;
+    }, 3200);
 }
 </script>
 
 <template>
     <AppLayout title="Teachers">
         <div class="space-y-5">
+            <Transition
+                enter-active-class="transition duration-300 ease-out"
+                enter-from-class="-translate-y-2 opacity-0"
+                enter-to-class="translate-y-0 opacity-100"
+                leave-active-class="transition duration-200 ease-in"
+                leave-from-class="translate-y-0 opacity-100"
+                leave-to-class="-translate-y-2 opacity-0"
+            >
+                <div
+                    v-if="notification"
+                    class="flex items-center gap-3 rounded-xl border border-[#8BED9A]/70 bg-white px-4 py-3 text-sm font-bold text-[#1e2924] shadow-[0_14px_35px_rgba(30,41,36,0.10)] ring-1 ring-[#8BED9A]/20"
+                >
+                    <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#8BED9A]/25 text-[#09B884]">
+                        <CheckCircle2 class="h-4 w-4" />
+                    </span>
+                    <span>{{ notification }}</span>
+                </div>
+            </Transition>
+
             <div class="surface-card p-4">
                 <div class="flex flex-wrap items-center justify-between gap-3">
                     <div>
@@ -129,10 +174,16 @@ function saveEditor() {
                                 </span>
                             </td>
                             <td class="px-5 py-4 text-right">
-                                <button type="button" class="btn-secondary min-h-9 px-3 py-1.5 text-xs" @click="openEdit(teacher)">
-                                    <Pencil class="h-3.5 w-3.5" />
-                                    Edit
-                                </button>
+                                <div class="flex justify-end gap-2">
+                                    <button type="button" class="btn-secondary min-h-9 px-3 py-1.5 text-xs" @click="openEdit(teacher)">
+                                        <Pencil class="h-3.5 w-3.5" />
+                                        Edit
+                                    </button>
+                                    <button type="button" class="btn-danger-soft min-h-9 px-3 py-1.5 text-xs" @click="confirmDeleteTeacher(teacher)">
+                                        <Trash2 class="h-3.5 w-3.5" />
+                                        Delete
+                                    </button>
+                                </div>
                             </td>
                         </tr>
                     </tbody>
@@ -169,6 +220,24 @@ function saveEditor() {
                     <div class="mt-5 flex justify-end gap-2">
                         <button type="button" class="btn-secondary" @click="closeEditor">Cancel</button>
                         <button type="button" class="btn-primary" :disabled="!editing.name?.trim()" @click="saveEditor">Save</button>
+                    </div>
+                </div>
+            </div>
+        </Teleport>
+
+        <Teleport to="body">
+            <div v-if="deletingTeacher" class="fixed inset-0 z-50 flex items-center justify-center bg-stone-100/70 p-4" @click.self="deletingTeacher = null">
+                <div class="surface-card w-full max-w-md p-5 shadow-xl">
+                    <h3 class="text-base font-black text-[#1e2924]">Delete teacher?</h3>
+                    <p class="mt-2 text-sm text-slate-600">
+                        This will remove <strong>{{ deletingTeacher.name }}</strong> from the teacher directory. Existing generated routine snapshots will not be changed.
+                    </p>
+                    <div class="mt-5 flex justify-end gap-2">
+                        <button type="button" class="btn-secondary" @click="deletingTeacher = null">Cancel</button>
+                        <button type="button" class="btn-danger-soft min-h-10 px-4 text-sm font-bold" @click="deleteTeacher">
+                            <Trash2 class="h-4 w-4" />
+                            Delete teacher
+                        </button>
                     </div>
                 </div>
             </div>

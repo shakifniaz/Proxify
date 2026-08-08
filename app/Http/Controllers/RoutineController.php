@@ -18,13 +18,13 @@ class RoutineController extends Controller
 {
     public function index(Request $request): Response|RedirectResponse
     {
-        $role = $request->query('role') ?? ($request->user()?->role ?? 'admin');
+        $role = strtolower($request->query('role') ?? ($request->user()?->role ?? 'admin'));
 
-        if ($role === 'teacher') {
-            $routine = Routine::where('status', 'Active')->latest()->first() ?? Routine::latest()->first();
+        if (in_array($role, ['teacher', 'student'], true)) {
+            $routine = Routine::where('status', 'Active')->latest()->first();
             return $routine
-                ? redirect()->route('routines.show', ['routine' => $routine->id, 'role' => 'teacher'])
-                : redirect()->route('dashboard');
+                ? redirect()->route('routines.show', array_filter(['routine' => $routine->id, 'role' => $request->query('role')]))
+                : $this->inactiveRoutineResponse($role);
         }
 
         return Inertia::render('Routines/Index', [
@@ -143,8 +143,17 @@ class RoutineController extends Controller
         return redirect()->route('routines.show', $routine)->with('success', 'Routine imported from DOCX.');
     }
 
-    public function show(Routine $routine): Response
+    public function show(Request $request, Routine $routine): Response|RedirectResponse
     {
+        $role = strtolower($request->query('role') ?? ($request->user()?->role ?? 'admin'));
+        if (in_array($role, ['teacher', 'student'], true) && $routine->status !== 'Active') {
+            $activeRoutine = Routine::where('status', 'Active')->latest()->first();
+
+            return $activeRoutine
+                ? redirect()->route('routines.show', ['routine' => $activeRoutine->id])
+                : $this->inactiveRoutineResponse($role);
+        }
+
         $days = $routine->days ?? [];
         $activeProxy = ProxyRun::where('routine_id', $routine->id)
             ->where('status', 'Approved')
@@ -154,8 +163,13 @@ class RoutineController extends Controller
         $generatedGrid = $activeProxy?->proxy_generated_grid ?: ($routine->generated_grid ?? []);
         $teacherSchedule = $activeProxy?->proxy_teacher_schedule ?: ($routine->teacher_schedule ?? []);
         $classes = $routine->classes ?? [];
+        $requestUser = $request->user();
+        $teacherNames = collect($routine->teachers ?? [])->pluck('name')->filter()->values();
+        $currentTeacherName = $role === 'teacher'
+            ? ($teacherNames->contains($requestUser?->name) ? $requestUser?->name : ($teacherNames->first() ?? $requestUser?->name ?? ''))
+            : '';
 
-        if (($requestUser = request()->user()) && $requestUser->role === 'student' && $requestUser->class_section_id) {
+        if ($requestUser && $role === 'student' && $requestUser->class_section_id) {
             $sectionId = (string) $requestUser->class_section_id;
             $generatedGrid = collect($generatedGrid)
                 ->filter(fn ($section) => (string) ($section['sectionId'] ?? '') === $sectionId)
@@ -176,6 +190,11 @@ class RoutineController extends Controller
         }
 
         return Inertia::render('Routines/Show', [
+            'accessRole' => $role,
+            'readOnly' => in_array($role, ['teacher', 'student'], true),
+            'noActiveRoutine' => false,
+            'currentTeacherName' => $currentTeacherName,
+            'currentClassLabel' => $role === 'student' ? (collect($generatedGrid)->first()['label'] ?? '') : '',
             'routine' => [
                 'id' => $routine->id,
                 'name' => $routine->name,
@@ -199,6 +218,35 @@ class RoutineController extends Controller
                 'date' => optional($activeProxy->date)->toDateString(),
                 'day' => $activeProxy->day_label,
             ] : null,
+        ]);
+    }
+
+    private function inactiveRoutineResponse(string $role): Response
+    {
+        return Inertia::render('Routines/Show', [
+            'accessRole' => $role,
+            'readOnly' => true,
+            'noActiveRoutine' => true,
+            'currentTeacherName' => '',
+            'currentClassLabel' => '',
+            'routine' => [
+                'id' => null,
+                'name' => 'No active routine',
+                'term' => null,
+                'status' => 'Inactive',
+            ],
+            'days' => [],
+            'periods' => [],
+            'legend' => [],
+            'classOptions' => [],
+            'teachers' => [],
+            'teacherSchedule' => [],
+            'classes' => [],
+            'teacherPool' => [],
+            'generationRules' => [],
+            'generatedGrid' => [],
+            'metrics' => [],
+            'activeProxyNotice' => null,
         ]);
     }
 

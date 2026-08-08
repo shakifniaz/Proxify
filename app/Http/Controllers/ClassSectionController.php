@@ -55,28 +55,45 @@ class ClassSectionController extends Controller
 
         $data = $request->validate([
             'className' => ['required', 'string', 'max:80'],
-            'sectionName' => ['required', 'string', 'max:80'],
+            'sectionName' => ['nullable', 'string', 'max:80'],
             'classTeacherId' => ['nullable', 'integer', 'exists:teacher_profiles,id'],
+            'sections' => ['nullable', 'array'],
+            'sections.*.sectionName' => ['required_with:sections', 'string', 'max:80'],
+            'sections.*.classTeacherId' => ['nullable', 'integer', 'exists:teacher_profiles,id'],
         ]);
 
-        if (! empty($data['classTeacherId'])) {
+        $sections = collect($data['sections'] ?? [[
+            'sectionName' => $data['sectionName'] ?? 'Section A',
+            'classTeacherId' => $data['classTeacherId'] ?? null,
+        ]])->values();
+
+        foreach ($sections as $section) {
+            $teacherId = $section['classTeacherId'] ?? null;
+            if (empty($teacherId)) {
+                continue;
+            }
+
             abort_unless(
-                TeacherProfile::where('institution_id', $institutionId)->whereKey($data['classTeacherId'])->exists(),
+                TeacherProfile::where('institution_id', $institutionId)->whereKey($teacherId)->exists(),
                 403
             );
         }
 
-        ClassSection::create([
-            'institution_id' => $institutionId,
-            'class_teacher_profile_id' => $data['classTeacherId'] ?? null,
-            'class_name' => $data['className'],
-            'section_name' => $data['sectionName'],
-            'join_code' => $this->uniqueCode(),
-            'sort_order' => ClassSection::where('institution_id', $institutionId)->count(),
-            'subjects' => [],
-        ]);
+        $sortOrder = ClassSection::where('institution_id', $institutionId)->count();
 
-        return back()->with('success', 'Class section added with student signup code.');
+        foreach ($sections as $index => $section) {
+            ClassSection::create([
+                'institution_id' => $institutionId,
+                'class_teacher_profile_id' => $section['classTeacherId'] ?? null,
+                'class_name' => $data['className'],
+                'section_name' => $section['sectionName'],
+                'join_code' => $this->uniqueCode(),
+                'sort_order' => $sortOrder + $index,
+                'subjects' => [],
+            ]);
+        }
+
+        return back()->with('success', 'Class saved with student signup codes.');
     }
 
     public function update(Request $request, ClassSection $classSection): RedirectResponse
@@ -105,6 +122,34 @@ class ClassSectionController extends Controller
         ]);
 
         return back()->with('success', 'Class section updated.');
+    }
+
+    public function destroy(Request $request, ClassSection $classSection): RedirectResponse
+    {
+        $this->ensureAdmin($request);
+        abort_unless($classSection->institution_id === $this->institutionId($request), 403);
+
+        $label = $classSection->class_name.' '.$classSection->section_name;
+        $classSection->delete();
+
+        return back()->with('success', $label.' deleted.');
+    }
+
+    public function destroyClass(Request $request): RedirectResponse
+    {
+        $this->ensureAdmin($request);
+        $institutionId = $this->institutionId($request);
+
+        $data = $request->validate([
+            'className' => ['required', 'string', 'max:80'],
+        ]);
+
+        $deleted = ClassSection::query()
+            ->where('institution_id', $institutionId)
+            ->where('class_name', $data['className'])
+            ->delete();
+
+        return back()->with('success', $data['className'].' deleted with '.$deleted.' section'.($deleted === 1 ? '' : 's').'.');
     }
 
     private function institutionId(Request $request): int

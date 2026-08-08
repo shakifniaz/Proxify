@@ -3,7 +3,6 @@ import { computed, ref } from 'vue';
 import { router, usePage } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import {
-    AlertTriangle,
     CalendarDays,
     CheckCircle2,
     Clock3,
@@ -52,6 +51,7 @@ const typeFilter = ref('All types');
 const statusFilter = ref('All status');
 const search = ref('');
 const allowanceSearch = ref('');
+const activeAdminView = ref('desk');
 const selectedTeacherId = ref(null);
 const savingAllowanceId = ref(null);
 const savedAllowanceId = ref(null);
@@ -134,6 +134,24 @@ function usagePercent(teacher) {
 
 function remainingLeaves(teacher) {
     return Math.max(0, teacher.maxLeaves - teacher.used);
+}
+
+function teacherBalanceFor(name) {
+    return teacherAllowances.value.find((teacher) => teacher.teacher === name);
+}
+
+function requestLeaveStats(request) {
+    const balance = teacherBalanceFor(request.teacherName);
+    if (balance) {
+        return {
+            maxLeaves: balance.maxLeaves,
+            used: balance.used,
+            pending: balance.pending,
+            remaining: remainingLeaves(balance),
+        };
+    }
+
+    return request.leaveStats ?? null;
 }
 
 function samePeriodSet(first = [], second = []) {
@@ -308,46 +326,147 @@ selectedLeavePeriodKeys.value = [...periodKeys.value];
 
 <template>
     <AppLayout title="Leave Management">
-        <div class="space-y-5 xl:flex xl:h-[calc(100vh-7rem)] xl:flex-col xl:gap-3 xl:overflow-hidden xl:space-y-0">
+        <div class="space-y-5">
             <template v-if="isAdmin">
-                <div class="grid gap-4 xl:min-h-0 xl:flex-1 xl:grid-cols-[minmax(0,1fr)_25rem] xl:overflow-hidden 2xl:grid-cols-[minmax(0,1fr)_26rem]">
-                    <div class="space-y-5 xl:flex xl:min-h-0 xl:flex-col xl:space-y-0 xl:gap-4">
-                        <div class="surface-card overflow-hidden xl:flex xl:min-h-0 xl:flex-1 xl:flex-col">
-                            <div class="border-b border-stone-200 bg-white p-4">
-                                <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                                    <div>
-                                        <p class="text-sm font-semibold text-slate-950">Approval queue</p>
+                <div class="space-y-5">
+                    <section class="surface-card overflow-hidden">
+                        <div class="grid gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+                            <div class="min-w-0">
+                                <div class="flex items-center gap-3">
+                                    <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#8BED9A]/18 text-[#09B884]">
+                                        <CalendarDays class="h-5 w-5" />
                                     </div>
-                                    <div class="flex flex-col gap-2 sm:flex-row sm:flex-wrap lg:justify-end xl:flex-nowrap">
-                                        <div class="relative min-w-0 sm:w-64">
+                                    <div class="min-w-0">
+                                        <p class="text-[10px] font-black uppercase tracking-[0.2em] text-[#09B884]">Active routine</p>
+                                        <p class="mt-1 truncate text-lg font-black text-[#1e2924]">{{ activeRoutineName || 'Current active routine' }}</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-4 gap-2 sm:min-w-[28rem]">
+                                <div class="rounded-xl bg-[#8BED9A]/14 px-3 py-2">
+                                    <p class="text-[10px] font-black uppercase text-[#1e2924]/55">Year</p>
+                                    <p class="text-lg font-black text-[#1e2924]">{{ year }}</p>
+                                </div>
+                                <div class="rounded-xl bg-amber-50 px-3 py-2">
+                                    <p class="text-[10px] font-black uppercase text-amber-700/70">Pending</p>
+                                    <p class="text-lg font-black text-[#1e2924]">{{ pendingRequests.length }}</p>
+                                </div>
+                                <div class="rounded-xl bg-[#8BED9A]/14 px-3 py-2">
+                                    <p class="text-[10px] font-black uppercase text-[#1e2924]/55">Proxy</p>
+                                    <p class="text-lg font-black text-[#1e2924]">{{ approvedProxyLeaves.length }}</p>
+                                </div>
+                                <div class="rounded-xl bg-stone-50 px-3 py-2">
+                                    <p class="text-[10px] font-black uppercase text-[#1e2924]/55">Used</p>
+                                    <p class="text-lg font-black text-[#1e2924]">{{ averageUsage }}%</p>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="surface-card p-3">
+                        <div class="relative grid w-full overflow-hidden rounded-2xl border border-[#8BED9A]/50 bg-[#8BED9A]/10 p-1.5 shadow-sm shadow-[#8BED9A]/20 sm:w-[33rem] sm:grid-cols-2">
+                            <div
+                                class="absolute inset-y-1.5 left-1.5 w-[calc(50%-0.375rem)] rounded-xl bg-[#1e2924] shadow-lg shadow-[#1e2924]/20 transition-transform duration-300 ease-out"
+                                :class="activeAdminView === 'allowances' ? 'translate-x-full' : 'translate-x-0'"
+                            ></div>
+                            <button
+                                type="button"
+                                class="relative z-10 flex min-h-14 items-center justify-between gap-3 rounded-xl px-3 text-left transition-colors duration-300"
+                                :class="activeAdminView === 'desk' ? 'text-white' : 'text-[#1e2924] hover:text-[#09B884]'"
+                                @click="activeAdminView = 'desk'"
+                            >
+                                <span class="flex min-w-0 items-center gap-3">
+                                    <span
+                                        class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border transition-colors duration-300"
+                                        :class="activeAdminView === 'desk' ? 'border-white/15 bg-white/14 text-[#BDF8C8]' : 'border-[#8BED9A]/60 bg-white/80 text-[#09B884]'"
+                                    >
+                                        <ShieldCheck class="h-4 w-4" />
+                                    </span>
+                                    <span class="truncate text-sm font-black">Leave desk</span>
+                                </span>
+                                <span
+                                    class="min-w-8 shrink-0 rounded-full border px-2 py-1 text-center text-xs font-black transition-colors duration-300"
+                                    :class="activeAdminView === 'desk' ? 'border-white/20 bg-white/16 text-white' : 'border-[#8BED9A]/70 bg-white/80 text-[#1e2924]'"
+                                >
+                                    {{ pendingRequests.length }}
+                                </span>
+                            </button>
+                            <button
+                                type="button"
+                                class="relative z-10 flex min-h-14 items-center justify-between gap-3 rounded-xl px-3 text-left transition-colors duration-300"
+                                :class="activeAdminView === 'allowances' ? 'text-white' : 'text-[#1e2924] hover:text-[#09B884]'"
+                                @click="activeAdminView = 'allowances'"
+                            >
+                                <span class="flex min-w-0 items-center gap-3">
+                                    <span
+                                        class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border transition-colors duration-300"
+                                        :class="activeAdminView === 'allowances' ? 'border-white/15 bg-white/14 text-[#BDF8C8]' : 'border-[#8BED9A]/60 bg-white/80 text-[#09B884]'"
+                                    >
+                                        <SlidersHorizontal class="h-4 w-4" />
+                                    </span>
+                                    <span class="truncate text-sm font-black">Allowances</span>
+                                </span>
+                                <span
+                                    class="min-w-8 shrink-0 rounded-full border px-2 py-1 text-center text-xs font-black transition-colors duration-300"
+                                    :class="activeAdminView === 'allowances' ? 'border-white/20 bg-white/16 text-white' : 'border-[#8BED9A]/70 bg-white/80 text-[#1e2924]'"
+                                >
+                                    {{ teacherAllowances.length }}
+                                </span>
+                            </button>
+                        </div>
+                    </section>
+
+                    <template v-if="activeAdminView === 'desk'">
+                    <div class="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(26rem,0.75fr)]">
+                        <section class="surface-card overflow-hidden">
+                            <div class="border-b border-stone-200 bg-white p-4">
+                                <div class="flex flex-col gap-3 2xl:flex-row 2xl:items-center 2xl:justify-between">
+                                    <div class="flex items-center gap-3">
+                                        <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-amber-700">
+                                            <ShieldCheck class="h-5 w-5" />
+                                        </div>
+                                        <div>
+                                            <p class="text-base font-black text-slate-950">Approval queue</p>
+                                            <p class="text-xs font-semibold text-slate-500">{{ filteredRequests.length }} matching requests</p>
+                                        </div>
+                                    </div>
+                                    <div class="grid gap-2 md:grid-cols-[minmax(12rem,1fr)_10rem_10rem] 2xl:w-[34rem]">
+                                        <div class="relative min-w-0">
                                             <Search class="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                                             <input v-model="search" type="text" class="field-control w-full pl-9" placeholder="Search teacher or reason" />
                                         </div>
-                                        <select v-model="typeFilter" class="field-control min-w-44 bg-white pr-10">
+                                        <select v-model="typeFilter" class="field-control bg-white pr-10">
                                             <option>All types</option>
                                             <option v-for="type in typeOptions" :key="type">{{ type }}</option>
                                         </select>
-                                        <select v-model="statusFilter" class="field-control min-w-44 bg-white pr-10">
+                                        <select v-model="statusFilter" class="field-control bg-white pr-10">
                                             <option v-for="status in statusOptions" :key="status">{{ status }}</option>
                                         </select>
                                     </div>
                                 </div>
                             </div>
 
-                            <div class="h-[24rem] divide-y divide-stone-200 overflow-y-auto overscroll-contain xl:h-auto xl:min-h-0 xl:flex-1">
+                            <div class="max-h-[34rem] divide-y divide-stone-200 overflow-y-auto overscroll-contain">
+                                <div v-if="!filteredRequests.length" class="p-10 text-center">
+                                    <ShieldCheck class="mx-auto h-8 w-8 text-slate-300" />
+                                    <p class="mt-2 text-sm font-semibold text-slate-600">No leave requests found</p>
+                                </div>
                                 <div v-for="request in filteredRequests" :key="request.id" class="p-4 transition hover:bg-stone-50/70">
                                     <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                                         <div class="flex min-w-0 gap-3">
-                                            <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-stone-200 bg-stone-50 text-xs font-bold text-slate-700">
+                                            <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-stone-200 bg-stone-50 text-xs font-black text-slate-700">
                                                 {{ request.initials || initials(request.teacherName) }}
                                             </div>
                                             <div class="min-w-0">
                                                 <div class="flex flex-wrap items-center gap-2">
-                                                    <p class="text-sm font-semibold text-slate-950">{{ request.teacherName }}</p>
+                                                    <p class="text-sm font-black text-slate-950">{{ request.teacherName }}</p>
                                                     <span class="rounded-full border px-2 py-0.5 text-[11px] font-semibold" :class="typeClass(request.type)">{{ request.type }}</span>
                                                     <span class="rounded-full border px-2 py-0.5 text-[11px] font-semibold capitalize" :class="statusClass(request.status)">{{ request.status }}</span>
+                                                    <span v-if="requestLeaveStats(request)" class="rounded-full border border-[#8BED9A]/70 bg-white px-2 py-0.5 text-[11px] font-semibold text-[#1e2924]">
+                                                        {{ requestLeaveStats(request).remaining }} leaves left
+                                                    </span>
                                                 </div>
-                                                <p class="mt-1 text-sm text-slate-600">{{ request.dateRange }} - {{ request.days }} day{{ request.days === 1 ? '' : 's' }} - {{ request.duration }}</p>
+                                                <p class="mt-1 text-sm font-semibold text-slate-600">{{ request.dateRange }} - {{ request.days }} day{{ request.days === 1 ? '' : 's' }} - {{ request.duration }}</p>
                                                 <p class="mt-2 max-w-3xl text-sm text-slate-500">{{ request.reason }}</p>
                                                 <div v-if="request.periods?.length" class="mt-3 flex flex-wrap gap-1.5">
                                                     <span v-for="period in request.periods" :key="`${request.id}-${period}`" class="rounded-md border border-[#8BED9A]/70 bg-[#8BED9A]/15 px-2 py-1 text-[11px] font-semibold text-[#1e2924]">
@@ -358,64 +477,187 @@ selectedLeavePeriodKeys.value = [...periodKeys.value];
                                         </div>
 
                                         <div class="flex shrink-0 items-center justify-end gap-2">
-                                            <button
-                                                v-if="request.status === 'pending'"
-                                                type="button"
-                                                class="rounded-md border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-700 transition hover:bg-red-50"
-                                                @click="setRequestStatus(request.id, 'rejected')"
-                                            >
+                                            <button v-if="request.status === 'pending'" type="button" class="rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-bold text-red-700 transition hover:bg-red-50" @click="setRequestStatus(request.id, 'rejected')">
                                                 <XCircle class="mr-1 inline h-3.5 w-3.5" />
                                                 Reject
                                             </button>
-                                            <button
-                                                v-if="request.status === 'pending'"
-                                                type="button"
-                                                class="rounded-md bg-[#1e2924]/95 px-3 py-2 text-xs font-semibold text-white shadow-sm shadow-black/10 transition hover:bg-[#1e2924]"
-                                                @click="setRequestStatus(request.id, 'approved')"
-                                            >
+                                            <button v-if="request.status === 'pending'" type="button" class="rounded-lg bg-[#1e2924]/95 px-3 py-2 text-xs font-bold text-white shadow-sm shadow-black/10 transition hover:bg-[#1e2924]" @click="setRequestStatus(request.id, 'approved')">
                                                 <CheckCircle2 class="mr-1 inline h-3.5 w-3.5" />
                                                 Approve
                                             </button>
-                                            <span v-else class="rounded-md border border-stone-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600">
-                                                Reviewed
-                                            </span>
+                                            <span v-else class="rounded-lg border border-stone-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600">Reviewed</span>
                                         </div>
                                     </div>
                                 </div>
                             </div>
+                        </section>
+
+                        <section class="surface-card p-5">
+                            <div class="flex items-center gap-3">
+                                <div class="flex h-11 w-11 items-center justify-center rounded-xl bg-[#8BED9A]/18 text-[#09B884]">
+                                    <UserX class="h-5 w-5" />
+                                </div>
+                                <div>
+                                    <p class="text-base font-black text-[#1e2924]">Approved leaves</p>
+                                    <p class="text-xs font-semibold text-slate-500">{{ approvedProxyLeaves.length }} ready for proxy manager</p>
+                                </div>
+                            </div>
+
+                            <div v-if="!approvedProxyLeaves.length" class="mt-5 rounded-xl border border-dashed border-stone-300 bg-stone-50 p-10 text-center">
+                                <ShieldCheck class="mx-auto h-8 w-8 text-slate-300" />
+                                <p class="mt-2 text-sm font-semibold text-slate-600">No approved leaves ready</p>
+                            </div>
+
+                            <div v-else class="mt-5 max-h-[34rem] space-y-3 overflow-y-auto overscroll-contain pr-1">
+                                <div v-for="request in approvedProxyLeaves" :key="`handoff-${request.id}`" class="rounded-xl border border-[#8BED9A]/70 bg-[#8BED9A]/15 p-4 transition hover:-translate-y-0.5 hover:shadow-sm">
+                                    <div class="flex items-start justify-between gap-3">
+                                        <div>
+                                            <p class="text-sm font-black text-[#1e2924]">{{ request.teacherName }}</p>
+                                            <p class="mt-1 text-xs font-semibold text-[#04795a]">{{ request.dateRange }} - {{ request.duration }}</p>
+                                            <div v-if="request.periods?.length" class="mt-3 flex flex-wrap gap-1.5">
+                                                <span v-for="period in request.periods" :key="`approved-${request.id}-${period}`" class="rounded-md bg-white/80 px-2 py-1 text-[11px] font-bold text-[#1e2924]">{{ period }}</span>
+                                            </div>
+                                        </div>
+                                        <UserCheck class="h-4 w-4 text-[#09B884]" />
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+                    </div>
+
+                    <section class="surface-card overflow-hidden">
+                        <div class="border-b border-stone-200 bg-white p-5">
+                            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                <div class="flex items-center gap-3">
+                                    <div class="flex h-11 w-11 items-center justify-center rounded-xl bg-[#8BED9A]/18 text-[#09B884]">
+                                        <Plus class="h-5 w-5" />
+                                    </div>
+                                    <div>
+                                        <p class="text-base font-black text-[#1e2924]">Create leave request</p>
+                                        <p class="text-xs font-semibold text-slate-500">{{ selectedLeavePeriodKeys.length }} periods selected</p>
+                                    </div>
+                                </div>
+                                <button type="button" class="hidden min-h-10 items-center justify-center gap-2 rounded-xl bg-[#1e2924] px-4 text-sm font-black text-white shadow-md shadow-[#1e2924]/15 transition hover:-translate-y-0.5 hover:bg-[#1e2924]/90 disabled:cursor-not-allowed disabled:bg-slate-300 sm:flex" :disabled="!canSubmitLeaveRequest" @click="submitLeaveRequest">
+                                    <Send class="h-4 w-4" />
+                                    Submit request
+                                </button>
+                            </div>
                         </div>
 
-                        <div class="surface-card overflow-hidden xl:flex xl:min-h-0 xl:flex-1 xl:flex-col">
-                            <div class="flex flex-col gap-3 border-b border-stone-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
-                                <div>
-                                    <p class="text-sm font-semibold text-slate-950">Teacher leave allowance</p>
+                        <div class="grid gap-px bg-stone-200/80 xl:grid-cols-[minmax(16rem,0.8fr)_minmax(18rem,0.9fr)_minmax(0,1.45fr)]">
+                            <div class="bg-white p-5">
+                                <div class="flex items-center gap-2">
+                                    <div class="h-2 w-2 rounded-full bg-[#09B884]"></div>
+                                    <p class="text-sm font-black text-[#1e2924]">Teacher</p>
                                 </div>
-                                <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
-                                    <div class="relative sm:w-72">
-                                        <Search class="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-                                        <input v-model="allowanceSearch" type="text" class="field-control w-full pl-9" placeholder="Search teacher or subject" />
+                                <div class="mt-4 space-y-4">
+                                    <div>
+                                        <label class="section-title">Teacher</label>
+                                        <select v-model="selectedTeacherId" class="field-control mt-1 w-full bg-white">
+                                            <option :value="null" disabled>Select teacher</option>
+                                            <option v-for="teacher in teacherAllowances" :key="teacher.id" :value="teacher.id">{{ teacher.teacher }}</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="section-title">Leave type</label>
+                                        <select v-model="requestForm.type" class="field-control mt-1 w-full bg-white">
+                                            <option v-for="type in typeOptions" :key="type" :value="type">{{ type }}</option>
+                                        </select>
+                                    </div>
+                                    <div v-if="selectedTeacher" class="rounded-xl border border-[#8BED9A]/60 bg-[#8BED9A]/12 p-3">
+                                        <p class="truncate text-sm font-black text-[#1e2924]">{{ selectedTeacher.teacher }}</p>
+                                        <p class="mt-1 text-xs font-semibold text-[#04795a]">{{ remainingLeaves(selectedTeacher) }} leaves left from {{ selectedTeacher.maxLeaves }}</p>
                                     </div>
                                 </div>
                             </div>
 
-                            <div class="h-[24rem] overflow-y-auto overscroll-contain bg-stone-200 xl:h-auto xl:min-h-0 xl:flex-1">
+                            <div class="bg-white p-5">
+                                <div class="flex items-center gap-2">
+                                    <div class="h-2 w-2 rounded-full bg-amber-500"></div>
+                                    <p class="text-sm font-black text-[#1e2924]">Dates</p>
+                                </div>
+                                <div class="mt-4 space-y-4">
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label class="section-title">Start</label>
+                                            <input v-model="requestForm.startDate" type="date" class="field-control mt-1 w-full bg-white" :max="requestForm.endDate || undefined" />
+                                        </div>
+                                        <div>
+                                            <label class="section-title">End</label>
+                                            <input v-model="requestForm.endDate" type="date" class="field-control mt-1 w-full bg-white" :min="requestForm.startDate || undefined" />
+                                        </div>
+                                    </div>
+                                    <p v-if="dateRangeInvalid" class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-600">End date cannot be before start date.</p>
+                                    <div>
+                                        <label class="section-title">Availability impact</label>
+                                        <select v-model="requestForm.duration" class="field-control mt-1 w-full bg-white" @change="applyAvailabilityPreset">
+                                            <option v-for="duration in durationOptions" :key="duration">{{ duration }}</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="bg-white p-5">
+                                <div class="flex items-center justify-between gap-3">
+                                    <div class="flex items-center gap-2">
+                                        <div class="h-2 w-2 rounded-full bg-[#1e2924]"></div>
+                                        <p class="text-sm font-black text-[#1e2924]">Impact</p>
+                                    </div>
+                                    <span class="rounded-full border border-[#8BED9A]/70 bg-[#8BED9A]/15 px-3 py-1 text-xs font-black text-[#1e2924]">{{ selectedLeavePeriodKeys.length }} selected</span>
+                                </div>
+
+                                <div class="mt-4">
+                                    <label class="section-title">Periods</label>
+                                    <div class="mt-2 grid gap-1.5" :style="periodGridStyle">
+                                        <button v-for="period in activeClassPeriods" :key="period.key" type="button" class="truncate rounded-md border px-1 py-1.5 text-[11px] font-semibold leading-none transition" :class="periodButtonClass(period.key)" @click="toggleLeavePeriod(period.key)">
+                                            {{ period.label }}
+                                        </button>
+                                    </div>
+                                    <p v-if="!selectedLeavePeriodKeys.length" class="mt-2 text-xs font-semibold text-red-600">Select at least one period.</p>
+                                </div>
+
+                                <div class="mt-4">
+                                    <label class="section-title">Reason</label>
+                                    <textarea v-model="requestForm.reason" rows="3" class="field-control mt-1 w-full resize-none bg-white" placeholder="Reason for leave"></textarea>
+                                </div>
+                                <button type="button" class="btn-primary mt-4 flex min-h-12 w-full items-center justify-center gap-2 sm:hidden" :disabled="!canSubmitLeaveRequest" @click="submitLeaveRequest">
+                                    <Send class="h-4 w-4" />
+                                    Submit request
+                                </button>
+                            </div>
+                        </div>
+                    </section>
+                    </template>
+
+                    <template v-else>
+                        <section class="surface-card overflow-hidden">
+                            <div class="flex flex-col gap-3 border-b border-stone-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
+                                <div class="flex items-center gap-3">
+                                    <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-[#8BED9A]/18 text-[#09B884]">
+                                        <SlidersHorizontal class="h-5 w-5" />
+                                    </div>
+                                    <div>
+                                        <p class="text-base font-black text-slate-950">Teacher leave allowance</p>
+                                        <p class="text-xs font-semibold text-slate-500">{{ filteredAllowances.length }} teachers visible</p>
+                                    </div>
+                                </div>
+                                <div class="relative sm:w-80">
+                                    <Search class="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                                    <input v-model="allowanceSearch" type="text" class="field-control w-full pl-9" placeholder="Search teacher or subject" />
+                                </div>
+                            </div>
+
+                            <div class="max-h-[36rem] overflow-y-auto overscroll-contain bg-stone-200">
                                 <div class="grid gap-px lg:grid-cols-2">
-                                    <div v-for="teacher in filteredAllowances" :key="teacher.id" class="bg-white p-3">
+                                    <div v-for="teacher in filteredAllowances" :key="teacher.id" class="bg-white p-4">
                                         <div class="flex items-start justify-between gap-3">
                                             <div class="min-w-0">
-                                                <p class="truncate text-sm font-semibold text-slate-950">{{ teacher.teacher }}</p>
-                                                <p class="mt-0.5 text-xs text-slate-500">{{ teacher.subject || 'Subject not set' }}</p>
+                                                <p class="truncate text-sm font-black text-slate-950">{{ teacher.teacher }}</p>
+                                                <p class="mt-0.5 text-xs font-semibold text-slate-500">{{ teacher.subject || 'Subject not set' }}</p>
                                             </div>
                                             <div class="w-24">
                                                 <label class="section-title">Max</label>
-                                                <input
-                                                    v-model.number="teacher.maxLeaves"
-                                                    min="0"
-                                                    max="365"
-                                                    type="number"
-                                                    class="field-control-sm mt-1 w-full bg-white text-center"
-                                                    @change="saveTeacherAllowance(teacher)"
-                                                />
+                                                <input v-model.number="teacher.maxLeaves" min="0" max="365" type="number" class="field-control-sm mt-1 w-full bg-white text-center" @change="saveTeacherAllowance(teacher)" />
                                             </div>
                                         </div>
                                         <div v-if="savingAllowanceId === teacher.id || savedAllowanceId === teacher.id" class="mt-2 text-right text-[11px] font-semibold" :class="savingAllowanceId === teacher.id ? 'text-slate-500' : 'text-[#04795a]'">
@@ -433,146 +675,16 @@ selectedLeavePeriodKeys.value = [...periodKeys.value];
                                         </div>
 
                                         <div class="mt-4 grid grid-cols-4 gap-2 text-center">
-                                            <div class="rounded-md bg-[#8BED9A]/15 px-2 py-2">
-                                                <p class="text-sm font-bold text-[#1e2924]">{{ teacher.paid }}</p>
-                                                <p class="text-[10px] text-[#1e2924]">Paid</p>
-                                            </div>
-                                            <div class="rounded-md bg-teal-50 px-2 py-2">
-                                                <p class="text-sm font-bold text-teal-700">{{ teacher.casual }}</p>
-                                                <p class="text-[10px] text-teal-700">Casual</p>
-                                            </div>
-                                            <div class="rounded-md bg-slate-50 px-2 py-2">
-                                                <p class="text-sm font-bold text-slate-700">{{ teacher.unpaid }}</p>
-                                                <p class="text-[10px] text-slate-600">Unpaid</p>
-                                            </div>
-                                            <div class="rounded-md bg-[#8BED9A]/10 px-2 py-2">
-                                                <p class="text-sm font-bold text-[#1e2924]">{{ teacher.discretionary }}</p>
-                                                <p class="text-[10px] text-[#1e2924]">Discretionary</p>
-                                            </div>
+                                            <div class="rounded-md bg-[#8BED9A]/15 px-2 py-2"><p class="text-sm font-bold text-[#1e2924]">{{ teacher.paid }}</p><p class="text-[10px] text-[#1e2924]">Paid</p></div>
+                                            <div class="rounded-md bg-teal-50 px-2 py-2"><p class="text-sm font-bold text-teal-700">{{ teacher.casual }}</p><p class="text-[10px] text-teal-700">Casual</p></div>
+                                            <div class="rounded-md bg-slate-50 px-2 py-2"><p class="text-sm font-bold text-slate-700">{{ teacher.unpaid }}</p><p class="text-[10px] text-slate-600">Unpaid</p></div>
+                                            <div class="rounded-md bg-[#8BED9A]/10 px-2 py-2"><p class="text-sm font-bold text-[#1e2924]">{{ teacher.discretionary }}</p><p class="text-[10px] text-[#1e2924]">Discretionary</p></div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                    </div>
-
-                    <aside class="space-y-5 xl:min-h-0 xl:overflow-y-auto xl:overscroll-contain">
-                        <div class="surface-card p-4">
-                            <div>
-                                <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Active routine</p>
-                                <p class="mt-0.5 truncate text-sm font-bold text-slate-950">{{ activeRoutineName || 'Current active routine' }}</p>
-                            </div>
-                            <div class="mt-3 grid grid-cols-4 gap-2">
-                                <div class="rounded-md bg-stone-50 px-2 py-1.5">
-                                    <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Year</p>
-                                    <p class="text-sm font-bold leading-tight text-slate-950">{{ year }}</p>
-                                </div>
-                                <div class="rounded-md bg-stone-50 px-2 py-1.5">
-                                    <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Pending</p>
-                                    <p class="text-sm font-bold leading-tight text-slate-950">{{ pendingRequests.length }}</p>
-                                </div>
-                                <div class="rounded-md bg-stone-50 px-2 py-1.5">
-                                    <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Proxy</p>
-                                    <p class="text-sm font-bold leading-tight text-slate-950">{{ approvedProxyLeaves.length }}</p>
-                                </div>
-                                <div class="rounded-md bg-stone-50 px-2 py-1.5">
-                                    <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Used</p>
-                                    <p class="text-sm font-bold leading-tight text-slate-950">{{ averageUsage }}%</p>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="surface-card p-5">
-                            <div class="flex items-center gap-2">
-                                <UserX class="h-4 w-4 text-rose-700" />
-                                <p class="text-sm font-semibold text-slate-950">Proxy Manager handoff</p>
-                            </div>
-
-                            <div v-if="!approvedProxyLeaves.length" class="mt-4 rounded-lg border border-dashed border-stone-300 bg-stone-50 p-6 text-center">
-                                <ShieldCheck class="mx-auto h-7 w-7 text-slate-300" />
-                                <p class="mt-2 text-sm font-semibold text-slate-600">No approved leaves ready</p>
-                            </div>
-
-                            <div v-else class="mt-4 space-y-3">
-                                <div v-for="request in approvedProxyLeaves" :key="`handoff-${request.id}`" class="rounded-lg border border-[#8BED9A]/70 bg-[#8BED9A]/15 p-3">
-                                    <div class="flex items-start justify-between gap-3">
-                                        <div>
-                                            <p class="text-sm font-semibold text-[#1e2924]">{{ request.teacherName }}</p>
-                                            <p class="mt-0.5 text-xs text-[#04795a]">{{ request.dateRange }} - {{ request.duration }}</p>
-                                        </div>
-                                        <UserCheck class="h-4 w-4 text-[#09B884]" />
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="surface-card p-5">
-                            <div class="flex items-center gap-2">
-                                <Plus class="h-4 w-4 text-[#09B884]" />
-                                <p class="text-sm font-semibold text-slate-950">Create leave request</p>
-                            </div>
-
-                            <div class="mt-4 space-y-3">
-                                <div>
-                                    <label class="section-title">Teacher</label>
-                                    <select v-model="selectedTeacherId" class="field-control mt-1 w-full bg-white">
-                                        <option :value="null" disabled>Select teacher</option>
-                                        <option v-for="teacher in teacherAllowances" :key="teacher.id" :value="teacher.id">{{ teacher.teacher }}</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label class="section-title">Leave type</label>
-                                    <select v-model="requestForm.type" class="field-control mt-1 w-full bg-white">
-                                        <option v-for="type in typeOptions" :key="type" :value="type">{{ type }}</option>
-                                    </select>
-                                </div>
-                                <div class="grid grid-cols-2 gap-3">
-                                    <div>
-                                        <label class="section-title">Start</label>
-                                        <input v-model="requestForm.startDate" type="date" class="field-control mt-1 w-full bg-white" :max="requestForm.endDate || undefined" />
-                                    </div>
-                                    <div>
-                                        <label class="section-title">End</label>
-                                        <input v-model="requestForm.endDate" type="date" class="field-control mt-1 w-full bg-white" :min="requestForm.startDate || undefined" />
-                                    </div>
-                                </div>
-                                <p v-if="dateRangeInvalid" class="-mt-1 text-xs font-semibold text-red-600">End date cannot be before start date.</p>
-                                <div>
-                                    <label class="section-title">Availability impact</label>
-                                    <select v-model="requestForm.duration" class="field-control mt-1 w-full bg-white" @change="applyAvailabilityPreset">
-                                        <option v-for="duration in durationOptions" :key="duration">{{ duration }}</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <div class="flex items-center justify-between gap-3">
-                                        <label class="section-title">Periods</label>
-                                        <span class="text-xs font-semibold text-slate-500">{{ selectedLeavePeriodKeys.length }} selected</span>
-                                    </div>
-                                    <div class="mt-2 grid gap-1" :style="periodGridStyle">
-                                        <button
-                                            v-for="period in activeClassPeriods"
-                                            :key="period.key"
-                                            type="button"
-                                            class="truncate rounded-md border px-1 py-1.5 text-[11px] font-semibold leading-none transition"
-                                            :class="periodButtonClass(period.key)"
-                                            @click="toggleLeavePeriod(period.key)"
-                                        >
-                                            {{ period.label }}
-                                        </button>
-                                    </div>
-                                    <p v-if="!selectedLeavePeriodKeys.length" class="mt-2 text-xs font-semibold text-red-600">Select at least one period.</p>
-                                </div>
-                                <div>
-                                    <label class="section-title">Reason</label>
-                                    <textarea v-model="requestForm.reason" rows="4" class="field-control mt-1 w-full resize-none bg-white" placeholder="Reason for leave"></textarea>
-                                </div>
-                                <button type="button" class="btn-primary flex w-full items-center justify-center gap-2" :disabled="!canSubmitLeaveRequest" @click="submitLeaveRequest">
-                                    <Send class="h-4 w-4" />
-                                    Submit request
-                                </button>
-                            </div>
-                        </div>
-                    </aside>
+                        </section>
+                    </template>
                 </div>
             </template>
 

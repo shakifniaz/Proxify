@@ -6,6 +6,7 @@ import {
     AlertTriangle,
     ArrowRightLeft,
     CalendarDays,
+    CheckCircle2,
     Clock3,
     Layers3,
     Plus,
@@ -31,8 +32,10 @@ const isSavingGroups = ref(false);
 const groupsDirty = ref(false);
 const subjectPicker = ref({ groupId: null, query: '', draft: [] });
 const activeTab = ref('plan');
+const activeProxyStep = ref('Plan');
 const showApprovedLeaves = ref(false);
 const query = ref('');
+const manualAssignments = ref({});
 const defaultRunTarget = nextRoutineTarget(props.activeRoutine?.days ?? []);
 const selectedDay = ref(defaultRunTarget.day);
 const runName = ref(`Proxy run - ${selectedDay.value}`);
@@ -55,8 +58,16 @@ const subjectGroups = ref(props.defaultSubjectGroups.map((group) => ({
 })));
 
 const tabs = [
-    { key: 'plan', label: 'Proxy plan' },
-    { key: 'groups', label: 'Subject groups' },
+    { key: 'plan', label: 'Proxy plan', icon: UserX },
+    { key: 'groups', label: 'Subject groups', icon: SlidersHorizontal },
+];
+
+const proxySteps = [
+    { name: 'Plan', hint: 'Day and date', icon: CalendarDays },
+    { name: 'Teachers', hint: 'Who is away', icon: UserX },
+    { name: 'Periods', hint: 'When they are away', icon: Clock3 },
+    { name: 'Assign', hint: 'Manual or auto', icon: ShieldCheck },
+    { name: 'Generate', hint: 'Create coverage', icon: RefreshCw },
 ];
 
 const teachers = computed(() => props.activeRoutine?.teachers ?? []);
@@ -98,6 +109,79 @@ const runDateDisplay = computed({
 });
 const selectedDayBadge = computed(() => `${selectedDay.value} - ${runDateDisplay.value}`);
 const approvedLeavePreview = computed(() => approvedLeaveAbsences.value.slice(0, 2));
+const activeProxyStepIndex = computed(() => proxySteps.findIndex((step) => step.name === activeProxyStep.value));
+const proxyProgress = computed(() => Math.round(((activeProxyStepIndex.value + 1) / proxySteps.length) * 100));
+const generatedGridSections = computed(() => Object.entries(props.activeRoutine?.generatedGrid ?? {}).map(([key, section]) => ({
+    key: String(key),
+    ...section,
+})));
+const proxyTargets = computed(() => {
+    const targets = [];
+    const selectedIds = selectedTeacherIds.value;
+
+    generatedGridSections.value.forEach((section) => {
+        const cells = section.days?.[selectedDay.value] ?? {};
+        Object.entries(cells).forEach(([periodKey, cell]) => {
+            const teacherId = String(cell?.teacherId ?? '');
+            if (!teacherId || !selectedIds.has(teacherId)) return;
+            if (!(teacherPeriods.value[teacherId] ?? []).includes(periodKey)) return;
+            if ((cell?.type ?? 'class') !== 'class') return;
+
+            targets.push({
+                key: targetKey(section.key, periodKey, teacherId),
+                sectionKey: section.key,
+                periodKey,
+                periodLabel: periodLabel(periodKey),
+                classLabel: cell.classLabel ?? section.label ?? '',
+                subject: cell.subject ?? '',
+                absentTeacherId: teacherId,
+                absentTeacherName: cell.teacherName ?? teacherName(teacherId),
+            });
+        });
+    });
+
+    return targets.sort((a, b) => periodIndex(a.periodKey) - periodIndex(b.periodKey) || a.classLabel.localeCompare(b.classLabel));
+});
+const manualAssignmentCount = computed(() => Object.keys(manualAssignments.value).filter((key) => manualAssignments.value[key]).length);
+const validManualAssignments = computed(() => {
+    const validTargetKeys = new Set(proxyTargets.value.map((target) => target.key));
+    return Object.entries(manualAssignments.value)
+        .filter(([targetKeyValue, teacherId]) => validTargetKeys.has(targetKeyValue) && teacherId)
+        .map(([targetKeyValue, teacherId]) => ({ targetKey: targetKeyValue, teacherId }));
+});
+const teacherHistory = computed(() => {
+    const history = {};
+
+    teachers.value.forEach((teacher) => {
+        history[String(teacher.id)] = {
+            subjects: new Set(),
+            ranks: new Set(),
+            sections: new Set(),
+            load: {},
+        };
+    });
+
+    generatedGridSections.value.forEach((section) => {
+        Object.entries(section.days ?? {}).forEach(([day, cells]) => {
+            Object.entries(cells ?? {}).forEach(([periodKey, cell]) => {
+                const teacherId = String(cell?.teacherId ?? '');
+                if (!teacherId) return;
+                history[teacherId] ??= { subjects: new Set(), ranks: new Set(), sections: new Set(), load: {} };
+                if (cell.subject) history[teacherId].subjects.add(normalizeSubject(cell.subject));
+                const rank = classRank(cell.classLabel ?? section.label ?? '');
+                if (rank !== null) history[teacherId].ranks.add(rank);
+                history[teacherId].sections.add(section.key);
+                history[teacherId].load[day] = (history[teacherId].load[day] ?? 0) + 1;
+            });
+        });
+    });
+
+    return history;
+});
+const normalizedSubjectGroups = computed(() => subjectGroups.value.map((group) => ({
+    ...group,
+    subjects: (group.subjects ?? []).map(normalizeSubject).filter(Boolean),
+})));
 const latestResolvedRate = computed(() => {
     const affected = props.latestRun?.metrics?.affectedPeriods ?? 0;
     if (!affected) return 0;
@@ -185,6 +269,127 @@ function initials(name) {
         .toUpperCase();
 }
 
+function targetKey(sectionKey, periodKey, teacherId) {
+    return [sectionKey, periodKey, teacherId].map((part) => String(part ?? '')).join('|');
+}
+
+function teacherName(teacherId) {
+    return teachers.value.find((teacher) => String(teacher.id) === String(teacherId))?.name ?? 'Teacher';
+}
+
+function periodLabel(periodKey) {
+    return periods.value.find((period) => period.key === periodKey)?.label ?? periodKey;
+}
+
+function periodIndex(periodKey) {
+    const index = periods.value.findIndex((period) => period.key === periodKey);
+    return index === -1 ? 999 : index;
+}
+
+function normalizeSubject(subject) {
+    return String(subject ?? '').trim().toLowerCase();
+}
+
+function classRank(label) {
+    const normalized = String(label ?? '').toLowerCase();
+    if (/\b(nursery|nur)\b/.test(normalized)) return 0;
+    if (/\bkg\b|kindergarten/.test(normalized)) return 1;
+    const numeric = normalized.match(/\b(\d{1,2})\b/);
+    if (numeric) return Number(numeric[1]) + 1;
+    const romanMap = { xii: 13, xi: 12, x: 11, ix: 10, viii: 9, vii: 8, vi: 7, v: 6, iv: 5, iii: 4, ii: 3, i: 2 };
+    const roman = normalized.match(/\b(xii|xi|x|ix|viii|vii|vi|v|iv|iii|ii|i)\b/);
+    return roman ? romanMap[roman[1]] : null;
+}
+
+function teacherIsAbsent(teacherId, periodKey) {
+    const id = String(teacherId);
+    return selectedTeacherIds.value.has(id) && (teacherPeriods.value[id] ?? []).includes(periodKey);
+}
+
+function teacherIsBusy(teacherId, periodKey) {
+    return generatedGridSections.value.some((section) => {
+        const cell = section.days?.[selectedDay.value]?.[periodKey];
+        return String(cell?.teacherId ?? '') === String(teacherId);
+    });
+}
+
+function candidateTeachersFor(target) {
+    const targetRank = classRank(target.classLabel);
+    const targetSubject = normalizeSubject(target.subject);
+    const matchingGroup = normalizedSubjectGroups.value.find((group) => group.subjects.includes(targetSubject));
+
+    return teachers.value
+        .filter((teacher) => {
+            const teacherId = String(teacher.id);
+            return teacherId !== target.absentTeacherId
+                && !teacherIsAbsent(teacherId, target.periodKey)
+                && !teacherIsBusy(teacherId, target.periodKey);
+        })
+        .map((teacher) => {
+            const teacherId = String(teacher.id);
+            const history = teacherHistory.value[teacherId] ?? { subjects: new Set(), ranks: new Set(), sections: new Set(), load: {} };
+            const ranks = Array.from(history.ranks ?? []);
+            const distance = targetRank === null || !ranks.length ? 99 : Math.min(...ranks.map((rank) => Math.abs(rank - targetRank)));
+            const dailyLoad = history.load?.[selectedDay.value] ?? 0;
+            const sameSection = history.sections?.has(target.sectionKey);
+            const groupMatch = matchingGroup && Array.from(history.subjects ?? []).some((subject) => matchingGroup.subjects.includes(subject));
+            const directSubjectMatch = Array.from(history.subjects ?? []).includes(targetSubject);
+
+            let priority = 3;
+            let reason = 'Nearby class';
+            let score = 200 + (distance * 10) + (dailyLoad * 8);
+            let subjectGroupName = groupMatch ? matchingGroup.name : null;
+
+            if (directSubjectMatch) {
+                priority = 1;
+                reason = 'Same subject';
+                score = -30 + (dailyLoad * 8);
+            } else if (sameSection || distance === 0) {
+                priority = 1;
+                reason = sameSection ? 'Same section' : 'Same class';
+                score = (sameSection ? -20 : 0) + (distance * 4) + (dailyLoad * 8) + (groupMatch ? -12 : 0);
+            } else if (groupMatch) {
+                priority = 2;
+                reason = 'Subject group';
+                score = 70 + (distance * 3) + (dailyLoad * 8);
+            }
+
+            return {
+                id: teacherId,
+                name: teacher.name,
+                subjectHint: teacher.subjectHint,
+                priority,
+                reason,
+                subjectGroupName,
+                score,
+                dailyLoad,
+            };
+        })
+        .sort((a, b) => a.priority - b.priority || a.score - b.score || a.dailyLoad - b.dailyLoad || a.name.localeCompare(b.name));
+}
+
+function selectManualProxy(targetKeyValue, teacherId) {
+    manualAssignments.value = {
+        ...manualAssignments.value,
+        [targetKeyValue]: String(teacherId),
+    };
+}
+
+function clearManualProxy(targetKeyValue) {
+    const next = { ...manualAssignments.value };
+    delete next[targetKeyValue];
+    manualAssignments.value = next;
+}
+
+function useAutoGenerationOnly() {
+    manualAssignments.value = {};
+    activeProxyStep.value = 'Generate';
+}
+
+function clearAllManualPicks() {
+    manualAssignments.value = {};
+}
+
 function toggleTeacher(teacherId) {
     const id = String(teacherId);
     if (selectedTeacherIds.value.has(id)) {
@@ -195,6 +400,19 @@ function toggleTeacher(teacherId) {
         teacherPeriods.value[id] = [...classPeriodKeys];
     }
     selectedTeacherIds.value = new Set(selectedTeacherIds.value);
+}
+
+function proxyStepReady(stepName) {
+    if (stepName === 'Plan') return Boolean(runName.value && runDate.value && selectedDay.value);
+    if (stepName === 'Teachers') return selectedTeacherIds.value.size > 0;
+    if (stepName === 'Periods') return selectedPeriodCount.value > 0;
+    if (stepName === 'Assign') return proxyTargets.value.length > 0;
+    return canGenerate.value;
+}
+
+function goToProxyStep(offset) {
+    const nextIndex = Math.min(proxySteps.length - 1, Math.max(0, activeProxyStepIndex.value + offset));
+    activeProxyStep.value = proxySteps[nextIndex].name;
 }
 
 function togglePeriod(teacherId, periodKey) {
@@ -314,6 +532,7 @@ function generateProxyRun() {
             name: group.name,
             subjects: group.subjects ?? [],
         })),
+        manualAssignments: validManualAssignments.value,
     }, {
         preserveScroll: true,
         onFinish: () => {
@@ -345,7 +564,7 @@ function strategyTone(item) {
 
 <template>
     <AppLayout title="Proxy Manager">
-        <div class="space-y-6">
+        <div class="proxy-manager-shell space-y-5">
             <div v-if="!activeRoutine" class="surface-card p-8 text-center">
                 <AlertTriangle class="mx-auto h-8 w-8 text-amber-600" />
                 <p class="mt-3 text-base font-semibold text-slate-950">No active routine found</p>
@@ -353,58 +572,105 @@ function strategyTone(item) {
 
             <template v-else>
                 <div class="surface-card p-2">
-                    <div class="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-                        <div class="inline-flex rounded-xl border border-stone-200 bg-stone-100 p-1 shadow-inner shadow-stone-200/60">
+                    <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                        <div class="relative grid w-full overflow-hidden rounded-2xl border border-[#8BED9A]/50 bg-[#8BED9A]/10 p-1.5 shadow-sm shadow-[#8BED9A]/20 sm:w-[31rem] sm:grid-cols-2">
+                            <div
+                                class="absolute inset-y-1.5 left-1.5 w-[calc(50%-0.375rem)] rounded-xl bg-[#1e2924] shadow-lg shadow-[#1e2924]/20 transition-transform duration-300 ease-out"
+                                :class="activeTab === 'groups' ? 'translate-x-full' : 'translate-x-0'"
+                            ></div>
                             <button
                                 v-for="tab in tabs"
                                 :key="tab.key"
                                 type="button"
-                                class="min-h-11 rounded-lg px-5 text-sm font-bold transition-all focus:outline-none focus:ring-2 focus:ring-[#09B884]/35"
-                                :class="activeTab === tab.key ? 'bg-[#1e2924]/95 text-white shadow-sm shadow-black/10 ring-1 ring-white/10' : 'text-[#1e2924] hover:bg-white hover:text-[#1e2924] hover:shadow-sm'"
+                                class="relative z-10 flex min-h-14 items-center justify-between gap-3 rounded-xl px-3 text-left transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-[#09B884]/35"
+                                :class="activeTab === tab.key ? 'text-white' : 'text-[#1e2924] hover:text-[#09B884]'"
                                 @click="activeTab = tab.key"
                             >
-                                {{ tab.label }}
+                                <span class="flex min-w-0 items-center gap-3">
+                                    <span
+                                        class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border transition-colors duration-300"
+                                        :class="activeTab === tab.key ? 'border-white/15 bg-white/14 text-[#BDF8C8]' : 'border-[#8BED9A]/60 bg-white/80 text-[#09B884]'"
+                                    >
+                                        <component :is="tab.icon" class="h-4 w-4" />
+                                    </span>
+                                    <span class="truncate text-sm font-black">{{ tab.label }}</span>
+                                </span>
+                                <span
+                                    class="min-w-8 shrink-0 rounded-full border px-2 py-1 text-center text-xs font-black transition-colors duration-300"
+                                    :class="activeTab === tab.key ? 'border-white/20 bg-white/16 text-white' : 'border-[#8BED9A]/70 bg-white/80 text-[#1e2924]'"
+                                >
+                                    {{ tab.key === 'plan' ? runs.length : subjectGroups.length }}
+                                </span>
                             </button>
                         </div>
 
-                        <div class="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-[minmax(16rem,1fr)_6.5rem_6.5rem] xl:w-[38rem]">
-                            <div class="col-span-2 rounded-md bg-[#8BED9A]/10 px-3 py-2 sm:col-span-1">
-                                <p class="text-[10px] font-semibold uppercase tracking-wider text-[#1e2924]/55">Active routine</p>
-                                <p class="mt-1 truncate text-sm font-semibold text-slate-950" :title="activeRoutine.name">{{ activeRoutine.name }}</p>
-                            </div>
-                            <div class="rounded-md bg-[#8BED9A]/10 px-3 py-2 text-center">
-                                <p class="text-[10px] font-semibold uppercase tracking-wider text-[#1e2924]/55">Sections</p>
-                                <p class="mt-1 text-sm font-bold text-slate-950">{{ activeRoutine.summary.sections }}</p>
-                            </div>
-                            <div class="rounded-md bg-[#8BED9A]/10 px-3 py-2 text-center">
-                                <p class="text-[10px] font-semibold uppercase tracking-wider text-[#1e2924]/55">Teachers</p>
-                                <p class="mt-1 text-sm font-bold text-slate-950">{{ activeRoutine.summary.teachers }}</p>
-                            </div>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span class="inline-flex max-w-md items-center gap-2 rounded-xl bg-[#8BED9A]/16 px-3 py-2 text-xs font-black text-[#1e2924]">
+                                <CheckCircle2 class="h-4 w-4 shrink-0 text-[#09B884]" />
+                                <span class="truncate" :title="activeRoutine.name">{{ activeRoutine.name }}</span>
+                            </span>
                         </div>
                     </div>
                 </div>
 
-                <div v-if="activeTab === 'plan'" class="space-y-5">
-                    <div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_26rem] xl:items-stretch">
-                                <div class="surface-card bg-white p-4 shadow-sm">
-                                    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                                        <div class="flex items-center gap-3">
-                                            <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#8BED9A]/70 bg-white text-[#09B884] shadow-sm">
-                                                <CalendarDays class="h-4 w-4" />
-                                            </div>
-                                            <p class="text-sm font-semibold text-slate-950">Plan setup</p>
-                                        </div>
-                                        <span class="inline-flex items-center justify-center rounded-lg border border-[#09B884]/30 bg-white px-3 py-2 text-xs font-bold text-[#1e2924] shadow-sm">
-                                            {{ selectedDayBadge }}
-                                        </span>
-                                    </div>
+                <Transition name="proxy-tab" mode="out-in">
+                <div v-if="activeTab === 'plan'" key="plan" class="space-y-5">
+                    <section class="surface-card overflow-hidden p-2">
+                        <div class="grid grid-cols-5 gap-2">
+                            <button
+                                v-for="(step, index) in proxySteps"
+                                :key="step.name"
+                                type="button"
+                                class="group rounded-xl border p-2 text-left transition-all duration-300 hover:-translate-y-0.5 sm:p-3"
+                                :class="activeProxyStep === step.name ? 'border-[#1e2924] bg-[#1e2924] text-white shadow-lg shadow-[#1e2924]/15' : 'border-transparent bg-stone-50 text-[#1e2924] hover:border-[#8BED9A]/70 hover:bg-[#8BED9A]/15'"
+                                @click="activeProxyStep = step.name"
+                            >
+                                <div class="flex items-center justify-between gap-2">
+                                    <span class="flex h-9 w-9 items-center justify-center rounded-lg" :class="activeProxyStep === step.name ? 'bg-[#8BED9A]/20 text-[#8BED9A]' : 'bg-white text-[#09B884]'">
+                                        <component :is="step.icon" class="h-4 w-4" />
+                                    </span>
+                                    <span class="text-xs font-black opacity-60">0{{ index + 1 }}</span>
+                                </div>
+                                <p class="mt-3 text-xs font-black sm:text-sm">{{ step.name }}</p>
+                                <p class="mt-1 hidden truncate text-xs font-semibold sm:block" :class="activeProxyStep === step.name ? 'text-white/60' : 'text-slate-500'">{{ step.hint }}</p>
+                            </button>
+                        </div>
 
-                                    <div class="mt-4">
+                        <div class="mt-3 overflow-hidden rounded-full bg-stone-100">
+                            <div class="h-2 rounded-full bg-gradient-to-r from-[#09B884] to-[#8BED9A] transition-all duration-500" :style="{ width: `${proxyProgress}%` }"></div>
+                        </div>
+                    </section>
+
+                    <Transition name="proxy-tab" mode="out-in">
+                    <section :key="activeProxyStep" class="space-y-5">
+                    <div v-if="activeProxyStep === 'Plan'" class="surface-card overflow-hidden bg-white shadow-sm">
+                        <div class="border-b border-stone-200 bg-[#8BED9A]/10 p-4">
+                            <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                                <div class="flex items-center gap-3">
+                                    <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#8BED9A]/70 bg-white text-[#09B884] shadow-sm">
+                                        <CalendarDays class="h-4 w-4" />
+                                    </div>
+                                    <p class="text-base font-black text-slate-950">Create a proxy plan</p>
+                                </div>
+                                <div class="flex flex-wrap gap-2">
+                                    <span class="inline-flex items-center rounded-full bg-white px-3 py-1.5 text-xs font-black text-[#1e2924] shadow-sm">
+                                        {{ selectedTeacherIds.size }} away
+                                    </span>
+                                    <span class="inline-flex items-center rounded-full bg-white px-3 py-1.5 text-xs font-black text-[#1e2924] shadow-sm">
+                                        {{ selectedPeriodCount }} periods
+                                    </span>
+                                    <span class="inline-flex items-center rounded-full bg-white px-3 py-1.5 text-xs font-black text-[#1e2924] shadow-sm">
+                                        {{ subjectGroups.length }} groups
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="grid gap-3 p-4 xl:grid-cols-[minmax(13rem,1fr)_10rem_10rem] xl:items-end">
                                         <div>
                                             <label class="section-title">Proxy run name</label>
                                             <input v-model="runName" type="text" class="field-control mt-1 w-full bg-white" />
                                         </div>
-                                        <div class="mt-3 grid gap-3 sm:grid-cols-2">
                                             <div>
                                                 <label class="section-title">Date</label>
                                                 <input
@@ -421,64 +687,18 @@ function strategyTone(item) {
                                                     <option v-for="day in activeRoutine.days" :key="day" :value="day">{{ day }}</option>
                                                 </select>
                                             </div>
-                                        </div>
-                                    </div>
-                                </div>
+                        </div>
+                    </div>
 
-                                <div class="surface-card flex flex-col border-[#8BED9A]/60 bg-[#8BED9A]/10 p-5 shadow-sm shadow-[#1e2924]/5 xl:min-w-[26rem]">
-                                    <div class="flex items-center justify-between gap-3">
-                                        <div>
-                                            <p class="text-sm font-semibold text-slate-950">Readiness</p>
-                                            <p class="mt-1 text-xs font-semibold uppercase tracking-wider text-[#1e2924]/55">Engine inputs</p>
-                                        </div>
-                                        <span class="rounded-full border border-[#8BED9A]/70 bg-white px-3 py-1.5 text-xs font-bold text-[#1e2924] shadow-sm">Swap first</span>
-                                    </div>
-
-                                    <div class="mt-4 grid grid-cols-3 gap-3">
-                                        <div class="rounded-lg border border-[#8BED9A]/70 bg-white p-3 shadow-sm">
-                                            <div class="mb-3 flex h-8 w-8 items-center justify-center rounded-md bg-[#8BED9A]/20 text-[#09B884]">
-                                                <UserX class="h-4 w-4" />
-                                            </div>
-                                            <p class="text-2xl font-bold leading-none text-[#1e2924]">{{ selectedTeacherIds.size }}</p>
-                                            <p class="mt-1 text-[10px] font-bold uppercase tracking-wider text-[#1e2924]/55">Teachers</p>
-                                        </div>
-                                        <div class="rounded-lg border border-[#8BED9A]/70 bg-white p-3 shadow-sm">
-                                            <div class="mb-3 flex h-8 w-8 items-center justify-center rounded-md bg-[#8BED9A]/20 text-[#09B884]">
-                                                <SlidersHorizontal class="h-4 w-4" />
-                                            </div>
-                                            <p class="text-2xl font-bold leading-none text-[#1e2924]">{{ subjectGroups.length }}</p>
-                                            <p class="mt-1 text-[10px] font-bold uppercase tracking-wider text-[#1e2924]/55">Groups</p>
-                                        </div>
-                                        <div class="rounded-lg border border-[#8BED9A]/70 bg-white p-3 shadow-sm">
-                                            <div class="mb-3 flex h-8 w-8 items-center justify-center rounded-md bg-[#8BED9A]/20 text-[#09B884]">
-                                                <Clock3 class="h-4 w-4" />
-                                            </div>
-                                            <p class="text-2xl font-bold leading-none text-[#1e2924]">{{ selectedPeriodCount }}</p>
-                                            <p class="mt-1 text-[10px] font-bold uppercase tracking-wider text-[#1e2924]/55">Periods</p>
-                                        </div>
-                                    </div>
-
-                                    <button
-                                        type="button"
-                                        class="mt-4 flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-[#1e2924]/95 px-5 text-sm font-bold text-white shadow-sm shadow-black/10 transition hover:bg-[#1e2924] disabled:cursor-not-allowed disabled:bg-slate-300"
-                                        :disabled="!canGenerate"
-                                        @click="generateProxyRun"
-                                    >
-                                        <RefreshCw class="h-4 w-4" :class="{ 'animate-spin': isSubmitting }" />
-                                        {{ isSubmitting ? 'Generating...' : 'Generate proxy plan' }}
-                                    </button>
-                                </div>
-                            </div>
-
-                        <div v-if="approvedLeaveAbsences.length" class="surface-card overflow-hidden">
-                            <div class="flex flex-col gap-3 px-5 py-4 xl:flex-row xl:items-center xl:justify-between">
+                        <div v-if="activeProxyStep === 'Plan' && approvedLeaveAbsences.length" class="surface-card overflow-hidden bg-[#8BED9A]/8">
+                            <div class="flex flex-col gap-3 px-4 py-3 xl:flex-row xl:items-center xl:justify-between">
                                 <div class="flex min-w-0 items-center gap-3">
-                                    <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#8BED9A]/70 bg-[#8BED9A]/15 text-[#09B884]">
+                                    <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#8BED9A]/70 bg-white text-[#09B884]">
                                         <ShieldCheck class="h-4 w-4" />
                                     </div>
                                     <div class="min-w-0">
                                         <div class="flex flex-wrap items-center gap-2">
-                                            <p class="text-sm font-semibold text-slate-950">Approved leaves imported</p>
+                                            <p class="text-sm font-black text-slate-950">Approved leaves imported</p>
                                             <span class="rounded-full bg-[#8BED9A]/20 px-2.5 py-1 text-xs font-bold text-[#1e2924]">
                                                 {{ approvedLeaveAbsences.length }}
                                             </span>
@@ -519,11 +739,15 @@ function strategyTone(item) {
                             </div>
                         </div>
 
-                        <div class="surface-card grid gap-px overflow-hidden bg-stone-200 xl:grid-cols-[21rem_minmax(0,1fr)]">
-                            <div class="bg-white p-5">
+                        <div
+                            v-if="activeProxyStep === 'Teachers' || activeProxyStep === 'Periods'"
+                            class="surface-card grid gap-px overflow-hidden bg-stone-200"
+                            :class="activeProxyStep === 'Teachers' ? 'xl:grid-cols-1' : 'xl:grid-cols-1'"
+                        >
+                            <div v-if="activeProxyStep === 'Teachers'" class="bg-white p-5">
                                 <div class="flex items-center justify-between gap-3">
                                     <div>
-                                        <p class="text-sm font-semibold text-slate-950">Unavailable teachers</p>
+                                        <p class="text-sm font-black text-slate-950">Who is unavailable?</p>
                                     </div>
                                     <span class="rounded-full border border-[#09B884]/30 bg-[#8BED9A]/15 px-2.5 py-1 text-xs font-semibold text-[#1e2924]">
                                         {{ selectedTeacherIds.size }} selected
@@ -569,10 +793,10 @@ function strategyTone(item) {
                                 </div>
                             </div>
 
-                            <div class="bg-white p-5">
+                            <div v-if="activeProxyStep === 'Periods'" class="bg-white p-5">
                                 <div class="flex items-center justify-between gap-3">
                                     <div>
-                                        <p class="text-sm font-semibold text-slate-950">Availability window</p>
+                                        <p class="text-sm font-black text-slate-950">Which periods?</p>
                                     </div>
                                     <span class="rounded-full border border-[#8BED9A]/70 bg-[#8BED9A]/20 px-2.5 py-1 text-xs font-semibold text-[#1e2924]">
                                         {{ selectedPeriodCount }} period marks
@@ -582,7 +806,6 @@ function strategyTone(item) {
                                 <div v-if="!selectedTeachers.length" class="mt-4 rounded-lg border border-dashed border-stone-300 bg-stone-50 p-8 text-center">
                                     <CalendarDays class="mx-auto h-7 w-7 text-slate-300" />
                                     <p class="mt-2 text-sm font-medium text-slate-600">No teacher selected</p>
-                                    <p class="mt-1 text-xs text-slate-500">Choose a teacher or approve a leave request to expose period controls.</p>
                                 </div>
 
                                 <div v-else class="mt-4 max-h-[34rem] space-y-3 overflow-y-auto pr-1">
@@ -619,8 +842,164 @@ function strategyTone(item) {
                                 </div>
                             </div>
                         </div>
-                    <div class="grid grid-cols-1 gap-4 xl:grid-cols-[0.75fr_1.25fr]">
-                        <div class="surface-card p-5">
+
+                    <div v-if="activeProxyStep === 'Assign'" class="surface-card overflow-hidden bg-white">
+                        <div class="border-b border-stone-200 bg-[#8BED9A]/10 p-4">
+                            <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                                <div class="flex items-center gap-3">
+                                    <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#8BED9A]/70 bg-white text-[#09B884] shadow-sm">
+                                        <ShieldCheck class="h-5 w-5" />
+                                    </div>
+                                    <div>
+                                        <p class="text-base font-black text-[#1e2924]">Select proxy teachers</p>
+                                        <p class="mt-0.5 text-sm font-semibold text-slate-500">Choose manually where needed. Anything left blank will be handled automatically.</p>
+                                    </div>
+                                </div>
+                                <div class="flex flex-wrap gap-2">
+                                    <button
+                                        type="button"
+                                        class="inline-flex min-h-11 items-center justify-center rounded-xl border border-stone-300 bg-white px-4 text-sm font-black text-[#1e2924] shadow-sm transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700 disabled:cursor-not-allowed disabled:opacity-45"
+                                        :disabled="manualAssignmentCount === 0"
+                                        @click="clearAllManualPicks"
+                                    >
+                                        Clear all manual picks
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#1e2924] px-5 text-sm font-black text-white shadow-md shadow-[#1e2924]/15 transition hover:-translate-y-0.5 hover:bg-[#1e2924]/90"
+                                        @click="useAutoGenerationOnly"
+                                    >
+                                        <RefreshCw class="h-4 w-4" />
+                                        Auto generate instead
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="grid gap-4 p-5">
+                            <div class="grid gap-3 sm:grid-cols-3">
+                                <div class="rounded-xl bg-[#8BED9A]/16 px-4 py-3">
+                                    <p class="text-xl font-black text-[#1e2924]">{{ proxyTargets.length }}</p>
+                                    <p class="text-xs font-black uppercase text-[#1e2924]/55">Affected periods</p>
+                                </div>
+                                <div class="rounded-xl bg-[#8BED9A]/16 px-4 py-3">
+                                    <p class="text-xl font-black text-[#1e2924]">{{ manualAssignmentCount }}</p>
+                                    <p class="text-xs font-black uppercase text-[#1e2924]/55">Manual picks</p>
+                                </div>
+                                <div class="rounded-xl bg-stone-50 px-4 py-3">
+                                    <p class="text-xl font-black text-[#1e2924]">{{ Math.max(proxyTargets.length - manualAssignmentCount, 0) }}</p>
+                                    <p class="text-xs font-black uppercase text-[#1e2924]/55">Auto remaining</p>
+                                </div>
+                            </div>
+
+                            <div v-if="!proxyTargets.length" class="rounded-xl border border-dashed border-stone-300 bg-stone-50 p-8 text-center">
+                                <ShieldCheck class="mx-auto h-8 w-8 text-slate-300" />
+                                <p class="mt-2 text-sm font-bold text-slate-600">No affected periods found</p>
+                            </div>
+
+                            <div v-else class="space-y-3">
+                                <div
+                                    v-for="target in proxyTargets"
+                                    :key="target.key"
+                                    class="rounded-xl border border-stone-200 bg-white p-4 shadow-sm transition hover:border-[#8BED9A]/70"
+                                >
+                                    <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                                        <div class="min-w-0">
+                                            <div class="flex flex-wrap items-center gap-2">
+                                                <span class="rounded-full bg-[#1e2924] px-2.5 py-1 text-xs font-black text-white">{{ target.periodLabel }}</span>
+                                                <span class="rounded-full bg-[#8BED9A]/18 px-2.5 py-1 text-xs font-black text-[#1e2924]">{{ target.classLabel }}</span>
+                                            </div>
+                                            <p class="mt-2 text-sm font-black text-slate-950">{{ target.subject || 'Class period' }}</p>
+                                            <p class="mt-1 text-xs font-semibold text-slate-500">Unavailable: {{ target.absentTeacherName }}</p>
+                                        </div>
+
+                                        <button
+                                            v-if="manualAssignments[target.key]"
+                                            type="button"
+                                            class="inline-flex min-h-9 items-center justify-center rounded-lg border border-stone-300 bg-white px-3 text-xs font-black text-slate-700 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700"
+                                            @click="clearManualProxy(target.key)"
+                                        >
+                                            Clear manual pick
+                                        </button>
+                                    </div>
+
+                                    <div class="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                                        <button
+                                            v-for="candidate in candidateTeachersFor(target).slice(0, 6)"
+                                            :key="`${target.key}-${candidate.id}`"
+                                            type="button"
+                                            class="group rounded-xl border p-3 text-left transition hover:-translate-y-0.5"
+                                            :class="manualAssignments[target.key] === candidate.id ? 'border-[#09B884] bg-[#8BED9A]/18 shadow-md shadow-[#8BED9A]/20' : 'border-stone-200 bg-stone-50 hover:border-[#8BED9A]/70 hover:bg-white'"
+                                            @click="selectManualProxy(target.key, candidate.id)"
+                                        >
+                                            <div class="flex items-start justify-between gap-3">
+                                                <div class="min-w-0">
+                                                    <p class="truncate text-sm font-black text-[#1e2924]">{{ candidate.name }}</p>
+                                                    <p class="mt-1 truncate text-xs font-semibold text-slate-500">{{ candidate.subjectHint || 'Available teacher' }}</p>
+                                                </div>
+                                                <span class="shrink-0 rounded-full px-2 py-1 text-[10px] font-black uppercase" :class="candidate.priority === 1 ? 'bg-[#8BED9A]/35 text-[#1e2924]' : candidate.priority === 2 ? 'bg-amber-100 text-amber-800' : 'bg-stone-200 text-slate-600'">
+                                                    {{ candidate.reason }}
+                                                </span>
+                                            </div>
+                                            <div class="mt-2 min-h-7">
+                                                <p
+                                                    v-if="candidate.subjectGroupName"
+                                                    class="inline-flex rounded-full bg-[#09B884]/10 px-2 py-1 text-[11px] font-black text-[#08775a]"
+                                                >
+                                                    {{ candidate.subjectGroupName }} group
+                                                </p>
+                                            </div>
+                                            <div class="mt-3 flex items-center justify-between text-xs font-semibold text-slate-500">
+                                                <span>{{ candidate.dailyLoad }} classes today</span>
+                                                <span>Rank {{ candidate.priority }}</span>
+                                            </div>
+                                        </button>
+                                    </div>
+
+                                    <p v-if="!candidateTeachersFor(target).length" class="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">
+                                        No free teacher found for manual selection. The engine will leave this for review.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div v-if="activeProxyStep === 'Generate'" class="surface-card overflow-hidden bg-white">
+                        <div class="flex flex-col gap-4 bg-white p-5 lg:flex-row lg:items-center lg:justify-between">
+                            <div>
+                                <div class="flex items-center gap-3">
+                                    <div class="flex h-11 w-11 items-center justify-center rounded-xl bg-[#8BED9A]/20 text-[#09B884]">
+                                        <RefreshCw class="h-5 w-5" />
+                                    </div>
+                                    <div>
+                                        <p class="text-base font-black text-[#1e2924]">Ready to generate</p>
+                                        <p class="mt-1 text-sm font-semibold text-slate-500">{{ selectedDayBadge }} · {{ selectedTeacherIds.size }} teacher{{ selectedTeacherIds.size === 1 ? '' : 's' }} · {{ validManualAssignments.length }} manual · {{ Math.max(proxyTargets.length - validManualAssignments.length, 0) }} automatic</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="lg:w-72">
+                                <button
+                                    type="button"
+                                    class="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#1e2924]/95 px-5 text-sm font-bold text-white shadow-md shadow-[#1e2924]/15 transition hover:-translate-y-0.5 hover:bg-[#1e2924] disabled:cursor-not-allowed disabled:bg-slate-300"
+                                    :disabled="!canGenerate"
+                                    @click="generateProxyRun"
+                                >
+                                    <RefreshCw class="h-4 w-4" :class="{ 'animate-spin': isSubmitting }" />
+                                    {{ isSubmitting ? 'Generating...' : 'Generate proxy plan' }}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div v-if="activeProxyStep === 'Generate'" class="surface-card overflow-hidden">
+                        <div class="flex items-center justify-between gap-3 px-5 py-4 text-sm font-black text-[#1e2924]">
+                            <span>Generated proxy plans</span>
+                            <span class="rounded-full bg-[#8BED9A]/16 px-2.5 py-1 text-xs font-black text-[#1e2924]">
+                                {{ runs.length }} saved
+                            </span>
+                        </div>
+                        <div class="border-t border-stone-200 p-4">
+                            <div class="grid grid-cols-1 gap-4 xl:grid-cols-[0.75fr_1.25fr]">
+                        <div class="rounded-xl border border-stone-200 bg-white p-5">
                             <div class="flex items-center justify-between">
                                 <div>
                                     <p class="text-sm font-semibold text-slate-950">Recent proxy runs</p>
@@ -659,15 +1038,15 @@ function strategyTone(item) {
                                     </div>
                                     <Link
                                         :href="`/proxy-manager/${run.id}`"
-                                        class="mt-3 flex w-full items-center justify-center rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800 transition hover:bg-stone-50"
+                                        class="mt-4 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#1e2924] px-4 text-sm font-black text-white shadow-md shadow-[#1e2924]/15 ring-2 ring-[#8BED9A]/35 transition hover:-translate-y-0.5 hover:bg-[#1e2924]/90"
                                     >
-                                        Open routine view
+                                        Review and apply
                                     </Link>
                                 </div>
                             </div>
                         </div>
 
-                        <div class="surface-card p-5">
+                        <div class="rounded-xl border border-stone-200 bg-white p-5">
                             <div class="flex flex-col gap-3 border-b border-stone-200 pb-4 sm:flex-row sm:items-start sm:justify-between">
                                 <div>
                                     <p class="text-sm font-semibold text-slate-950">Latest generated plan</p>
@@ -688,10 +1067,16 @@ function strategyTone(item) {
                                 </div>
                             </div>
 
-                            <div v-if="latestRun" class="mt-4 flex flex-wrap items-center justify-end gap-2">
-                            <Link :href="`/proxy-manager/${latestRun.id}`" class="inline-flex items-center justify-center gap-2 rounded-lg bg-[#1e2924]/95 px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-black/10 transition-colors hover:bg-[#1e2924]">
-                                    Open proxy routine
+                            <div v-if="latestRun" class="mt-4 rounded-xl border border-[#8BED9A]/70 bg-[#8BED9A]/12 p-3">
+                                <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                    <div>
+                                        <p class="text-sm font-black text-[#1e2924]">Next step</p>
+                                        <p class="mt-0.5 text-xs font-semibold text-slate-500">Review the generated routine, then approve it to activate today.</p>
+                                    </div>
+                            <Link :href="`/proxy-manager/${latestRun.id}`" class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#1e2924] px-5 text-sm font-black text-white shadow-md shadow-[#1e2924]/15 ring-2 ring-[#8BED9A]/35 transition hover:-translate-y-0.5 hover:bg-[#1e2924]/90">
+                                    Review and apply
                                 </Link>
+                                </div>
                             </div>
 
                             <div v-if="!latestRun" class="py-12 text-center">
@@ -755,10 +1140,45 @@ function strategyTone(item) {
                                 </div>
                             </div>
                         </div>
+                            </div>
+                        </div>
                     </div>
+                    <div class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-stone-200 bg-white p-3 shadow-sm">
+                        <button
+                            type="button"
+                            class="inline-flex min-h-11 items-center justify-center rounded-xl border border-stone-200 bg-white px-4 text-sm font-black text-[#1e2924] shadow-sm transition hover:border-[#8BED9A]/70 hover:bg-[#8BED9A]/10 disabled:cursor-not-allowed disabled:opacity-40"
+                            :disabled="activeProxyStepIndex === 0"
+                            @click="goToProxyStep(-1)"
+                        >
+                            Back
+                        </button>
+
+                        <div class="flex items-center justify-center gap-1.5">
+                            <span
+                                v-for="step in proxySteps"
+                                :key="`dot-${step.name}`"
+                                class="h-2.5 rounded-full transition-all duration-300"
+                                :class="proxySteps.indexOf(step) <= activeProxyStepIndex ? 'w-8 bg-[#09B884]' : 'w-2.5 bg-stone-300'"
+                            ></span>
+                        </div>
+
+                        <button
+                            v-if="activeProxyStepIndex < proxySteps.length - 1"
+                            type="button"
+                            class="inline-flex min-h-11 items-center justify-center rounded-xl bg-[#1e2924] px-5 text-sm font-black text-white shadow-sm shadow-black/10 transition hover:bg-[#1e2924]/90"
+                            @click="goToProxyStep(1)"
+                        >
+                            Next
+                        </button>
+                        <span v-else class="inline-flex min-h-11 items-center rounded-xl bg-[#8BED9A]/16 px-4 text-sm font-black text-[#1e2924]">
+                            Ready
+                        </span>
+                    </div>
+                    </section>
+                    </Transition>
                 </div>
 
-                <div v-else class="surface-card overflow-visible">
+                <div v-else key="groups" class="surface-card overflow-visible">
                     <div class="border-b border-stone-200 bg-white p-5">
                         <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
                             <div class="max-w-2xl">
@@ -906,7 +1326,40 @@ function strategyTone(item) {
                         </div>
                     </div>
                 </div>
+                </Transition>
             </template>
         </div>
     </AppLayout>
 </template>
+
+<style scoped>
+.proxy-manager-shell {
+    animation: proxy-rise 420ms ease-out both;
+}
+
+.proxy-tab-enter-active,
+.proxy-tab-leave-active {
+    transition: all 220ms ease;
+}
+
+.proxy-tab-enter-from {
+    opacity: 0;
+    transform: translateY(10px);
+}
+
+.proxy-tab-leave-to {
+    opacity: 0;
+    transform: translateY(-8px);
+}
+
+@keyframes proxy-rise {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+</style>

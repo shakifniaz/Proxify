@@ -304,33 +304,38 @@ function selectTab(tab) {
             </div>
 
             <div
-                class="relative grid gap-px bg-stone-200/80"
+                class="relative grid min-w-0 gap-px overflow-hidden bg-stone-200/80"
                 :class="canCreate ? 'xl:grid-cols-[minmax(0,1fr)_25rem]' : 'xl:grid-cols-1'"
             >
-                <section class="min-h-[36rem] bg-white/90 p-4 sm:p-5">
-                    <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                        <div class="flex items-center gap-3">
+                <section class="min-h-[36rem] min-w-0 bg-white/90 p-4 sm:p-5">
+                    <div class="flex min-w-0 flex-nowrap items-center gap-3">
+                        <div class="flex min-w-0 items-center gap-3">
                             <div class="flex h-10 w-10 items-center justify-center rounded-lg border border-[#8BED9A]/70 bg-[#8BED9A]/15 text-[#09B884]">
                                 <Megaphone class="h-4 w-4" />
                             </div>
-                            <p class="text-sm font-bold text-slate-950">
+                            <p class="min-w-0 max-w-40 text-sm font-bold leading-tight text-slate-950">
                                 {{ activeTab === 'institutional' ? 'Institutional notices' : 'Staff notices' }}
                             </p>
                         </div>
 
-                        <div class="flex flex-col gap-2 sm:flex-row lg:justify-end">
-                            <div class="relative sm:w-72">
+                        <div
+                            class="ml-auto grid min-w-0 flex-1 gap-2"
+                            :class="activeTab === 'institutional'
+                                ? 'grid-cols-[minmax(12rem,1fr)_9.5rem_9.5rem]'
+                                : 'grid-cols-[minmax(12rem,1fr)_9.5rem]'"
+                        >
+                            <div class="relative min-w-0">
                                 <Search class="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                                 <input v-model="search" type="text" class="field-control w-full pl-9" placeholder="Search notices" />
                             </div>
-                            <div class="relative sm:w-44">
+                            <div class="relative min-w-0">
                                 <select v-model="urgencyFilter" class="field-control w-full appearance-none bg-white pl-3 pr-10">
                                     <option>All urgency</option>
                                     <option v-for="urgency in urgencyOptions" :key="urgency">{{ urgency }}</option>
                                 </select>
                                 <ChevronDown class="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
                             </div>
-                            <div v-if="activeTab === 'institutional'" class="relative sm:w-44">
+                            <div v-if="activeTab === 'institutional'" class="relative min-w-0">
                                 <select v-model="visibilityFilter" class="field-control w-full appearance-none bg-white pl-3 pr-10">
                                     <option>All visibility</option>
                                     <option v-for="visibility in visibilityOptions" :key="visibility">{{ visibility }}</option>
@@ -347,7 +352,6 @@ function selectTab(tab) {
                             class="group relative overflow-hidden rounded-xl border p-4 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md"
                             :class="styleFor(notice.urgency).card"
                         >
-                            <div class="pointer-events-none absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r to-transparent" :class="styleFor(notice.urgency).glow"></div>
                             <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                                 <div class="min-w-0 flex-1">
                                     <div class="flex flex-wrap items-center gap-2">
@@ -417,7 +421,7 @@ function selectTab(tab) {
                     </div>
                 </section>
 
-                <aside v-if="canCreate" class="bg-white/95 p-4 sm:p-5">
+                <aside v-if="canCreate" class="min-w-0 bg-white/95 p-4 sm:p-5">
                     <div class="sticky top-6 rounded-xl border border-[#8BED9A]/55 bg-white p-4 shadow-sm">
                         <div class="flex items-center justify-between gap-3">
                             <div class="flex items-center gap-3">

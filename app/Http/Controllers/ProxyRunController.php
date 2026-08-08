@@ -50,6 +50,9 @@ class ProxyRunController extends Controller
             'subjectGroups.*.name' => ['required_with:subjectGroups', 'string', 'max:80'],
             'subjectGroups.*.subjects' => ['nullable', 'array'],
             'subjectGroups.*.subjects.*' => ['string', 'max:120'],
+            'manualAssignments' => ['nullable', 'array'],
+            'manualAssignments.*.targetKey' => ['required_with:manualAssignments', 'string', 'max:220'],
+            'manualAssignments.*.teacherId' => ['required_with:manualAssignments', 'string', 'max:80'],
         ]);
 
         $routine = Routine::findOrFail($data['routineId']);
@@ -212,6 +215,7 @@ class ProxyRunController extends Controller
             'periods' => $periods,
             'teachers' => $teachers,
             'subjects' => $this->routineSubjects($routine),
+            'generatedGrid' => $routine->generated_grid ?? [],
             'summary' => [
                 'classes' => count($routine->classes ?? []),
                 'sections' => collect($routine->classes ?? [])->sum(fn ($class) => count($class['sections'] ?? [])),

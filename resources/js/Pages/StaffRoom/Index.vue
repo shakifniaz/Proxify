@@ -1,171 +1,237 @@
 <script setup>
-import { ref, watch } from 'vue';
+import { computed, ref } from 'vue';
 import AppLayout from '@/Layouts/AppLayout.vue';
-import { 
-    StickyNote, 
-    Clock, 
-    User, 
-    Pin, 
-    PlusCircle
+import {
+    Bell,
+    CheckCheck,
+    MessageCircle,
+    Paperclip,
+    Search,
+    Send,
+    ShieldCheck,
+    UsersRound,
 } from 'lucide-vue-next';
 
 const props = defineProps({
-    boards: { type: Array, default: () => [] }
+    channels: { type: Array, default: () => [] },
+    currentUserName: { type: String, default: 'User' },
+    role: { type: String, default: 'admin' },
+    storageBackend: { type: String, default: 'Firebase' },
 });
 
-const activeBoardId = ref('handovers');
-const activeBoard = ref(props.boards.find(b => b.id === 'handovers') || props.boards[0]);
+const selectedChannelId = ref(props.channels[0]?.id ?? null);
+const search = ref('');
+const draft = ref('');
+const localMessages = ref(
+    Object.fromEntries(props.channels.map((channel) => [channel.id, [...(channel.messages ?? [])]]))
+);
 
-function selectBoard(boardId) {
-    activeBoardId.value = boardId;
-    activeBoard.value = props.boards.find(b => b.id === boardId) || props.boards[0];
+const filteredChannels = computed(() => {
+    const needle = search.value.trim().toLowerCase();
+    if (!needle) return props.channels;
+
+    return props.channels.filter((channel) =>
+        [channel.name, channel.subtitle]
+            .filter(Boolean)
+            .some((value) => String(value).toLowerCase().includes(needle))
+    );
+});
+
+const activeChannel = computed(() =>
+    props.channels.find((channel) => channel.id === selectedChannelId.value) ?? props.channels[0] ?? null
+);
+
+const activeMessages = computed(() =>
+    activeChannel.value ? localMessages.value[activeChannel.value.id] ?? [] : []
+);
+
+const totalUnread = computed(() => props.channels.reduce((sum, channel) => sum + Number(channel.unread || 0), 0));
+const onlineCount = computed(() => props.channels.reduce((sum, channel) => sum + Number(channel.online || 0), 0));
+
+function sendMessage() {
+    if (!activeChannel.value || !draft.value.trim()) return;
+
+    localMessages.value[activeChannel.value.id] = [
+        ...(localMessages.value[activeChannel.value.id] ?? []),
+        {
+            id: Date.now(),
+            author: props.currentUserName,
+            role: props.role === 'admin' ? 'Admin' : 'Teacher',
+            time: 'Just now',
+            body: draft.value.trim(),
+            mine: true,
+        },
+    ];
+
+    draft.value = '';
 }
-
-watch(() => props.boards, (newBoards) => {
-    if (newBoards && newBoards.length > 0) {
-        activeBoard.value = newBoards.find(b => b.id === activeBoardId.value) || newBoards[0];
-    }
-}, { immediate: true });
 </script>
 
 <template>
-    <AppLayout title="Staff Room Workspace">
-        <div class="space-y-6">
-
-            <div class="flex flex-wrap gap-2 border-b border-stone-200 pb-4">
-                <button
-                    v-for="board in boards"
-                    :key="board.id"
-                    type="button"
-                    @click="selectBoard(board.id)"
-                    class="flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-all"
-                    :class="activeBoardId === board.id 
-                        ? 'bg-blue-50 text-blue-700 border border-blue-200' 
-                        : 'text-slate-600 border border-transparent hover:bg-white hover:text-slate-800'"
-                >
-                    <Pin class="h-4 w-4" :class="activeBoardId === board.id ? 'rotate-45 text-blue-700' : 'text-slate-500'" />
-                    {{ board.name }}
-                </button>
-            </div>
-
-            <div v-if="activeBoard" class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-                
-                <div class="lg:col-span-2 space-y-4">
-                    <div>
-                        <h3 class="text-sm font-bold text-slate-900 uppercase tracking-wider">{{ activeBoard.name }}</h3>
-                        <p class="text-xs text-slate-500 mt-0.5">{{ activeBoard.description }}</p>
+    <AppLayout title="Staffroom">
+        <div class="staffroom-shell space-y-5">
+            <section class="relative overflow-hidden rounded-2xl border border-[#8BED9A]/50 bg-white p-5 shadow-sm">
+                <div class="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(139,237,154,0.26),transparent_34%),linear-gradient(135deg,rgba(9,184,132,0.08),transparent_46%)]"></div>
+                <div class="relative flex flex-wrap items-center justify-between gap-4">
+                    <div class="flex items-center gap-3">
+                        <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-[#1e2924] text-[#8BED9A] shadow-lg shadow-[#1e2924]/20">
+                            <MessageCircle class="h-6 w-6" />
+                        </div>
+                        <div>
+                            <h2 class="text-xl font-black text-[#1e2924]">Staffroom</h2>
+                            <p class="text-sm font-medium text-slate-500">Realtime staff chat shell, planned for {{ storageBackend }} sync.</p>
+                        </div>
                     </div>
 
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div 
-                            v-for="note in activeBoard.notes" 
-                            :key="note.id"
-                            class="rounded-lg border bg-white p-4 flex flex-col justify-between space-y-4 transition-all hover:border-slate-700"
-                            :class="[
-                                note.color === 'rose' ? 'border-red-200 bg-red-50' : '',
-                                note.color === 'violet' ? 'border-violet-500/20 bg-violet-500/5' : '',
-                                note.color === 'amber' ? 'border-amber-200 bg-amber-50' : '',
-                                note.color === 'sky' ? 'border-sky-500/20 bg-sky-500/5' : '',
-                                note.color === 'zinc' ? 'border-stone-300' : ''
-                            ]"
-                        >
-                            <div class="space-y-2">
-                                <div class="flex items-center justify-between gap-2">
-                                    <span 
-                                        class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider"
-                                        :class="[
-                                            note.color === 'rose' ? 'bg-red-50 text-red-700' : '',
-                                            note.color === 'violet' ? 'bg-violet-500/10 text-violet-400' : '',
-                                            note.color === 'amber' ? 'bg-amber-50 text-amber-700' : '',
-                                            note.color === 'sky' ? 'bg-sky-500/10 text-sky-400' : '',
-                                            note.color === 'zinc' ? 'bg-stone-100 text-slate-600' : ''
-                                        ]"
-                                    >
-                                        {{ note.tag }}
-                                    </span>
-                                    <div class="flex items-center gap-1 text-[11px] text-slate-500">
-                                        <Clock class="h-3 w-3" />
-                                        {{ note.time }}
-                                    </div>
-                                </div>
-
-                                <div class="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
-                                    <span class="h-1.5 w-1.5 rounded-full bg-blue-600"></span>
-                                    Context: <span class="text-slate-950 font-medium">{{ note.target }}</span>
-                                </div>
-
-                                <p class="text-xs text-slate-600 leading-relaxed pt-1">
-                                    {{ note.content }}
-                                </p>
-                            </div>
-
-                            <div class="pt-3 border-t border-stone-200/60 flex items-center gap-2 text-slate-500 text-[11px]">
-                                <User class="h-3 w-3 text-slate-600" />
-                                <span>From: <strong class="text-slate-700 font-medium">{{ note.author }}</strong></span>
-                            </div>
+                    <div class="grid grid-cols-3 gap-2 text-center">
+                        <div class="rounded-xl bg-[#8BED9A]/16 px-4 py-2">
+                            <p class="text-lg font-black text-[#1e2924]">{{ channels.length }}</p>
+                            <p class="text-[10px] font-black uppercase tracking-wider text-[#1e2924]/55">Channels</p>
                         </div>
-                        
-                        <div v-if="!activeBoard.notes || activeBoard.notes.length === 0" class="col-span-full py-8 text-center text-xs text-slate-500 italic">
-                            No live notes actively pinned on this board.
+                        <div class="rounded-xl bg-[#8BED9A]/16 px-4 py-2">
+                            <p class="text-lg font-black text-[#1e2924]">{{ onlineCount }}</p>
+                            <p class="text-[10px] font-black uppercase tracking-wider text-[#1e2924]/55">Online</p>
+                        </div>
+                        <div class="rounded-xl bg-[#8BED9A]/16 px-4 py-2">
+                            <p class="text-lg font-black text-[#1e2924]">{{ totalUnread }}</p>
+                            <p class="text-[10px] font-black uppercase tracking-wider text-[#1e2924]/55">Unread</p>
                         </div>
                     </div>
                 </div>
+            </section>
 
-                <div class="surface-card p-5 space-y-4">
-                    <div class="space-y-1">
-                        <h4 class="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
-                            <PlusCircle class="h-4 w-4 text-blue-700" />
-                            Pin a Live Note
-                        </h4>
-                        <p class="text-[11px] text-slate-500 leading-normal">
-                            Pins are designed for short-term visibility and automatically clear out every 24 hours.
-                        </p>
+            <section class="surface-card grid min-h-[42rem] overflow-hidden lg:grid-cols-[20rem_minmax(0,1fr)]">
+                <aside class="border-b border-stone-200 bg-stone-50/60 lg:border-b-0 lg:border-r">
+                    <div class="border-b border-stone-200 bg-white p-4">
+                        <div class="flex items-center justify-between gap-3">
+                            <p class="text-sm font-black text-[#1e2924]">Channels</p>
+                            <span class="inline-flex items-center gap-1 rounded-full bg-[#8BED9A]/20 px-2.5 py-1 text-xs font-black text-[#1e2924]">
+                                <ShieldCheck class="h-3.5 w-3.5 text-[#09B884]" />
+                                Staff only
+                            </span>
+                        </div>
+                        <div class="relative mt-3">
+                            <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                            <input v-model="search" type="text" class="field-control w-full pl-9" placeholder="Search channels" />
+                        </div>
                     </div>
 
-                    <div class="space-y-3 pt-2">
-                        <div>
-                            <label class="block text-[11px] font-semibold text-slate-600 uppercase tracking-wider mb-1">Target Context / Room</label>
-                            <input 
-                                type="text" 
-                                placeholder="e.g., Class 10-A, Science Lab" 
-                                class="w-full bg-stone-100 border border-stone-300 rounded-lg px-3 py-2 text-xs text-slate-800 placeholder-slate-600 focus:outline-none focus:border-blue-500"
-                            />
-                        </div>
-
-                        <div>
-                            <label class="block text-[11px] font-semibold text-slate-600 uppercase tracking-wider mb-1">Board Category Tag</label>
-                            <select class="w-full bg-stone-100 border border-stone-300 rounded-lg px-3 py-2 text-xs text-slate-600 focus:outline-none focus:border-blue-500">
-                                <option>Urgent Context</option>
-                                <option>Task Reminder</option>
-                                <option>Lab Layout</option>
-                                <option>Keys & Storage</option>
-                                <option>Swap Request</option>
-                            </select>
-                        </div>
-
-                        <div>
-                            <label class="block text-[11px] font-semibold text-slate-600 uppercase tracking-wider mb-1">Message Description</label>
-                            <textarea 
-                                rows="3" 
-                                placeholder="Write down structural context guidelines clearly..." 
-                                class="w-full bg-stone-100 border border-stone-300 rounded-lg px-3 py-2 text-xs text-slate-800 placeholder-slate-600 focus:outline-none focus:border-blue-500 resize-none"
-                            ></textarea>
-                        </div>
-
-                        <button 
-                            type="button" 
-                            class="w-full bg-blue-700 hover:bg-blue-700 text-slate-950 font-bold text-xs py-2 px-4 rounded-lg transition-colors shadow-lg shadow-none"
+                    <div class="max-h-[34rem] space-y-2 overflow-y-auto p-3">
+                        <button
+                            v-for="channel in filteredChannels"
+                            :key="channel.id"
+                            type="button"
+                            class="group w-full rounded-xl border p-3 text-left transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md"
+                            :class="activeChannel?.id === channel.id ? 'border-[#09B884]/55 bg-[#8BED9A]/18 shadow-sm' : 'border-stone-200 bg-white hover:border-[#8BED9A]/60'"
+                            @click="selectedChannelId = channel.id"
                         >
-                            Pin Note onto Desk
+                            <div class="flex items-start justify-between gap-3">
+                                <div class="min-w-0">
+                                    <p class="truncate text-sm font-black text-slate-950">{{ channel.name }}</p>
+                                    <p class="mt-1 truncate text-xs font-semibold text-slate-500">{{ channel.subtitle }}</p>
+                                </div>
+                                <span v-if="channel.unread" class="rounded-full bg-[#1e2924] px-2 py-0.5 text-xs font-black text-[#8BED9A]">{{ channel.unread }}</span>
+                            </div>
+                            <div class="mt-3 inline-flex items-center gap-1.5 rounded-full bg-white/80 px-2 py-1 text-[11px] font-bold text-slate-600">
+                                <UsersRound class="h-3.5 w-3.5 text-[#09B884]" />
+                                {{ channel.online }} online
+                            </div>
                         </button>
                     </div>
-                </div>
+                </aside>
 
-            </div>
-            
-            <div v-else class="text-center py-12 text-sm text-slate-500">
-                Loading board channels...
-            </div>
+                <main v-if="activeChannel" class="flex min-w-0 flex-col bg-white">
+                    <header class="flex flex-wrap items-center justify-between gap-3 border-b border-stone-200 px-5 py-4">
+                        <div>
+                            <p class="text-base font-black text-[#1e2924]">{{ activeChannel.name }}</p>
+                            <p class="text-sm font-semibold text-slate-500">{{ activeChannel.subtitle }}</p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="inline-flex items-center gap-1.5 rounded-xl border border-[#8BED9A]/55 bg-[#8BED9A]/14 px-3 py-2 text-xs font-black text-[#1e2924]">
+                                <Bell class="h-3.5 w-3.5 text-[#09B884]" />
+                                Live later
+                            </span>
+                            <span class="inline-flex items-center gap-1.5 rounded-xl border border-stone-200 bg-white px-3 py-2 text-xs font-bold text-slate-600">
+                                {{ storageBackend }}
+                            </span>
+                        </div>
+                    </header>
+
+                    <div class="flex-1 space-y-4 overflow-y-auto bg-[linear-gradient(180deg,rgba(139,237,154,0.08),rgba(255,255,255,0))] p-5">
+                        <TransitionGroup name="chat-list" tag="div" class="space-y-4">
+                            <div
+                                v-for="message in activeMessages"
+                                :key="message.id"
+                                class="flex"
+                                :class="message.mine ? 'justify-end' : 'justify-start'"
+                            >
+                                <div class="max-w-[76%] rounded-2xl border px-4 py-3 shadow-sm" :class="message.mine ? 'border-[#1e2924] bg-[#1e2924] text-white' : 'border-stone-200 bg-white text-slate-700'">
+                                    <div class="mb-1 flex flex-wrap items-center gap-2 text-xs">
+                                        <span class="font-black" :class="message.mine ? 'text-[#8BED9A]' : 'text-[#1e2924]'">{{ message.author }}</span>
+                                        <span :class="message.mine ? 'text-white/50' : 'text-slate-400'">{{ message.role }}</span>
+                                        <span :class="message.mine ? 'text-white/50' : 'text-slate-400'">{{ message.time }}</span>
+                                    </div>
+                                    <p class="text-sm leading-relaxed" :class="message.mine ? 'text-white/90' : 'text-slate-600'">{{ message.body }}</p>
+                                    <div v-if="message.mine" class="mt-2 flex justify-end text-[#8BED9A]">
+                                        <CheckCheck class="h-4 w-4" />
+                                    </div>
+                                </div>
+                            </div>
+                        </TransitionGroup>
+                    </div>
+
+                    <footer class="border-t border-stone-200 bg-white p-4">
+                        <div class="flex items-end gap-2 rounded-2xl border border-[#8BED9A]/45 bg-[#8BED9A]/10 p-2">
+                            <button type="button" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[#8BED9A]/55 bg-white text-[#09B884] transition hover:bg-[#8BED9A]/20">
+                                <Paperclip class="h-4 w-4" />
+                            </button>
+                            <textarea
+                                v-model="draft"
+                                rows="1"
+                                class="min-h-10 flex-1 resize-none border-0 bg-transparent px-2 py-2 text-sm font-medium text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-0"
+                                placeholder="Write a staff message"
+                                @keydown.enter.prevent="sendMessage"
+                            ></textarea>
+                            <button type="button" class="btn-primary min-h-10 px-4" :disabled="!draft.trim()" @click="sendMessage">
+                                <Send class="h-4 w-4" />
+                                Send
+                            </button>
+                        </div>
+                    </footer>
+                </main>
+            </section>
         </div>
     </AppLayout>
 </template>
+
+<style scoped>
+.staffroom-shell {
+    animation: staffroom-rise 420ms ease-out both;
+}
+
+.chat-list-enter-active,
+.chat-list-leave-active {
+    transition: all 240ms ease;
+}
+
+.chat-list-enter-from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+}
+
+.chat-list-leave-to {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+}
+
+@keyframes staffroom-rise {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+</style>

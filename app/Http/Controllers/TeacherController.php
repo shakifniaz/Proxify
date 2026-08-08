@@ -88,6 +88,17 @@ class TeacherController extends Controller
         return back()->with('success', 'Teacher updated.');
     }
 
+    public function destroy(Request $request, TeacherProfile $teacher): RedirectResponse
+    {
+        $this->ensureAdmin($request);
+        abort_unless($teacher->institution_id === $this->institutionId($request), 403);
+
+        $name = $teacher->name;
+        $teacher->delete();
+
+        return back()->with('success', $name.' deleted.');
+    }
+
     private function institutionId(Request $request): int
     {
         $user = $request->user();

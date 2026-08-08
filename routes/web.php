@@ -6,6 +6,7 @@ use App\Http\Controllers\ClassSectionController;
 use App\Http\Controllers\ProxyRunController;
 use App\Http\Controllers\RoutineController;
 use App\Http\Controllers\TeacherController;
+use App\Models\ClassSection;
 use App\Models\Routine;
 use App\Models\TeacherLeaveAllowance;
 use Inertia\Inertia;
@@ -154,12 +155,192 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('/proxy-manager/{proxyRun}/routine', [ProxyRunController::class, 'updateRoutine'])->name('proxy-manager.routine.update');
     Route::post('/proxy-manager/{proxyRun}/approve', [ProxyRunController::class, 'approve'])->name('proxy-manager.approve');
 
-    Route::get('/exam-schedule', function () {
+    $examSchedulePayload = function (?string $selectedId = null, ?string $activeId = null): array {
+        $activeId ??= 'midterm-june-2026';
+        $base = [
+            'halls' => [
+                ['name' => 'Hall A', 'capacity' => 40],
+                ['name' => 'Hall B', 'capacity' => 35],
+                ['name' => 'Hall C', 'capacity' => 30],
+            ],
+            'timeSlots' => [
+                ['key' => 'slot1', 'label' => '09:00-11:00', 'startLabel' => '09:00', 'endLabel' => '11:00'],
+                ['key' => 'slot2', 'label' => '11:30-13:30', 'startLabel' => '11:30', 'endLabel' => '13:30'],
+                ['key' => 'slot3', 'label' => '14:00-16:00', 'startLabel' => '14:00', 'endLabel' => '16:00'],
+            ],
+            'subjectOptions' => [
+                'Mathematics', 'Higher Mathematics', 'English', 'Physics', 'Chemistry',
+                'Biology', 'History', 'Bangla', 'Science',
+            ],
+            'classOptions' => [
+                'Class 6A', 'Class 7A', 'Class 7B', 'Class 8A', 'Class 8B',
+                'Class 9A', 'Class 9B', 'Class 10A', 'Class 10B', 'Class 11A', 'Class 11B',
+            ],
+            'invigilatorOptions' => [
+                'Mr. Chowdhury', 'Ms. Begum', 'Mr. Ali', 'Ms. Khatun', 'Ms. Islam',
+                'Mr. Rahman', 'Ms. Karim', 'Mr. Ahmed', 'Mr. Hossain',
+            ],
+        ];
+
+        $schedules = [
+            [
+                'id' => 'midterm-june-2026',
+                'name' => 'June 2026 Mid-term',
+                'subtitle' => 'Mid-term exams',
+                'startDate' => '2026-06-23',
+                'endDate' => '2026-06-27',
+                'classes' => 11,
+                'halls' => 3,
+                'exams' => 7,
+                'grid' => [
+                    'Hall A' => [
+                        'slot1' => ['subject' => 'Mathematics', 'classLabel' => 'Class 9A', 'examDate' => '2026-06-23', 'guards' => ['Mr. Chowdhury', 'Ms. Karim']],
+                        'slot2' => ['subject' => 'English', 'classLabel' => 'Class 10A', 'examDate' => '2026-06-24', 'guards' => ['Mr. Chowdhury']],
+                    ],
+                    'Hall B' => [
+                        'slot1' => ['subject' => 'Physics', 'classLabel' => 'Class 10B', 'examDate' => '2026-06-23', 'guards' => ['Mr. Ali']],
+                        'slot2' => ['subject' => 'Bangla', 'classLabel' => 'Class 7B', 'examDate' => '2026-06-24', 'guards' => ['Mr. Rahman']],
+                        'slot3' => ['subject' => 'History', 'classLabel' => 'Class 8A', 'examDate' => '2026-06-25', 'guards' => ['Ms. Khatun']],
+                    ],
+                    'Hall C' => [
+                        'slot1' => ['subject' => 'Science', 'classLabel' => 'Class 9B', 'examDate' => '2026-06-23', 'guards' => ['Ms. Begum']],
+                        'slot3' => ['subject' => 'Higher Mathematics', 'classLabel' => 'Class 11A', 'examDate' => '2026-06-25', 'guards' => ['Ms. Islam']],
+                    ],
+                ],
+            ],
+            [
+                'id' => 'annual-draft-2026',
+                'name' => 'Annual Exam Draft',
+                'subtitle' => 'Final term planning',
+                'startDate' => '2026-11-15',
+                'endDate' => '2026-11-26',
+                'classes' => 11,
+                'halls' => 3,
+                'exams' => 3,
+                'grid' => [
+                    'Hall A' => [
+                        'slot1' => ['subject' => 'Bangla', 'classLabel' => 'Class 9A', 'examDate' => '2026-11-15', 'guards' => ['Mr. Ahmed']],
+                    ],
+                    'Hall B' => [
+                        'slot1' => ['subject' => 'English', 'classLabel' => 'Class 10A', 'examDate' => '2026-11-15', 'guards' => ['Ms. Karim']],
+                    ],
+                    'Hall C' => [
+                        'slot2' => ['subject' => 'Science', 'classLabel' => 'Class 8A', 'examDate' => '2026-11-16', 'guards' => ['Ms. Begum']],
+                    ],
+                ],
+            ],
+            [
+                'id' => 'model-test-2026',
+                'name' => 'Model Test 2026',
+                'subtitle' => 'Previous schedule',
+                'startDate' => '2026-02-08',
+                'endDate' => '2026-02-12',
+                'classes' => 6,
+                'halls' => 2,
+                'exams' => 12,
+                'grid' => [
+                    'Hall A' => [
+                        'slot1' => ['subject' => 'Mathematics', 'classLabel' => 'Class 10A', 'examDate' => '2026-02-08', 'guards' => ['Mr. Rahman']],
+                    ],
+                    'Hall B' => [
+                        'slot1' => ['subject' => 'Physics', 'classLabel' => 'Class 10B', 'examDate' => '2026-02-08', 'guards' => ['Mr. Hossain']],
+                    ],
+                ],
+            ],
+        ];
+
+        $hasActiveSchedule = $activeId !== 'none';
+        $schedules = collect($schedules)->map(function (array $schedule) use ($activeId, $hasActiveSchedule) {
+            return [
+                ...$schedule,
+                'status' => $hasActiveSchedule && $schedule['id'] === $activeId ? 'Active' : ($schedule['id'] === 'annual-draft-2026' ? 'Draft' : 'Previous'),
+                'dateRange' => \Carbon\Carbon::parse($schedule['startDate'])->format('d/m/y').' - '.\Carbon\Carbon::parse($schedule['endDate'])->format('d/m/y'),
+            ];
+        })->values();
+
+        $selected = $selectedId && $selectedId !== 'none'
+            ? ($schedules->firstWhere('id', $selectedId) ?? $schedules->first())
+            : ($hasActiveSchedule ? ($schedules->firstWhere('status', 'Active') ?? $schedules->first()) : $schedules->first());
+        $hasVisibleSchedule = ($selectedId && $selectedId !== 'none') || $hasActiveSchedule;
+
+        return [
+            ...$base,
+            'schedules' => $schedules->map(fn ($schedule) => collect($schedule)->except('grid')->all())->all(),
+            'hasActiveSchedule' => $hasActiveSchedule,
+            'session' => [
+                'id' => $hasVisibleSchedule ? $selected['id'] : null,
+                'title' => $hasVisibleSchedule ? $selected['name'] : 'No active exam schedule',
+                'subtitle' => $hasVisibleSchedule ? $selected['subtitle'] : 'Exam schedules appear here once the admin publishes one.',
+                'startDate' => $hasVisibleSchedule ? $selected['startDate'] : null,
+                'endDate' => $hasVisibleSchedule ? $selected['endDate'] : null,
+                'status' => $hasVisibleSchedule ? $selected['status'] : 'Inactive',
+            ],
+            'examGrid' => $hasVisibleSchedule ? $selected['grid'] : [],
+        ];
+    };
+
+    Route::get('/exam-schedule', function (\Illuminate\Http\Request $request) use ($examSchedulePayload) {
+        $actualRole = strtolower($request->user()?->role ?? 'admin');
+        $previewRole = strtolower((string) $request->query('previewRole', ''));
+        $role = $actualRole === 'admin' && in_array($previewRole, ['teacher', 'student'], true) ? $previewRole : $actualRole;
+        $activeId = $request->query('active', $request->session()->get('active_exam_schedule_id', 'midterm-june-2026'));
+        $payload = $examSchedulePayload($activeId, $activeId);
+
+        if ($role === 'admin') {
+            return Inertia::render('ExamSchedule/Index', [
+                ...$payload,
+                'pageMode' => 'list',
+                'role' => $role,
+            ]);
+        }
+
+        return Inertia::render('ExamSchedule/Index', [
+            ...$payload,
+            'pageMode' => 'viewer',
+            'role' => $role,
+            'currentTeacherName' => $role === 'teacher' ? 'Mr. Chowdhury' : ($request->user()?->name ?? 'Mr. Chowdhury'),
+            'viewerClassLabel' => 'Class 9A',
+        ]);
+    })->name('exam-schedule.index');
+
+    Route::get('/exam-schedule/new', function (\Illuminate\Http\Request $request) use ($examSchedulePayload) {
+        abort_unless(strtolower($request->user()?->role ?? 'admin') === 'admin', 403);
+
+        return Inertia::render('ExamSchedule/Index', [
+            ...$examSchedulePayload('annual-draft-2026', $request->query('active', $request->session()->get('active_exam_schedule_id', 'midterm-june-2026'))),
+            'pageMode' => 'editor',
+            'role' => 'admin',
+        ]);
+    })->name('exam-schedule.create');
+
+    Route::post('/exam-schedule/{examSchedule}/activate', function (\Illuminate\Http\Request $request, string $examSchedule) {
+        $request->session()->put('active_exam_schedule_id', $examSchedule);
+
+        return redirect('/exam-schedule');
+    })->name('exam-schedule.activate');
+
+    Route::get('/exam-schedule/{examSchedule}', function (\Illuminate\Http\Request $request, string $examSchedule) use ($examSchedulePayload) {
+        $actualRole = strtolower($request->user()?->role ?? 'admin');
+        $previewRole = strtolower((string) $request->query('previewRole', ''));
+        $role = $actualRole === 'admin' && in_array($previewRole, ['teacher', 'student'], true) ? $previewRole : $actualRole;
+
+        return Inertia::render('ExamSchedule/Index', [
+            ...$examSchedulePayload($examSchedule, $request->query('active', $request->session()->get('active_exam_schedule_id', 'midterm-june-2026'))),
+            'pageMode' => $role === 'admin' ? 'editor' : 'viewer',
+            'role' => $role,
+            'currentTeacherName' => $role === 'teacher' ? 'Mr. Chowdhury' : ($request->user()?->name ?? 'Mr. Chowdhury'),
+            'viewerClassLabel' => 'Class 9A',
+        ]);
+    })->name('exam-schedule.show');
+
+    Route::get('/exam-schedule-legacy', function () {
         return Inertia::render('ExamSchedule/Index', [
             'session' => [
-                'title' => 'Exam Schedule — June 2026',
+                'title' => 'June 2026 Mid-term',
                 'subtitle' => 'Mid-term exams',
                 'dateLabel' => 'Monday, June 23',
+                'startDate' => '2026-06-23',
+                'endDate' => '2026-06-27',
             ],
             'halls' => [
                 ['name' => 'Hall A', 'capacity' => 40],
@@ -186,23 +367,23 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
             'examGrid' => [
                 'Hall A' => [
-                    'slot1' => ['subject' => 'Mathematics', 'classLabel' => 'Class 9A', 'invigilator' => 'Mr. Chowdhury'],
-                    'slot2' => ['subject' => 'English', 'classLabel' => 'Class 10A', 'invigilator' => 'Mr. Chowdhury'],
+                    'slot1' => ['subject' => 'Mathematics', 'classLabel' => 'Class 9A', 'examDate' => '2026-06-23', 'invigilator' => 'Mr. Chowdhury'],
+                    'slot2' => ['subject' => 'English', 'classLabel' => 'Class 10A', 'examDate' => '2026-06-24', 'invigilator' => 'Mr. Chowdhury'],
                     'slot3' => null,
                 ],
                 'Hall B' => [
-                    'slot1' => ['subject' => 'Physics', 'classLabel' => 'Class 10B', 'invigilator' => 'Mr. Ali'],
-                    'slot2' => ['subject' => 'Bangla', 'classLabel' => 'Class 7B', 'invigilator' => 'Mr. Chowdhury'],
-                    'slot3' => ['subject' => 'History', 'classLabel' => 'Class 8A', 'invigilator' => 'Ms. Khatun'],
+                    'slot1' => ['subject' => 'Physics', 'classLabel' => 'Class 10B', 'examDate' => '2026-06-23', 'invigilator' => 'Mr. Ali'],
+                    'slot2' => ['subject' => 'Bangla', 'classLabel' => 'Class 7B', 'examDate' => '2026-06-24', 'invigilator' => 'Mr. Chowdhury'],
+                    'slot3' => ['subject' => 'History', 'classLabel' => 'Class 8A', 'examDate' => '2026-06-25', 'invigilator' => 'Ms. Khatun'],
                 ],
                 'Hall C' => [
-                    'slot1' => ['subject' => 'Science', 'classLabel' => 'Class 9B', 'invigilator' => 'Ms. Begum'],
+                    'slot1' => ['subject' => 'Science', 'classLabel' => 'Class 9B', 'examDate' => '2026-06-23', 'invigilator' => 'Ms. Begum'],
                     'slot2' => null,
-                    'slot3' => ['subject' => 'Higher Mathematics', 'classLabel' => 'Class 11A', 'invigilator' => 'Ms. Islam'],
+                    'slot3' => ['subject' => 'Higher Mathematics', 'classLabel' => 'Class 11A', 'examDate' => '2026-06-25', 'invigilator' => 'Ms. Islam'],
                 ],
             ],
         ]);
-    })->name('exam-schedule.index');
+    })->name('exam-schedule.legacy');
 
     Route::get('/leave-requests', function () {
         $year = 2026;
@@ -216,6 +397,23 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ['id' => 6, 'teacherName' => 'Shakif Niaz', 'initials' => 'SN', 'subject' => 'Mathematics', 'type' => 'Casual leave', 'dateRange' => '10/05/26 - 10/05/26', 'days' => 1, 'duration' => 'Full day', 'status' => 'approved', 'reason' => 'Attending a family wedding out of town.', 'submittedAt' => 'May 4, 11:00 AM', 'proxyRelevant' => false, 'periods' => []],
             ['id' => 7, 'teacherName' => 'Shakif Niaz', 'initials' => 'SN', 'subject' => 'Mathematics', 'type' => 'Unpaid leave', 'dateRange' => '02/04/26 - 05/04/26', 'days' => 4, 'duration' => 'Full day', 'status' => 'rejected', 'reason' => 'Requested during midterm evaluations.', 'submittedAt' => 'Mar 25, 10:30 AM', 'proxyRelevant' => false, 'periods' => []],
         ];
+        $requestsByTeacher = collect($mockRequests)->groupBy('teacherName');
+        $mockRequests = collect($mockRequests)->map(function (array $request) use ($requestsByTeacher) {
+            $maxLeaves = 12;
+            $teacherRequests = $requestsByTeacher->get($request['teacherName'], collect());
+            $used = $teacherRequests->where('status', 'approved')->sum('days');
+            $pending = $teacherRequests->where('status', 'pending')->count();
+
+            return [
+                ...$request,
+                'leaveStats' => [
+                    'maxLeaves' => $maxLeaves,
+                    'used' => $used,
+                    'pending' => $pending,
+                    'remaining' => max(0, $maxLeaves - $used),
+                ],
+            ];
+        })->values()->all();
         $requestsByTeacher = collect($mockRequests)->groupBy('teacherName');
         $allowances = collect($routine?->teachers ?? [])->map(function (array $teacher, int $index) use ($routine, $year, $requestsByTeacher) {
             $teacherId = (string) ($teacher['id'] ?? $index + 1);
@@ -294,13 +492,230 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ]);
     })->name('noticeboard.index');
 
+    Route::get('/staffroom', function (\Illuminate\Http\Request $request) {
+        abort_unless(in_array(strtolower($request->user()?->role ?? 'admin'), ['admin', 'teacher'], true), 403);
+
+        return Inertia::render('StaffRoom/Index', [
+            'currentUserName' => $request->user()?->name ?? 'User',
+            'role' => strtolower($request->user()?->role ?? 'admin'),
+            'storageBackend' => 'Firebase',
+            'channels' => [
+                [
+                    'id' => 'general',
+                    'name' => 'General staff',
+                    'subtitle' => 'Daily coordination',
+                    'unread' => 3,
+                    'online' => 14,
+                    'messages' => [
+                        ['id' => 1, 'author' => 'Ms. Karim', 'role' => 'English', 'time' => '9:12 AM', 'body' => 'Class 8B notebooks are collected and kept in the staff cabinet.', 'mine' => false],
+                        ['id' => 2, 'author' => 'Mr. Rahman', 'role' => 'Mathematics', 'time' => '9:15 AM', 'body' => 'I can take the extra revision slot after tiffin if anyone needs a room swap.', 'mine' => false],
+                        ['id' => 3, 'author' => $request->user()?->name ?? 'You', 'role' => 'Admin', 'time' => '9:18 AM', 'body' => 'Noted. Please keep proxy updates inside the Proxy Manager once the plan is generated.', 'mine' => true],
+                    ],
+                ],
+                [
+                    'id' => 'academics',
+                    'name' => 'Academic desk',
+                    'subtitle' => 'Syllabus, tests, assignments',
+                    'unread' => 1,
+                    'online' => 8,
+                    'messages' => [
+                        ['id' => 4, 'author' => 'Mr. Hossain', 'role' => 'Physics', 'time' => '8:45 AM', 'body' => 'Physics class tests for Class 10 should stay within 20 marks this week.', 'mine' => false],
+                    ],
+                ],
+                [
+                    'id' => 'operations',
+                    'name' => 'Operations',
+                    'subtitle' => 'Rooms, labs, handoffs',
+                    'unread' => 0,
+                    'online' => 5,
+                    'messages' => [
+                        ['id' => 5, 'author' => 'Admin Office', 'role' => 'Admin', 'time' => 'Yesterday', 'body' => 'Science Lab B keys must be returned before final period ends.', 'mine' => false],
+                    ],
+                ],
+            ],
+        ]);
+    })->name('staffroom.index');
+
     Route::get('/staff-room', function () {
-        return redirect()->route('noticeboard.index');
+        return redirect()->route('staffroom.index');
     })->name('staff-room.index');
+
+    Route::get('/classroom', function (\Illuminate\Http\Request $request) {
+        $user = $request->user();
+        $role = strtolower($user?->role ?? 'admin');
+        $institutionId = $user?->institution_id;
+        $routine = Routine::query()
+            ->when($institutionId, fn ($query) => $query->where('institution_id', $institutionId))
+            ->where('status', 'Active')
+            ->latest()
+            ->first()
+            ?? Routine::query()
+                ->when($institutionId, fn ($query) => $query->where('institution_id', $institutionId))
+                ->latest()
+                ->first();
+
+        $teacherProfile = $user?->teacherProfile;
+        $teacherId = (string) ($user?->teacher_profile_id ?? '');
+        $teacherName = $teacherProfile?->name ?? $user?->name;
+        $teacherNames = collect($routine?->teachers ?? [])
+            ->mapWithKeys(fn ($teacher) => [
+                (string) ($teacher['id'] ?? $teacher['name'] ?? '') => $teacher['name'] ?? 'Teacher',
+            ])
+            ->filter();
+
+        $directorySections = ClassSection::query()
+            ->with('classTeacher:id,name')
+            ->when($institutionId, fn ($query) => $query->where('institution_id', $institutionId))
+            ->orderBy('sort_order')
+            ->orderBy('class_name')
+            ->orderBy('section_name')
+            ->get()
+            ->keyBy(fn (ClassSection $section) => (string) $section->id);
+
+        $gridBySectionId = collect($routine?->generated_grid ?? [])
+            ->keyBy(fn ($section) => (string) ($section['sectionId'] ?? $section['id'] ?? ''));
+
+        $classrooms = collect($routine?->classes ?? [])
+            ->flatMap(function ($class) use ($gridBySectionId) {
+                return collect($class['sections'] ?? [])->map(function ($section) use ($class, $gridBySectionId) {
+                    $sectionId = (string) ($section['id'] ?? '');
+
+                    return [
+                        ...$section,
+                        'className' => $class['name'] ?? $section['className'] ?? 'Class',
+                        'routineClassId' => (string) ($class['id'] ?? ''),
+                        'grid' => $gridBySectionId->get($sectionId, []),
+                    ];
+                });
+            })
+            ->map(function (array $section) use ($role, $teacherId, $teacherName, $teacherNames, $directorySections, $user) {
+                $sectionId = (string) ($section['id'] ?? '');
+                $directory = $directorySections->get($sectionId);
+                $grid = $section['grid'] ?? [];
+
+                $subjects = collect($section['subjects'] ?? [])
+                    ->map(function ($subject, int $index) use ($teacherNames) {
+                        $name = is_array($subject) ? ($subject['name'] ?? $subject['subject'] ?? 'Subject') : $subject;
+                        $subjectTeacherId = is_array($subject) ? (string) ($subject['teacherId'] ?? $subject['teacher_id'] ?? '') : '';
+                        $subjectTeacherName = is_array($subject)
+                            ? ($subject['teacherName'] ?? $subject['teacher'] ?? $teacherNames->get($subjectTeacherId))
+                            : null;
+
+                        return [
+                            'id' => md5($name.'-'.$subjectTeacherId.'-'.$index),
+                            'name' => trim((string) $name),
+                            'teacherId' => $subjectTeacherId,
+                            'teacherName' => $subjectTeacherName ?: ($subjectTeacherId ? $teacherNames->get($subjectTeacherId, 'Assigned teacher') : 'Assigned teacher'),
+                        ];
+                    });
+
+                $gridSubjects = collect($grid['days'] ?? [])
+                    ->flatMap(fn ($dayCells) => collect($dayCells)->filter(fn ($cell) => ($cell['type'] ?? 'empty') === 'class'))
+                    ->map(function ($cell) use ($teacherNames) {
+                        $subjectTeacherId = (string) ($cell['teacherId'] ?? '');
+
+                        return [
+                            'id' => md5(($cell['subject'] ?? 'Subject').'-'.$subjectTeacherId),
+                            'name' => trim((string) ($cell['subject'] ?? 'Subject')),
+                            'teacherId' => $subjectTeacherId,
+                            'teacherName' => $cell['teacherName'] ?? $teacherNames->get($subjectTeacherId, 'Assigned teacher'),
+                        ];
+                    });
+
+                $subjects = $subjects
+                    ->merge($gridSubjects)
+                    ->filter(fn ($subject) => filled($subject['name']))
+                    ->unique(fn ($subject) => strtolower($subject['name']).'|'.($subject['teacherId'] ?: strtolower($subject['teacherName'])))
+                    ->values();
+
+            $classTeacherId = (string) ($section['classTeacherId'] ?? $directory?->class_teacher_profile_id ?? '');
+            $isClassTeacher = $teacherId !== '' && $classTeacherId === $teacherId;
+            if ($role === 'teacher' && ! $isClassTeacher) {
+                $subjects = $subjects->filter(fn ($subject) =>
+                    (string) ($subject['teacherId'] ?? '') === $teacherId
+                    || strcasecmp((string) ($subject['teacherName'] ?? ''), (string) $teacherName) === 0
+                )->values();
+            }
+
+            return [
+                'id' => $sectionId,
+                'name' => $grid['label'] ?? trim(($section['className'] ?? 'Class').' '.($section['name'] ?? 'Section')),
+                'className' => $section['className'] ?? $grid['className'] ?? 'Class',
+                'sectionName' => $section['name'] ?? $grid['sectionName'] ?? 'Section',
+                'classTeacherName' => $directory?->classTeacher?->name ?? $teacherNames->get($classTeacherId, 'Unassigned'),
+                'access' => $role === 'admin' ? 'All subjects' : ($isClassTeacher ? 'Class teacher' : ucfirst($role)),
+                'subjects' => $subjects->map(function ($subject, int $index) use ($sectionId) {
+                    $subjectName = $subject['name'];
+                    return [
+                        ...$subject,
+                        'accent' => ['#09B884', '#8BED9A', '#14B8A6', '#84CC16', '#22C55E'][$index % 5],
+                        'posts' => [
+                            [
+                                'id' => $sectionId.'-'.$index.'-u1',
+                                'kind' => 'Update',
+                                'title' => $subjectName.' class update',
+                                'body' => 'Review the latest class notes before the next lesson. Important examples will be discussed at the start of class.',
+                                'author' => $subject['teacherName'],
+                                'date' => 'Today, 9:20 AM',
+                                'due' => null,
+                                'marks' => null,
+                            ],
+                            [
+                                'id' => $sectionId.'-'.$index.'-a1',
+                                'kind' => 'Assignment',
+                                'title' => $subjectName.' practice submission',
+                                'body' => 'Submit a clean solution sheet with all workings shown. Late submissions will be flagged for review.',
+                                'author' => $subject['teacherName'],
+                                'date' => 'Yesterday',
+                                'due' => 'Due Friday, 11:59 PM',
+                                'marks' => 10,
+                            ],
+                        ],
+                    ];
+                })->values(),
+            ];
+            })
+            ->when($role === 'student' && $user?->class_section_id, fn ($collection) =>
+                $collection->filter(fn ($classroom) => (string) $classroom['id'] === (string) $user->class_section_id)
+            )
+            ->filter(fn ($classroom) => $role !== 'teacher' || count($classroom['subjects']) > 0)
+            ->values();
+
+        if ($classrooms->isEmpty()) {
+            $classrooms = collect([
+                [
+                    'id' => 'demo-10a',
+                    'name' => 'Class 10 (A)',
+                    'className' => 'Class 10',
+                    'sectionName' => 'Section A',
+                    'classTeacherName' => 'Ms. Karim',
+                    'access' => 'Demo classroom',
+                    'subjects' => [
+                        ['id' => 'physics', 'name' => 'Physics', 'teacherId' => '', 'teacherName' => 'Mr. Hossain', 'accent' => '#09B884', 'posts' => [
+                            ['id' => 'p1', 'kind' => 'Assignment', 'title' => 'Electromagnetism lab writeup', 'body' => 'Complete the observation table and include one graph with labeled axes.', 'author' => 'Mr. Hossain', 'date' => 'Today, 10:15 AM', 'due' => 'Due Sunday, 9:00 AM', 'marks' => 15],
+                            ['id' => 'p2', 'kind' => 'Class test', 'title' => 'Short test on induction', 'body' => 'The test will cover Faraday law, Lenz law, and basic numerical problems.', 'author' => 'Mr. Hossain', 'date' => 'Yesterday', 'due' => 'Wednesday P3', 'marks' => 20],
+                        ]],
+                        ['id' => 'math', 'name' => 'Mathematics', 'teacherId' => '', 'teacherName' => 'Mr. Rahman', 'accent' => '#8BED9A', 'posts' => [
+                            ['id' => 'm1', 'kind' => 'Homework', 'title' => 'Exercise 7.2', 'body' => 'Solve problems 1 through 8 and mark the two questions you found hardest.', 'author' => 'Mr. Rahman', 'date' => 'Yesterday', 'due' => 'Next class', 'marks' => null],
+                        ]],
+                    ],
+                ],
+            ]);
+        }
+
+        return Inertia::render('Classroom/Index', [
+            'classrooms' => $classrooms,
+            'role' => $role,
+            'activeRoutineName' => $routine?->name,
+            'currentUserName' => $user?->name ?? 'User',
+        ]);
+    })->name('classroom.index');
 
     Route::get('/classrooms', [ClassSectionController::class, 'index'])->name('classrooms.index');
     Route::post('/classrooms', [ClassSectionController::class, 'store'])->name('classrooms.store');
     Route::patch('/classrooms/{classSection}', [ClassSectionController::class, 'update'])->name('classrooms.update');
+    Route::delete('/classrooms/class-group', [ClassSectionController::class, 'destroyClass'])->name('classrooms.class.destroy');
+    Route::delete('/classrooms/{classSection}', [ClassSectionController::class, 'destroy'])->name('classrooms.destroy');
 
     Route::get('/classrooms-demo', function () {
         return Inertia::render('Classrooms/Index', [
@@ -448,6 +863,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/teachers', [TeacherController::class, 'index'])->name('teachers.index');
     Route::post('/teachers', [TeacherController::class, 'store'])->name('teachers.store');
     Route::patch('/teachers/{teacher}', [TeacherController::class, 'update'])->name('teachers.update');
+    Route::delete('/teachers/{teacher}', [TeacherController::class, 'destroy'])->name('teachers.destroy');
 
     Route::get('/teachers-demo', function () {
         return Inertia::render('Teachers/Index', [

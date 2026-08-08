@@ -4,8 +4,10 @@ import { Link, router } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import {
     AlertTriangle,
+    CalendarDays,
     ChevronLeft,
     ChevronRight,
+    CheckCircle2,
     GripVertical,
     Layers,
     Pencil,
@@ -18,6 +20,11 @@ import {
 } from 'lucide-vue-next';
 
 const props = defineProps({
+    accessRole: { type: String, default: 'admin' },
+    readOnly: { type: Boolean, default: false },
+    noActiveRoutine: { type: Boolean, default: false },
+    currentTeacherName: { type: String, default: '' },
+    currentClassLabel: { type: String, default: '' },
     routine: { type: Object, default: () => ({}) },
     days: { type: Array, default: () => [] },
     periods: { type: Array, default: () => [] },
@@ -34,10 +41,23 @@ const props = defineProps({
     activeProxyNotice: { type: Object, default: null },
 });
 
-const viewMode = ref('teachers');
+const isTeacherViewer = computed(() => props.accessRole === 'teacher');
+const isStudentViewer = computed(() => props.accessRole === 'student');
+const canEditRoutine = computed(() => !props.readOnly && !props.noActiveRoutine);
+const viewMode = ref(isStudentViewer.value ? 'classes' : 'teachers');
 const routineSource = ref(props.proxyContext ? 'proxy' : 'routine');
 const selectedDay = ref(props.proxyContext?.day ?? props.days[0] ?? 'Sun');
 const dayNames = { Sun: 'Sunday', Mon: 'Monday', Tue: 'Tuesday', Wed: 'Wednesday', Thu: 'Thursday', Fri: 'Friday', Sat: 'Saturday' };
+const routinePageTitle = computed(() => {
+    if (isStudentViewer.value) return 'My Routine';
+    if (isTeacherViewer.value) return 'Routine';
+    if (props.noActiveRoutine) return 'Routine';
+    return props.proxyContext ? `${props.proxyContext.name} - Proxy Routine` : props.routine.name;
+});
+const proxySourceTabs = [
+    { key: 'proxy', label: 'Proxy routine', icon: Repeat },
+    { key: 'original', label: 'Original routine', icon: CalendarDays },
+];
 
 function defaultDailyPeriodsByDay(value = 7) {
     return Object.fromEntries(props.days.map((day) => [day, Number(value) || 0]));
@@ -140,6 +160,26 @@ const displayedGeneratedGrid = computed(() =>
     isOriginalRoutineSource.value ? (props.proxyContext?.originalGeneratedGrid ?? {}) : (props.generatedGrid ?? {})
 );
 const gridTeachers = computed(() => displayedTeacherSchedule.value[selectedDay.value] ?? []);
+const currentTeacherRows = computed(() => {
+    if (!props.currentTeacherName) return [];
+    return Object.entries(displayedTeacherSchedule.value ?? {}).flatMap(([day, teachers]) =>
+        teachers
+            .filter((teacher) => String(teacher.name || '').toLowerCase() === props.currentTeacherName.toLowerCase())
+            .map((teacher) => ({ day, ...teacher }))
+    );
+});
+const currentTeacherDutyGrid = computed(() =>
+    props.days.map((day) => {
+        const teacher = (displayedTeacherSchedule.value[day] ?? []).find((item) =>
+            String(item.name || '').toLowerCase() === props.currentTeacherName.toLowerCase()
+        );
+
+        return {
+            day,
+            cells: teacher?.cells ?? {},
+        };
+    })
+);
 const originalTeacherCellLookup = computed(() => {
     const lookup = {};
     Object.entries(props.proxyContext?.originalTeacherSchedule ?? {}).forEach(([day, teachers]) => {
@@ -316,6 +356,14 @@ const classRoutineSections = computed(() => {
 
     return Array.from(sections.values()).sort(compareRoutineClassLabels);
 });
+const visibleClassRoutineSections = computed(() => {
+    if (!isStudentViewer.value) return classRoutineSections.value;
+    if (props.currentClassLabel) {
+        return classRoutineSections.value.filter((section) => section.label === props.currentClassLabel);
+    }
+
+    return classRoutineSections.value.slice(0, 1);
+});
 
 function classCell(section, day, periodKey) {
     return section.days?.[day]?.[periodKey] ?? { type: 'empty' };
@@ -357,11 +405,23 @@ function teacherCellChanged(teacher = {}, periodKey) {
 function teacherCellClasses(teacher = {}, periodKey) {
     const cell = teacher.cells?.[periodKey];
     const changed = teacherCellChanged(teacher, periodKey);
+    if (!canEditRoutine.value && cell?.type === 'unresolved') {
+        return 'border border-stone-200 bg-stone-100';
+    }
+
     if ((!cell || cell.type === 'empty') && changed) {
         return 'border-[3px] border-amber-400 bg-amber-50 font-bold shadow-[inset_5px_0_0_rgba(217,119,6,0.55)] ring-2 ring-amber-100';
     }
 
     return cellClasses(cell, changed);
+}
+
+function readonlyCellClasses(cell = {}) {
+    if (!canEditRoutine.value && cell?.type === 'unresolved') {
+        return 'border border-stone-200 bg-stone-100';
+    }
+
+    return cellClasses(cell);
 }
 
 function classCellChanged(cell = {}, section = {}, day, periodKey) {
@@ -375,6 +435,10 @@ function classDisplayCellClasses(section = {}, day, period) {
     if (!isScheduledClassPeriod(section, day, period)) return 'border border-stone-200 bg-stone-50';
     const cell = classCell(section, day, period.key);
     const changed = classCellChanged(cell, section, day, period.key);
+    if (!canEditRoutine.value && isClassCellUnresolved(cell)) {
+        return 'border border-stone-200 bg-stone-50';
+    }
+
     if ((!cell || cell.type === 'empty') && changed) {
         return 'border-[3px] border-amber-400 bg-amber-50 font-bold shadow-[inset_5px_0_0_rgba(217,119,6,0.55)] ring-2 ring-amber-100';
     }
@@ -412,7 +476,7 @@ function isScheduledClassPeriod(section, day, period) {
 }
 
 const classUnresolvedCells = computed(() =>
-    classRoutineSections.value.flatMap((section) =>
+    visibleClassRoutineSections.value.flatMap((section) =>
         props.days.flatMap((day) =>
             props.periods
                 .filter((period) => isScheduledClassPeriod(section, day, period))
@@ -429,7 +493,7 @@ const classUnresolvedCells = computed(() =>
 );
 
 const unresolvedCount = computed(() =>
-    classRoutineSections.value.length ? classUnresolvedCells.value.length : (props.metrics.unallocatedAssignments ?? 0)
+    visibleClassRoutineSections.value.length ? classUnresolvedCells.value.length : (props.metrics.unallocatedAssignments ?? 0)
 );
 const teacherGapCount = computed(() =>
     gridTeachers.value.reduce(
@@ -441,6 +505,22 @@ const teacherGapCount = computed(() =>
 const assignedSubjectRows = computed(() =>
     classBlueprint.value.reduce((sum, section) => sum + section.subjects.filter((subject) => subject.teacherId).length, 0)
 );
+const routineViewTabs = computed(() => [
+    { key: 'teachers', label: 'Teachers routine', icon: Table2, count: gridTeachers.value.length, visible: !isStudentViewer.value },
+    { key: 'mine', label: 'My classes', icon: CheckCircle2, count: currentTeacherRows.value.length, visible: isTeacherViewer.value },
+    { key: 'classes', label: 'Class routine', icon: Layers, count: visibleClassRoutineSections.value.length, visible: !isStudentViewer.value },
+    { key: 'settings', label: 'Generation settings', icon: Settings2, count: classBlueprint.value.length, visible: !isProxyRoutine.value && !props.readOnly },
+].filter((tab) => tab.visible));
+const viewTabIndex = computed(() => Math.max(0, routineViewTabs.value.findIndex((tab) => tab.key === viewMode.value)));
+const viewTabIndicatorStyle = computed(() => ({
+    width: `calc((100% - 0.75rem) / ${Math.max(1, routineViewTabs.value.length)})`,
+    transform: `translateX(${viewTabIndex.value * 100}%)`,
+}));
+const proxySourceIndex = computed(() => Math.max(0, proxySourceTabs.findIndex((tab) => tab.key === routineSource.value)));
+const proxySourceIndicatorStyle = computed(() => ({
+    width: `calc((100% - 0.75rem) / ${proxySourceTabs.length})`,
+    transform: `translateX(${proxySourceIndex.value * 100}%)`,
+}));
 
 function selectDay(day) {
     selectedDay.value = day;
@@ -495,12 +575,14 @@ function cellKey(teacherIndex, periodKey) {
 }
 
 function onDragStart(teacherIndex, periodKey, event) {
+    if (!canEditRoutine.value) return;
     dragSource.value = { teacherIndex, periodKey };
     event.dataTransfer?.setData?.('text/plain', cellKey(teacherIndex, periodKey));
     if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
 }
 
 function onDragOverCell(teacherIndex, periodKey, event) {
+    if (!canEditRoutine.value) return;
     event.preventDefault();
     dragOverKey.value = cellKey(teacherIndex, periodKey);
 }
@@ -511,7 +593,7 @@ function onDragLeaveCell() {
 
 function onDrop(teacherIndex, periodKey, event) {
     event.preventDefault();
-    if (isOriginalRoutineSource.value) return;
+    if (!canEditRoutine.value || isOriginalRoutineSource.value) return;
     dragOverKey.value = null;
     const from = dragSource.value;
     dragSource.value = null;
@@ -579,7 +661,7 @@ function sortClassBlueprint() {
 const editing = ref(null);
 
 function openEditor(teacherIndex, periodKey) {
-    if (isOriginalRoutineSource.value) return;
+    if (!canEditRoutine.value || isOriginalRoutineSource.value) return;
     const cell = gridTeachers.value[teacherIndex].cells[periodKey] ?? { type: 'empty' };
     editing.value = {
         teacherIndex,
@@ -671,6 +753,7 @@ function classesForRegeneration() {
 }
 
 function regenerateRoutine() {
+    if (!canEditRoutine.value) return;
     router.post(`/routines/${props.routine.id}/regenerate`, {
         name: props.routine.name,
         termLabel: props.routine.term,
@@ -738,48 +821,105 @@ function approveProxyRoutine() {
 </script>
 
 <template>
-    <AppLayout :title="isProxyRoutine ? `${proxyContext.name} - Proxy Routine` : `${routine.name} - Edit`">
+    <AppLayout :title="routinePageTitle">
         <div class="space-y-5">
-            <div class="surface-card flex flex-wrap items-center justify-between gap-4 p-4">
+            <div v-if="noActiveRoutine" class="surface-card overflow-hidden">
+                <div class="grid gap-px bg-stone-200/80 lg:grid-cols-[minmax(0,1fr)_22rem]">
+                    <div class="bg-white p-8">
+                        <div class="flex items-start gap-4">
+                            <div class="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[#8BED9A]/18 text-[#09B884]">
+                                <CalendarDays class="h-7 w-7" />
+                            </div>
+                            <div>
+                                <p class="text-xl font-black text-[#1e2924]">No routine is active right now</p>
+                                <p class="mt-2 max-w-2xl text-sm font-semibold leading-6 text-slate-600">
+                                    Class and teacher routines are shown here once the admin marks a routine as active.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-[#8BED9A]/12 p-6">
+                        <div class="rounded-2xl border border-[#8BED9A]/60 bg-white p-5">
+                            <p class="text-sm font-black text-[#1e2924]">Routine availability</p>
+                            <p class="mt-2 text-sm font-semibold text-slate-600">Please check back after the active academic routine has been published.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <template v-else>
+            <div v-if="!readOnly" class="surface-card flex flex-wrap items-center justify-between gap-4 p-4">
                 <div>
                     <h2 class="page-title">
-                        {{ isProxyRoutine ? proxyContext.name : routine.name }}
+                        {{ readOnly ? routinePageTitle : (isProxyRoutine ? proxyContext.name : routine.name) }}
                     </h2>
+                    <p v-if="readOnly" class="mt-1 text-sm font-semibold text-slate-500">
+                        {{ isStudentViewer ? 'Your class routine' : isTeacherViewer ? 'Published teacher and class routine' : 'Published routine' }}
+                    </p>
                 </div>
                 <div class="flex flex-wrap items-center gap-2">
-                    <Link :href="isProxyRoutine ? '/proxy-manager' : '/routines'" class="btn-secondary">
+                    <Link v-if="!readOnly" :href="isProxyRoutine ? '/proxy-manager' : '/routines'" class="btn-secondary">
                         {{ isProxyRoutine ? 'Proxy manager' : 'All routines' }}
                     </Link>
-                    <template v-if="isProxyRoutine">
+                    <template v-if="isProxyRoutine && !readOnly">
                         <button type="button" class="btn-secondary" :disabled="isOriginalRoutineSource" @click="saveProxyRoutine">Save proxy draft</button>
-                        <button type="button" class="btn-primary" :disabled="isOriginalRoutineSource" @click="approveProxyRoutine">
+                        <button
+                            type="button"
+                            class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-5 text-sm font-black shadow-md transition disabled:cursor-not-allowed disabled:opacity-50"
+                            :class="proxyContext.approvedAt ? 'border border-[#8BED9A]/70 bg-[#8BED9A]/20 text-[#1e2924]' : 'bg-[#1e2924] text-white shadow-[#1e2924]/20 ring-2 ring-[#8BED9A]/45 hover:-translate-y-0.5 hover:bg-[#1e2924]/90'"
+                            :disabled="isOriginalRoutineSource || proxyContext.approvedAt"
+                            @click="approveProxyRoutine"
+                        >
+                            <CheckCircle2 class="h-4 w-4" />
                             {{ proxyContext.approvedAt ? 'Approved' : 'Approve proxy routine' }}
                         </button>
                     </template>
-                    <template v-else>
+                    <template v-else-if="!readOnly">
                         <button type="button" class="btn-secondary">Versions</button>
                         <button type="button" class="btn-primary">Save routine</button>
                     </template>
                 </div>
             </div>
 
-            <div v-if="isProxyRoutine" class="surface-card p-2">
-                <div class="grid gap-2 rounded-xl bg-stone-100 p-1 sm:grid-cols-2">
+            <div v-if="isProxyRoutine && !proxyContext.approvedAt && !readOnly" class="rounded-2xl border border-[#8BED9A]/70 bg-[#8BED9A]/14 p-4 shadow-sm">
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                        <p class="text-sm font-black text-[#1e2924]">Approve to apply this proxy routine</p>
+                        <p class="mt-1 text-sm font-semibold text-slate-600">Until this is approved, the active routine will not use these proxy changes.</p>
+                    </div>
                     <button
                         type="button"
-                        class="min-h-11 rounded-lg px-4 text-sm font-bold transition-all"
-                        :class="routineSource === 'proxy' ? 'bg-[#1e2924]/95 text-white shadow-sm shadow-black/10' : 'text-[#1e2924] hover:bg-white hover:shadow-sm'"
-                        @click="routineSource = 'proxy'"
+                        class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#1e2924] px-5 text-sm font-black text-white shadow-md shadow-[#1e2924]/20 ring-2 ring-[#8BED9A]/45 transition hover:-translate-y-0.5 hover:bg-[#1e2924]/90 disabled:cursor-not-allowed disabled:opacity-50"
+                        :disabled="isOriginalRoutineSource"
+                        @click="approveProxyRoutine"
                     >
-                        Proxy routine
+                        <CheckCircle2 class="h-4 w-4" />
+                        Approve proxy routine
                     </button>
+                </div>
+            </div>
+
+            <div v-if="isProxyRoutine && !readOnly" class="surface-card p-2">
+                <div class="relative grid w-full overflow-hidden rounded-2xl border border-[#8BED9A]/50 bg-[#8BED9A]/10 p-1.5 shadow-sm shadow-[#8BED9A]/20 sm:grid-cols-2">
+                    <div
+                        class="absolute inset-y-1.5 left-1.5 rounded-xl bg-[#1e2924] shadow-lg shadow-[#1e2924]/20 transition-transform duration-300 ease-out"
+                        :style="proxySourceIndicatorStyle"
+                    ></div>
                     <button
+                        v-for="tab in proxySourceTabs"
+                        :key="tab.key"
                         type="button"
-                        class="min-h-11 rounded-lg px-4 text-sm font-bold transition-all"
-                        :class="routineSource === 'original' ? 'bg-[#1e2924]/95 text-white shadow-sm shadow-black/10' : 'text-[#1e2924] hover:bg-white hover:shadow-sm'"
-                        @click="routineSource = 'original'"
+                        class="relative z-10 flex min-h-14 items-center justify-center gap-3 rounded-xl px-3 text-sm font-black transition-colors duration-300"
+                        :class="routineSource === tab.key ? 'text-white' : 'text-[#1e2924] hover:text-[#09B884]'"
+                        @click="routineSource = tab.key"
                     >
-                        Original routine
+                        <span
+                            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border transition-colors duration-300"
+                            :class="routineSource === tab.key ? 'border-white/15 bg-white/14 text-[#BDF8C8]' : 'border-[#8BED9A]/60 bg-white/80 text-[#09B884]'"
+                        >
+                            <component :is="tab.icon" class="h-4 w-4" />
+                        </span>
+                        <span class="truncate">{{ tab.label }}</span>
                     </button>
                 </div>
             </div>
@@ -798,41 +938,44 @@ function approveProxyRoutine() {
                 </div>
             </div>
 
-            <div class="surface-card p-2">
-                <div class="grid gap-2 rounded-xl bg-stone-100 p-1" :class="isProxyRoutine ? 'md:grid-cols-2' : 'md:grid-cols-3'">
+            <div v-if="!isStudentViewer" class="surface-card p-2">
+                <div
+                    class="relative grid w-full overflow-hidden rounded-2xl border border-[#8BED9A]/50 bg-[#8BED9A]/10 p-1.5 shadow-sm shadow-[#8BED9A]/20"
+                    :style="{ gridTemplateColumns: `repeat(${routineViewTabs.length}, minmax(0, 1fr))` }"
+                >
+                    <div
+                        class="absolute inset-y-1.5 left-1.5 rounded-xl bg-[#1e2924] shadow-lg shadow-[#1e2924]/20 transition-transform duration-300 ease-out"
+                        :style="viewTabIndicatorStyle"
+                    ></div>
                     <button
+                        v-for="tab in routineViewTabs"
+                        :key="tab.key"
                         type="button"
-                        class="flex min-h-11 items-center justify-center gap-2 rounded-lg px-4 text-sm font-bold transition-all"
-                        :class="viewMode === 'teachers' ? 'bg-[#1e2924]/95 text-white shadow-sm shadow-black/10' : 'text-[#1e2924] hover:bg-white hover:shadow-sm'"
-                        @click="viewMode = 'teachers'"
+                        class="relative z-10 flex min-h-14 items-center justify-between gap-3 rounded-xl px-3 text-left transition-colors duration-300"
+                        :class="viewMode === tab.key ? 'text-white' : 'text-[#1e2924] hover:text-[#09B884]'"
+                        @click="viewMode = tab.key"
                     >
-                        <Table2 class="h-4 w-4" />
-                        Teachers routine
-                    </button>
-                    <button
-                        type="button"
-                        class="flex min-h-11 items-center justify-center gap-2 rounded-lg px-4 text-sm font-bold transition-all"
-                        :class="viewMode === 'classes' ? 'bg-[#1e2924]/95 text-white shadow-sm shadow-black/10' : 'text-[#1e2924] hover:bg-white hover:shadow-sm'"
-                        @click="viewMode = 'classes'"
-                    >
-                        <Layers class="h-4 w-4" />
-                        Class routine
-                    </button>
-                    <button
-                        v-if="!isProxyRoutine"
-                        type="button"
-                        class="flex min-h-11 items-center justify-center gap-2 rounded-lg px-4 text-sm font-bold transition-all"
-                        :class="viewMode === 'settings' ? 'bg-[#1e2924]/95 text-white shadow-sm shadow-black/10' : 'text-[#1e2924] hover:bg-white hover:shadow-sm'"
-                        @click="viewMode = 'settings'"
-                    >
-                        <Settings2 class="h-4 w-4" />
-                        Generation settings
+                        <span class="flex min-w-0 items-center gap-3">
+                            <span
+                                class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border transition-colors duration-300"
+                                :class="viewMode === tab.key ? 'border-white/15 bg-white/14 text-[#BDF8C8]' : 'border-[#8BED9A]/60 bg-white/80 text-[#09B884]'"
+                            >
+                                <component :is="tab.icon" class="h-4 w-4" />
+                            </span>
+                            <span class="truncate text-sm font-black">{{ tab.label }}</span>
+                        </span>
+                        <span
+                            class="min-w-8 shrink-0 rounded-full border px-2 py-1 text-center text-xs font-black transition-colors duration-300"
+                            :class="viewMode === tab.key ? 'border-white/20 bg-white/16 text-white' : 'border-[#8BED9A]/70 bg-white/80 text-[#1e2924]'"
+                        >
+                            {{ tab.count }}
+                        </span>
                     </button>
                 </div>
             </div>
 
             <template v-if="viewMode === 'teachers'">
-                <div class="grid gap-4 md:grid-cols-3">
+                <div v-if="canEditRoutine" class="grid gap-4 md:grid-cols-3">
                     <div class="surface-card p-4">
                         <p class="text-2xl font-bold text-slate-950">{{ unresolvedCount }}</p>
                         <p class="text-sm text-slate-500">unresolved class periods needing a teacher or subject</p>
@@ -885,7 +1028,7 @@ function approveProxyRoutine() {
                     <span v-if="isProxyRoutine" class="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 font-medium text-amber-700">
                         Thick amber outline = moved or edited
                     </span>
-                    <span class="flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2.5 py-1 font-medium text-red-700">
+                    <span v-if="canEditRoutine" class="flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2.5 py-1 font-medium text-red-700">
                         <AlertTriangle class="h-3 w-3" /> Unresolved
                     </span>
                 </div>
@@ -919,8 +1062,8 @@ function approveProxyRoutine() {
                                 <button
                                     v-else
                                     type="button"
-                                    :disabled="isOriginalRoutineSource"
-                                    :draggable="!isOriginalRoutineSource && period.type !== 'break' && (teacher.cells[period.key]?.type ?? 'empty') !== 'empty'"
+                                    :disabled="!canEditRoutine || isOriginalRoutineSource"
+                                    :draggable="canEditRoutine && !isOriginalRoutineSource && period.type !== 'break' && (teacher.cells[period.key]?.type ?? 'empty') !== 'empty'"
                                     class="group relative flex min-h-16 w-full flex-col items-start justify-center gap-1 rounded-lg px-3 py-2 text-left transition-colors"
                                     :class="[
                                         teacherCellClasses(teacher, period.key),
@@ -935,17 +1078,20 @@ function approveProxyRoutine() {
                                     @dragleave="onDragLeaveCell"
                                     @drop="onDrop(teacherIndex, period.key, $event)"
                                 >
-                                    <Pencil v-if="!isOriginalRoutineSource" class="absolute right-1.5 top-1.5 h-3 w-3 text-slate-500 opacity-0 transition-opacity group-hover:opacity-100" />
+                                    <Pencil v-if="canEditRoutine && !isOriginalRoutineSource" class="absolute right-1.5 top-1.5 h-3 w-3 text-slate-500 opacity-0 transition-opacity group-hover:opacity-100" />
 
                                     <template v-if="!teacher.cells[period.key] || teacher.cells[period.key].type === 'empty'">
                                         <span class="mx-auto text-xs font-semibold text-stone-400">Gap</span>
                                     </template>
 
                                     <template v-else-if="teacher.cells[period.key].type === 'unresolved'">
-                                        <span class="flex items-center gap-1 text-xs font-semibold text-red-700">
-                                            <AlertTriangle class="h-3 w-3" /> Unresolved
-                                        </span>
-                                        <span class="text-xs text-slate-600">{{ teacher.cells[period.key].classLabel }}</span>
+                                        <template v-if="canEditRoutine">
+                                            <span class="flex items-center gap-1 text-xs font-semibold text-red-700">
+                                                <AlertTriangle class="h-3 w-3" /> Unresolved
+                                            </span>
+                                            <span class="text-xs text-slate-600">{{ teacher.cells[period.key].classLabel }}</span>
+                                        </template>
+                                        <span v-else class="mx-auto text-xs font-semibold text-stone-400">Gap</span>
                                     </template>
 
                                     <template v-else-if="teacher.cells[period.key].type === 'proxy'">
@@ -966,10 +1112,85 @@ function approveProxyRoutine() {
                 </div>
             </template>
 
-            <template v-else-if="viewMode === 'classes'">
-                <div class="grid gap-4 md:grid-cols-3">
+            <template v-else-if="viewMode === 'mine'">
+                <div v-if="canEditRoutine" class="grid gap-4 md:grid-cols-3">
                     <div class="surface-card p-4">
-                        <p class="text-2xl font-bold text-slate-950">{{ classRoutineSections.length }}</p>
+                        <p class="text-2xl font-bold text-slate-950">{{ currentTeacherRows.length }}</p>
+                        <p class="text-sm text-slate-500">school days in your routine</p>
+                    </div>
+                    <div class="surface-card p-4">
+                        <p class="text-2xl font-bold text-slate-950">
+                            {{ currentTeacherRows.reduce((sum, row) => sum + Object.values(row.cells ?? {}).filter((cell) => cell && cell.type !== 'empty').length, 0) }}
+                        </p>
+                        <p class="text-sm text-slate-500">assigned periods</p>
+                    </div>
+                    <div class="surface-card p-4">
+                        <p class="text-2xl font-bold text-slate-950">
+                            {{ currentTeacherRows.reduce((sum, row) => sum + Object.values(row.cells ?? {}).filter((cell) => cell?.type === 'proxy').length, 0) }}
+                        </p>
+                        <p class="text-sm text-slate-500">proxy updates</p>
+                    </div>
+                </div>
+
+                <div class="flex flex-wrap items-center gap-2 text-xs">
+                    <span class="text-slate-500">Cell markers:</span>
+                    <span class="flex items-center gap-1 rounded-full border border-[#8BED9A]/70 bg-[#8BED9A]/15 px-2.5 py-1 font-medium text-[#1e2924]">
+                        <Repeat class="h-3 w-3" /> Proxy
+                    </span>
+                    <span class="rounded-full border border-stone-200 bg-stone-100 px-2.5 py-1 font-medium text-slate-600">Gap</span>
+                </div>
+
+                <div class="overflow-x-auto surface-card">
+                    <div class="min-w-[980px]">
+                        <div class="grid border-b border-stone-200" :style="classGridStyle">
+                            <div class="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Day</div>
+                            <div
+                                v-for="period in periods"
+                                :key="period.key"
+                                class="border-l border-stone-200 px-3 py-3 text-center text-xs font-semibold uppercase tracking-wider"
+                                :class="period.type === 'break' ? 'bg-stone-50 text-slate-500' : 'text-slate-500'"
+                            >
+                                <p>{{ period.label }}</p>
+                                <p v-if="period.time" class="mt-0.5 text-[10px] font-normal normal-case text-slate-600">{{ period.time }}</p>
+                            </div>
+                        </div>
+
+                        <div v-for="row in currentTeacherDutyGrid" :key="`mine-${row.day}`" class="grid border-b border-stone-200 last:border-b-0" :style="classGridStyle">
+                            <div class="flex items-center px-4 py-3 text-sm font-semibold text-slate-900">{{ dayNames[row.day] ?? row.day }}</div>
+                            <div v-for="period in periods" :key="period.key" class="border-l border-stone-200 p-2">
+                                <div v-if="period.type === 'break'" class="flex min-h-16 items-center justify-center rounded-lg bg-stone-100 text-xs font-semibold text-slate-500">
+                                    {{ period.label }}
+                                </div>
+                                <div
+                                    v-else
+                                    class="relative flex min-h-16 flex-col items-start justify-center gap-1 rounded-lg px-3 py-2"
+                                    :class="readonlyCellClasses(row.cells[period.key])"
+                                    :style="subjectCellStyle(row.cells[period.key])"
+                                >
+                                    <template v-if="!row.cells[period.key] || row.cells[period.key].type === 'empty'">
+                                        <span class="mx-auto text-xs font-semibold text-stone-400">Gap</span>
+                                    </template>
+                                    <template v-else-if="row.cells[period.key].type === 'proxy'">
+                                        <span class="flex items-center gap-1 text-xs font-semibold text-[#1e2924]">
+                                            <Repeat class="h-3 w-3" /> {{ row.cells[period.key].subject }}
+                                        </span>
+                                        <span class="text-xs text-slate-700">{{ row.cells[period.key].classLabel }}</span>
+                                    </template>
+                                    <template v-else>
+                                        <span v-if="displaySubject(row.cells[period.key])" class="text-xs font-semibold text-slate-950">{{ displaySubject(row.cells[period.key]) }}</span>
+                                        <span class="text-xs text-slate-700">{{ row.cells[period.key].classLabel }}</span>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </template>
+
+            <template v-else-if="viewMode === 'classes'">
+                <div v-if="canEditRoutine" class="grid gap-4 md:grid-cols-3">
+                    <div class="surface-card p-4">
+                        <p class="text-2xl font-bold text-slate-950">{{ visibleClassRoutineSections.length }}</p>
                         <p class="text-sm text-slate-500">class routines generated</p>
                     </div>
                     <div class="surface-card p-4">
@@ -982,7 +1203,7 @@ function approveProxyRoutine() {
                     </div>
                 </div>
 
-                <div v-if="classUnresolvedCells.length" class="surface-card border-red-200 bg-red-50/60 p-4">
+                <div v-if="canEditRoutine && classUnresolvedCells.length" class="surface-card border-red-200 bg-red-50/60 p-4">
                     <div class="flex items-start gap-3">
                         <AlertTriangle class="mt-0.5 h-5 w-5 shrink-0 text-red-700" />
                         <div class="min-w-0 flex-1">
@@ -1004,19 +1225,19 @@ function approveProxyRoutine() {
                     </div>
                 </div>
 
-                <div v-if="!classRoutineSections.length" class="surface-card p-6 text-center text-sm text-slate-500">
+                <div v-if="!visibleClassRoutineSections.length" class="surface-card p-6 text-center text-sm text-slate-500">
                     No class routine grid is available for this routine yet. Regenerate or import a routine to build the class view.
                 </div>
 
                 <div class="space-y-5">
-                    <div v-for="section in classRoutineSections" :key="section.id ?? section.label" class="surface-card overflow-hidden">
+                    <div v-for="section in visibleClassRoutineSections" :key="section.id ?? section.label" class="surface-card overflow-hidden">
                         <div class="flex flex-wrap items-center justify-between gap-3 border-b border-stone-200 px-4 py-3">
                             <div>
                                 <p class="text-sm font-semibold text-slate-950">{{ section.label }}</p>
                                 <p class="text-xs text-slate-500">{{ days.length }} days - {{ periods.filter((period) => period.type !== 'break').length }} teaching periods per full day</p>
                             </div>
                             <span
-                                v-if="days.flatMap((day) => periods.filter((period) => isScheduledClassPeriod(section, day, period) && isClassCellUnresolved(classCell(section, day, period.key)))).length"
+                                v-if="canEditRoutine && days.flatMap((day) => periods.filter((period) => isScheduledClassPeriod(section, day, period) && isClassCellUnresolved(classCell(section, day, period.key)))).length"
                                 class="rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700"
                             >
                                 {{ days.flatMap((day) => periods.filter((period) => isScheduledClassPeriod(section, day, period) && isClassCellUnresolved(classCell(section, day, period.key)))).length }} unresolved
@@ -1051,8 +1272,10 @@ function approveProxyRoutine() {
                                         >
                                             <template v-if="!isScheduledClassPeriod(section, day, period)"></template>
                                             <template v-else-if="isClassCellUnresolved(classCell(section, day, period.key))">
-                                                <span class="text-xs font-semibold text-red-700">Unresolved</span>
-                                                <span class="text-[11px] text-red-600">No lesson assigned</span>
+                                                <template v-if="canEditRoutine">
+                                                    <span class="text-xs font-semibold text-red-700">Unresolved</span>
+                                                    <span class="text-[11px] text-red-600">No lesson assigned</span>
+                                                </template>
                                             </template>
                                             <template v-else>
                                                 <span v-if="displaySubject(classCell(section, day, period.key))" class="text-xs font-semibold text-slate-950">{{ displaySubject(classCell(section, day, period.key)) }}</span>
@@ -1282,6 +1505,7 @@ function approveProxyRoutine() {
                         </button>
                     </aside>
                 </div>
+            </template>
             </template>
         </div>
 

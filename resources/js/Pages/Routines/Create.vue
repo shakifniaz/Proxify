@@ -4,13 +4,18 @@ import { Link, router } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import {
     AlertTriangle,
+    ArrowLeft,
+    ArrowRight,
+    BookOpen,
     CalendarClock,
     CheckCircle2,
+    Clock3,
     GraduationCap,
     GripVertical,
     Layers,
     Plus,
     RefreshCw,
+    Settings2,
     Trash2,
     UserRound,
     Users,
@@ -161,6 +166,15 @@ const periodTemplates = ref([
 
 const classPeriods = computed(() => periodTemplates.value.filter((period) => period.type === 'class'));
 const manualAllocation = ref(null);
+const stepDetails = computed(() => [
+    { name: 'Structure', icon: GraduationCap, hint: `${classes.value.length} classes, ${totalSections.value} sections` },
+    { name: 'Subjects', icon: BookOpen, hint: `${totalSubjectRows.value} subject rows` },
+    { name: 'Teachers', icon: Users, hint: `${teacherPool.value.length} teachers` },
+    { name: 'Timings', icon: Clock3, hint: `${classPeriods.value.length} teaching periods` },
+    { name: 'Generate', icon: Settings2, hint: unassignedSubjects.value.length ? `${unassignedSubjects.value.length} needs attention` : 'Ready check' },
+]);
+const activeStepIndex = computed(() => steps.indexOf(activeStep.value));
+const setupProgress = computed(() => Math.round(((activeStepIndex.value + 1) / steps.length) * 100));
 
 const totalSections = computed(() => classes.value.reduce((sum, cls) => sum + cls.sections.length, 0));
 const totalSubjectRows = computed(() =>
@@ -407,82 +421,105 @@ function submitRoutine() {
         },
     });
 }
+
+function goToStep(offset) {
+    const nextIndex = Math.min(steps.length - 1, Math.max(0, activeStepIndex.value + offset));
+    activeStep.value = steps[nextIndex];
+}
 </script>
 
 <template>
     <AppLayout title="Create Routine">
-        <div class="space-y-6">
-            <div class="surface-card flex flex-wrap items-center justify-between gap-4 p-4">
-                <div>
-                    <h2 class="page-title">Create Routine</h2>
-                </div>
-                <div class="flex items-center gap-2">
-                    <Link href="/routines" class="btn-secondary">Cancel</Link>
-                    <button type="button" class="btn-primary" :disabled="isSubmitting || unassignedSubjects.length > 0 || Boolean(missingSetup)" @click="submitRoutine">
-                        <RefreshCw class="h-4 w-4" :class="isSubmitting ? 'animate-spin' : ''" />
-                        {{ isSubmitting ? 'Creating...' : 'Create routine' }}
-                    </button>
-                </div>
-            </div>
-
-            <div class="grid gap-4 lg:grid-cols-[16rem_minmax(0,1fr)]">
-                <aside class="surface-card p-2">
-                    <div class="space-y-1">
-                        <button
-                            v-for="step in steps"
-                            :key="step"
-                            type="button"
-                            class="flex min-h-11 w-full items-center justify-between rounded-lg px-3 text-left text-sm font-bold transition-all"
-                            :class="activeStep === step ? 'bg-[#1e2924]/95 text-white shadow-sm shadow-black/10' : 'text-[#1e2924] hover:bg-[#8BED9A]/15'"
-                            @click="activeStep = step"
-                        >
-                            <span>{{ step }}</span>
-                            <CheckCircle2 v-if="activeStep === step" class="h-4 w-4" />
+        <div class="routine-create space-y-5">
+            <section class="relative overflow-hidden rounded-2xl border border-[#8BED9A]/45 bg-white p-5 shadow-sm">
+                <div class="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(139,237,154,0.28),transparent_34%),linear-gradient(135deg,rgba(9,184,132,0.08),transparent_48%)]"></div>
+                <div class="relative flex flex-wrap items-center justify-between gap-4">
+                    <div class="min-w-0">
+                        <p class="text-xs font-black uppercase tracking-[0.24em] text-[#09B884]">Routine builder</p>
+                        <h2 class="mt-1 text-2xl font-black text-[#1e2924]">{{ routineMeta.name || 'New routine' }}</h2>
+                        <p class="mt-1 text-sm font-medium text-slate-500">{{ routineMeta.termLabel || 'Term label not set' }}</p>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <Link href="/routines" class="btn-secondary">Cancel</Link>
+                        <button type="button" class="btn-primary min-h-11" :disabled="isSubmitting || unassignedSubjects.length > 0 || Boolean(missingSetup)" @click="submitRoutine">
+                            <RefreshCw class="h-4 w-4" :class="isSubmitting ? 'animate-spin' : ''" />
+                            {{ isSubmitting ? 'Creating...' : 'Create routine' }}
                         </button>
                     </div>
+                </div>
 
-                    <div class="m-2 mt-4 space-y-3 rounded-lg border border-stone-200 bg-stone-50/70 p-3 text-sm">
-                        <div class="flex justify-between">
-                            <span class="text-slate-500">Classes</span>
-                            <span class="font-semibold text-slate-900">{{ classes.length }}</span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span class="text-slate-500">Sections</span>
-                            <span class="font-semibold text-slate-900">{{ totalSections }}</span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span class="text-slate-500">Subject rows</span>
-                            <span class="font-semibold text-slate-900">{{ totalSubjectRows }}</span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span class="text-slate-500">Teachers</span>
-                            <span class="font-semibold text-slate-900">{{ teacherPool.length }}</span>
-                        </div>
-                    </div>
-                </aside>
+                <div class="relative mt-5 overflow-hidden rounded-full bg-stone-100">
+                    <div class="h-2 rounded-full bg-gradient-to-r from-[#09B884] to-[#8BED9A] transition-all duration-500" :style="{ width: `${setupProgress}%` }"></div>
+                </div>
+            </section>
 
-                <section class="space-y-4">
-                    <div v-if="activeStep === 'Structure'" class="space-y-4">                        <div class="surface-card p-5">
-                            <div class="grid gap-4 md:grid-cols-2">
+            <section class="surface-card p-2">
+                <div class="grid gap-2 md:grid-cols-5">
+                    <button
+                        v-for="(step, index) in stepDetails"
+                        :key="step.name"
+                        type="button"
+                        class="group rounded-xl border p-3 text-left transition-all duration-300 hover:-translate-y-0.5"
+                        :class="activeStep === step.name ? 'border-[#1e2924] bg-[#1e2924] text-white shadow-lg shadow-[#1e2924]/15' : 'border-transparent bg-stone-50 text-[#1e2924] hover:border-[#8BED9A]/70 hover:bg-[#8BED9A]/15'"
+                        @click="activeStep = step.name"
+                    >
+                        <div class="flex items-center justify-between gap-2">
+                            <span class="flex h-9 w-9 items-center justify-center rounded-lg" :class="activeStep === step.name ? 'bg-[#8BED9A]/20 text-[#8BED9A]' : 'bg-white text-[#09B884]'">
+                                <component :is="step.icon" class="h-4 w-4" />
+                            </span>
+                            <span class="text-xs font-black opacity-60">0{{ index + 1 }}</span>
+                        </div>
+                        <p class="mt-3 text-sm font-black">{{ step.name }}</p>
+                        <p class="mt-1 truncate text-xs font-semibold" :class="activeStep === step.name ? 'text-white/60' : 'text-slate-500'">{{ step.hint }}</p>
+                    </button>
+                </div>
+            </section>
+
+            <Transition name="routine-step" mode="out-in">
+                <section :key="activeStep" class="space-y-4">
+                    <div v-if="activeStep === 'Structure'" class="space-y-4">
+                        <div class="surface-card p-5">
+                            <div class="flex flex-wrap items-center justify-between gap-3">
                                 <div>
-                                    <label class="section-title">Routine name</label>
-                                    <input v-model="routineMeta.name" type="text" class="field-control mt-1 w-full" />
+                                    <p class="text-lg font-black text-[#1e2924]">Start with the school week</p>
                                 </div>
-                                <div>
-                                    <label class="section-title">Term label</label>
-                                    <input v-model="routineMeta.termLabel" type="text" class="field-control mt-1 w-full" />
+                                <div class="grid grid-cols-3 gap-2 text-center">
+                                    <div class="rounded-xl bg-[#8BED9A]/16 px-3 py-2">
+                                        <p class="text-lg font-black text-[#1e2924]">{{ classes.length }}</p>
+                                        <p class="text-[10px] font-black uppercase text-[#1e2924]/55">Classes</p>
+                                    </div>
+                                    <div class="rounded-xl bg-[#8BED9A]/16 px-3 py-2">
+                                        <p class="text-lg font-black text-[#1e2924]">{{ totalSections }}</p>
+                                        <p class="text-[10px] font-black uppercase text-[#1e2924]/55">Sections</p>
+                                    </div>
+                                    <div class="rounded-xl bg-[#8BED9A]/16 px-3 py-2">
+                                        <p class="text-lg font-black text-[#1e2924]">{{ weekdays.length }}</p>
+                                        <p class="text-[10px] font-black uppercase text-[#1e2924]/55">Days</p>
+                                    </div>
                                 </div>
                             </div>
-                            <div class="mt-4">
-                                <label class="section-title">Working days</label>
-                                <div class="mt-2 flex flex-wrap gap-2">
+
+                            <div class="mt-5 grid gap-4 lg:grid-cols-2">
+                                <label>
+                                    <span class="section-title">Routine name</span>
+                                    <input v-model="routineMeta.name" type="text" class="field-control mt-1 w-full" />
+                                </label>
+                                <label>
+                                    <span class="section-title">Term label</span>
+                                    <input v-model="routineMeta.termLabel" type="text" class="field-control mt-1 w-full" />
+                                </label>
+                            </div>
+
+                            <div class="mt-5">
+                                <p class="section-title">Working days</p>
+                                <div class="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
                                     <label
                                         v-for="day in availableWeekdays"
                                         :key="day"
-                                        class="inline-flex items-center gap-2 rounded-lg border border-stone-200 px-3 py-2 text-sm font-medium text-slate-700"
-                                        :class="weekdays.includes(day) ? 'border-[#8BED9A]/70 bg-[#8BED9A]/20 text-[#1e2924]' : 'bg-white'"
+                                        class="flex min-h-12 cursor-pointer items-center justify-center rounded-xl border text-sm font-black transition"
+                                        :class="weekdays.includes(day) ? 'border-[#09B884]/60 bg-[#8BED9A]/22 text-[#1e2924] shadow-sm' : 'border-stone-200 bg-white text-slate-500 hover:border-[#8BED9A]/60'"
                                     >
-                                        <input v-model="weekdays" :value="day" type="checkbox" class="rounded border-stone-300 text-[#09B884] focus:ring-[#09B884]" />
+                                        <input v-model="weekdays" :value="day" type="checkbox" class="sr-only" />
                                         {{ day }}
                                     </label>
                                 </div>
@@ -492,8 +529,8 @@ function submitRoutine() {
                         <div class="surface-card p-5">
                             <div class="flex flex-wrap items-center justify-between gap-3">
                                 <div>
-                                    <p class="section-title">Classes and Sections</p>
-                                    <p class="mt-1 text-sm text-slate-500">Classes are managed in the Classrooms tab. You can still reorder them and reassign class teachers for this routine.</p>
+                                    <p class="text-lg font-black text-[#1e2924]">Classes and sections</p>
+                                    <p class="mt-1 text-sm text-slate-500">Drag classes into order and adjust each section only where needed.</p>
                                 </div>
                                 <div class="flex flex-wrap gap-2">
                                     <button type="button" class="btn-secondary" @click="sortClasses">Sort standard order</button>
@@ -505,78 +542,73 @@ function submitRoutine() {
                             </div>
                         </div>
 
-                        <div v-if="!classes.length" class="surface-card border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">
-                            Add classes and sections in the Classrooms tab first. This page will use them automatically for routine generation.
+                        <div v-if="!classes.length" class="rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm font-semibold text-amber-900">
+                            Add classes and sections in the Classrooms tab first.
                         </div>
 
                         <div
                             v-for="(cls, classIndex) in classes"
                             :key="cls.id"
-                            class="surface-card p-5 transition"
+                            class="surface-card overflow-hidden transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md"
                             :class="classOrderDragIndex === classIndex ? 'opacity-50' : ''"
                             @dragover.prevent
                             @drop="onClassOrderDrop(classIndex, $event)"
                         >
-                            <div class="flex flex-wrap items-end gap-3">
-                                <GripVertical
-                                    draggable="true"
-                                    class="mb-2 h-5 w-5 shrink-0 cursor-grab text-slate-400 active:cursor-grabbing"
-                                    @dragstart="onClassOrderDragStart(classIndex, $event)"
-                                    @dragend="onClassOrderDragEnd"
-                                />
-                                <div class="min-w-48 flex-1">
-                                    <label class="section-title">Class name</label>
-                                    <input v-model="cls.name" type="text" class="field-control mt-1 w-full bg-stone-50" readonly />
+                            <div class="flex flex-wrap items-center justify-between gap-3 border-b border-stone-200 bg-stone-50/70 p-4">
+                                <div class="flex items-center gap-3">
+                                    <div
+                                        draggable="true"
+                                        class="flex h-10 w-10 cursor-grab items-center justify-center rounded-xl border border-stone-200 bg-white text-slate-400 active:cursor-grabbing"
+                                        @dragstart="onClassOrderDragStart(classIndex, $event)"
+                                        @dragend="onClassOrderDragEnd"
+                                    >
+                                        <GripVertical class="h-5 w-5" />
+                                    </div>
+                                    <div>
+                                        <p class="text-base font-black text-[#1e2924]">{{ cls.name }}</p>
+                                        <p class="text-xs font-semibold text-slate-500">{{ cls.sections.length }} section{{ cls.sections.length === 1 ? '' : 's' }}</p>
+                                    </div>
                                 </div>
                             </div>
 
-                            <div class="mt-4 space-y-3">
-                                <div v-for="(section, sectionIndex) in cls.sections" :key="section.id" class="surface-muted p-4">
-                                    <div class="flex items-center gap-2">
-                                        <input v-model="section.name" type="text" class="field-control-sm min-w-0 flex-1 bg-stone-50" readonly />
+                            <div class="grid gap-3 p-4 xl:grid-cols-2">
+                                <div v-for="section in cls.sections" :key="section.id" class="rounded-xl border border-stone-200 bg-white p-4">
+                                    <div class="flex flex-wrap items-center justify-between gap-3">
+                                        <div>
+                                            <p class="font-black text-slate-950">{{ section.name }}</p>
+                                            <p class="text-xs font-semibold text-slate-500">Class teacher: {{ teacherName(section.classTeacherId) }}</p>
+                                        </div>
+                                        <select v-model="section.classTeacherId" class="field-control-sm w-52">
+                                            <option :value="null">Select teacher</option>
+                                            <option v-for="teacher in teacherPool" :key="teacher.id" :value="teacher.id">{{ teacher.name }}</option>
+                                        </select>
                                     </div>
-                                    <div class="mt-3 overflow-hidden rounded-lg border border-stone-200 bg-white">
-                                        <div class="flex flex-wrap items-end justify-between gap-3 border-b border-stone-200 bg-stone-50 px-3 py-3">
+
+                                    <div class="mt-4 rounded-xl border border-[#8BED9A]/45 bg-[#8BED9A]/10 p-3">
+                                        <div class="flex flex-wrap items-end justify-between gap-3">
                                             <div>
-                                                <p class="section-title">Weekly period pattern</p>
-                                                <p class="mt-1 text-xs text-slate-500">Set the normal day length, then adjust short days below.</p>
+                                                <p class="text-sm font-black text-[#1e2924]">Daily period pattern</p>
+                                                <p class="text-xs font-semibold text-slate-500">Set a normal day, then fine tune.</p>
                                             </div>
                                             <div class="flex items-end gap-2">
-                                                <label class="block">
-                                                    <span class="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">Normal day</span>
-                                                    <input
-                                                        v-model.number="section.dailyPeriods"
-                                                        min="0"
-                                                        type="number"
-                                                        class="mt-1 h-9 w-20 rounded-lg border border-stone-300 bg-white px-3 text-sm font-semibold text-slate-900 focus:border-[#09B884] focus:outline-none"
-                                                    />
+                                                <label>
+                                                    <span class="block text-[10px] font-black uppercase tracking-wider text-[#1e2924]/55">Normal</span>
+                                                    <input v-model.number="section.dailyPeriods" min="0" type="number" class="mt-1 h-9 w-20 rounded-lg border border-stone-300 bg-white px-3 text-sm font-black focus:border-[#09B884] focus:outline-none" />
                                                 </label>
-                                                <button type="button" class="h-9 rounded-lg border border-[#8BED9A]/70 bg-[#8BED9A]/15 px-3 text-xs font-semibold text-[#1e2924] hover:bg-[#8BED9A]/25" @click="applyPeriodsToAllDays(section)">
-                                                    Apply to week
-                                                </button>
+                                                <button type="button" class="btn-secondary min-h-9 px-3 py-1.5 text-xs" @click="applyPeriodsToAllDays(section)">Apply</button>
                                             </div>
                                         </div>
-
-                                        <div class="grid divide-y divide-stone-200 sm:grid-cols-2 sm:divide-x sm:divide-y-0 lg:grid-cols-5">
-                                            <div v-for="day in weekdays" :key="`${section.id}-${day}`" class="flex items-center justify-between gap-3 px-3 py-3">
-                                                <div>
-                                                    <p class="text-xs font-bold uppercase tracking-wide text-slate-600">{{ day }}</p>
-                                                    <p class="text-[11px] text-slate-500">First {{ section.dailyPeriodsByDay[day] ?? 0 }} periods</p>
-                                                </div>
-                                                <div class="flex items-center rounded-lg border border-stone-200 bg-stone-50">
-                                                    <button type="button" class="flex h-8 w-8 items-center justify-center text-slate-500 hover:text-[#09B884]" @click="adjustDayPeriods(section, day, -1)">-</button>
-                                                    <input v-model.number="section.dailyPeriodsByDay[day]" inputmode="numeric" type="text" class="h-8 w-12 border-x border-stone-200 bg-white text-center text-sm font-semibold text-slate-900 focus:outline-none" />
-                                                    <button type="button" class="flex h-8 w-8 items-center justify-center text-slate-500 hover:text-[#09B884]" @click="adjustDayPeriods(section, day, 1)">+</button>
+                                        <div class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
+                                            <div v-for="day in weekdays" :key="`${section.id}-${day}`" class="rounded-lg bg-white p-2 text-center shadow-sm">
+                                                <p class="text-[10px] font-black uppercase text-slate-500">{{ day }}</p>
+                                                <div class="mt-1 flex items-center justify-center rounded-lg border border-stone-200">
+                                                    <button type="button" class="h-7 w-7 text-slate-500 hover:text-[#09B884]" @click="adjustDayPeriods(section, day, -1)">-</button>
+                                                    <input v-model.number="section.dailyPeriodsByDay[day]" inputmode="numeric" type="text" class="h-7 w-8 border-x border-stone-200 text-center text-sm font-black focus:outline-none" />
+                                                    <button type="button" class="h-7 w-7 text-slate-500 hover:text-[#09B884]" @click="adjustDayPeriods(section, day, 1)">+</button>
                                                 </div>
                                             </div>
                                         </div>
                                     </div>
-                                    <label class="mt-3 block section-title">Class teacher</label>
-                                    <select v-model="section.classTeacherId" class="field-control-sm mt-1 w-full">
-                                        <option :value="null">Select teacher</option>
-                                        <option v-for="teacher in teacherPool" :key="teacher.id" :value="teacher.id">{{ teacher.name }}</option>
-                                    </select>
-                                    <p class="mt-2 text-xs text-slate-500">This can override the directory class teacher for this generated routine.</p>
                                 </div>
                             </div>
                         </div>
@@ -584,82 +616,59 @@ function submitRoutine() {
 
                     <div v-else-if="activeStep === 'Subjects'" class="space-y-4">
                         <div class="surface-card p-5">
-                            <p class="section-title">Subject Loads</p>
-                            <p class="mt-1 text-sm text-slate-500">Set subjects per section, assign teachers, and optionally define weekly class count. Empty weekly counts will be balanced automatically.</p>
+                            <div class="flex flex-wrap items-center justify-between gap-3">
+                                <div>
+                                    <p class="text-lg font-black text-[#1e2924]">Subjects and teacher loads</p>
+                                    <p class="mt-1 text-sm text-slate-500">Cards keep each subject readable while preserving weekly load, color, and manual allocation controls.</p>
+                                </div>
+                                <span class="rounded-full bg-[#8BED9A]/20 px-3 py-1 text-xs font-black text-[#1e2924]">{{ autoBalancedSubjects }} auto-balanced</span>
+                            </div>
                         </div>
 
-                        <div v-for="cls in classes" :key="cls.id" class="surface-card p-5">
-                            <div class="flex items-center gap-2">
+                        <div v-for="cls in classes" :key="cls.id" class="surface-card overflow-hidden">
+                            <div class="flex items-center gap-2 border-b border-stone-200 bg-stone-50/70 p-4">
                                 <Layers class="h-4 w-4 text-[#09B884]" />
-                                <p class="font-semibold text-slate-950">{{ cls.name }}</p>
-                                <span class="text-xs text-slate-500">{{ Math.max(...cls.sections.flatMap((section) => Object.values(section.dailyPeriodsByDay ?? { default: section.dailyPeriods ?? cls.dailyPeriods }))) }} max periods/day</span>
+                                <p class="font-black text-slate-950">{{ cls.name }}</p>
                             </div>
-
-                            <div class="mt-4 space-y-4">
-                                <div v-for="section in cls.sections" :key="section.id" class="surface-muted p-4">
+                            <div class="space-y-4 p-4">
+                                <div v-for="section in cls.sections" :key="section.id" class="rounded-xl border border-stone-200 bg-white p-4">
                                     <div class="flex flex-wrap items-center justify-between gap-3">
                                         <div>
-                                            <p class="font-semibold text-slate-900">{{ section.name }}</p>
-                                            <p class="text-xs text-slate-500">Class teacher: {{ teacherName(section.classTeacherId) }}</p>
+                                            <p class="font-black text-slate-950">{{ section.name }}</p>
+                                            <p class="text-xs font-semibold text-slate-500">Class teacher: {{ teacherName(section.classTeacherId) }}</p>
                                         </div>
-                                        <button type="button" class="btn-secondary" @click="addSubject(section)">
-                                            <Plus class="h-4 w-4" />
+                                        <button type="button" class="btn-secondary min-h-9 px-3 py-1.5 text-xs" @click="addSubject(section)">
+                                            <Plus class="h-3.5 w-3.5" />
                                             Add subject
                                         </button>
                                     </div>
 
-                                    <div class="mt-3 overflow-x-auto">
-                                        <table class="w-full min-w-[720px] text-left text-sm">
-                                            <thead class="table-head">
-                                                <tr>
-                                                    <th class="px-3 py-2">Color</th>
-                                                    <th class="px-3 py-2">Subject</th>
-                                                    <th class="px-3 py-2">Teacher</th>
-                                                    <th class="px-3 py-2">Classes / week</th>
-                                                    <th class="px-3 py-2">Mode</th>
-                                                    <th class="px-3 py-2">Manual</th>
-                                                    <th class="px-3 py-2"></th>
-                                                </tr>
-                                            </thead>
-                                            <tbody class="divide-y divide-stone-200">
-                                                <tr v-for="(subject, subjectIndex) in section.subjects" :key="subject.id">
-                                                    <td class="px-3 py-2">
-                                                        <input v-model="subject.color" type="color" class="h-8 w-10 cursor-pointer rounded border border-stone-300 bg-white p-1" />
-                                                    </td>
-                                                    <td class="px-3 py-2">
-                                                        <div class="flex items-center gap-2">
-                                                            <span class="flex h-7 w-7 items-center justify-center rounded text-[10px] font-bold text-white" :style="{ backgroundColor: subject.color || defaultSubjectColor(subject.name) }">{{ subjectCode(subject.name) }}</span>
-                                                            <input v-model="subject.name" type="text" class="field-control-sm w-full" />
-                                                        </div>
-                                                    </td>
-                                                    <td class="px-3 py-2">
-                                                        <select v-model="subject.teacherId" class="field-control-sm w-full">
-                                                            <option :value="null">Unassigned</option>
-                                                            <option v-for="teacher in teacherPool" :key="teacher.id" :value="teacher.id">{{ teacher.name }}</option>
-                                                        </select>
-                                                    </td>
-                                                    <td class="px-3 py-2">
-                                                        <input v-model="subject.weeklyPeriods" :disabled="subject.autoBalance" min="1" type="number" class="field-control-sm w-28 disabled:bg-stone-100" />
-                                                    </td>
-                                                    <td class="px-3 py-2">
-                                                        <label class="inline-flex items-center gap-2 text-xs text-slate-600">
+                                    <div class="mt-4 grid gap-3 xl:grid-cols-2">
+                                        <div v-for="(subject, subjectIndex) in section.subjects" :key="subject.id" class="group rounded-xl border border-stone-200 bg-stone-50/70 p-3 transition hover:-translate-y-0.5 hover:border-[#8BED9A]/70 hover:bg-white hover:shadow-sm">
+                                            <div class="flex items-start gap-3">
+                                                <input v-model="subject.color" type="color" class="mt-1 h-10 w-10 shrink-0 cursor-pointer rounded-xl border border-stone-300 bg-white p-1" />
+                                                <div class="min-w-0 flex-1 space-y-3">
+                                                    <input v-model="subject.name" type="text" class="field-control-sm w-full bg-white font-black" />
+                                                    <select v-model="subject.teacherId" class="field-control-sm w-full bg-white">
+                                                        <option :value="null">Unassigned teacher</option>
+                                                        <option v-for="teacher in teacherPool" :key="teacher.id" :value="teacher.id">{{ teacher.name }}</option>
+                                                    </select>
+                                                    <div class="grid gap-2 sm:grid-cols-[8rem_minmax(0,1fr)_7rem]">
+                                                        <input v-model="subject.weeklyPeriods" :disabled="subject.autoBalance" min="1" type="number" class="field-control-sm w-full disabled:bg-stone-100" placeholder="Per week" />
+                                                        <label class="flex min-h-9 items-center gap-2 rounded-lg border border-stone-200 bg-white px-3 text-xs font-bold text-slate-600">
                                                             <input v-model="subject.autoBalance" type="checkbox" class="rounded border-stone-300 text-[#09B884] focus:ring-[#09B884]" />
                                                             Auto average
                                                         </label>
-                                                    </td>
-                                                    <td class="px-3 py-2">
-                                                        <button type="button" class="rounded-lg border border-stone-200 px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:border-[#8BED9A]/70 hover:bg-[#8BED9A]/15 hover:text-[#1e2924]" @click="openManualAllocation(section, subject)">
+                                                        <button type="button" class="rounded-lg border border-[#8BED9A]/55 bg-white px-2 text-xs font-black text-[#1e2924] transition hover:bg-[#8BED9A]/15" @click="openManualAllocation(section, subject)">
                                                             {{ manualSlotCount(subject) ? `${manualSlotCount(subject)} set` : 'Allocate' }}
                                                         </button>
-                                                    </td>
-                                                    <td class="px-3 py-2 text-right">
-                                                        <button type="button" class="text-slate-400 hover:text-red-700" @click="removeSubject(section, subjectIndex)">
-                                                            <Trash2 class="h-4 w-4" />
-                                                        </button>
-                                                    </td>
-                                                </tr>
-                                            </tbody>
-                                        </table>
+                                                    </div>
+                                                </div>
+                                                <button type="button" class="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-700" @click="removeSubject(section, subjectIndex)">
+                                                    <Trash2 class="h-4 w-4" />
+                                                </button>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -668,10 +677,10 @@ function submitRoutine() {
 
                     <div v-else-if="activeStep === 'Teachers'" class="space-y-4">
                         <div class="surface-card p-5">
-                            <div class="flex items-center justify-between gap-3">
+                            <div class="flex flex-wrap items-center justify-between gap-3">
                                 <div>
-                                    <p class="section-title">Teacher Pool</p>
-                                    <p class="mt-1 text-sm text-slate-500">Teachers are managed in the Teachers tab. Drag here to choose the order used by the routine engine.</p>
+                                    <p class="text-lg font-black text-[#1e2924]">Teacher order</p>
+                                    <p class="mt-1 text-sm text-slate-500">Drag teachers into the order you want the engine to consider.</p>
                                 </div>
                                 <Link href="/teachers" class="btn-secondary">
                                     <Plus class="h-4 w-4" />
@@ -680,36 +689,29 @@ function submitRoutine() {
                             </div>
                         </div>
 
-                        <div v-if="!teacherPool.length" class="surface-card border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">
-                            Add teachers in the Teachers tab first. They will appear here automatically for subject assignment.
+                        <div v-if="!teacherPool.length" class="rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm font-semibold text-amber-900">
+                            Add teachers in the Teachers tab first.
                         </div>
 
-                        <div class="space-y-3">
+                        <div class="grid gap-3 xl:grid-cols-2">
                             <div
                                 v-for="(teacher, teacherIndex) in teacherPool"
                                 :key="teacher.id"
-                                class="surface-card p-4 transition"
+                                class="surface-card p-4 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md"
                                 :class="teacherOrderDragIndex === teacherIndex ? 'opacity-50' : ''"
                                 @dragover.prevent
                                 @drop="onTeacherOrderDrop(teacherIndex, $event)"
                             >
-                                <div class="flex flex-wrap items-center gap-3">
-                                    <div
-                                        draggable="true"
-                                        class="flex h-10 w-10 cursor-grab items-center justify-center rounded-lg border border-stone-200 bg-stone-50 text-slate-500 active:cursor-grabbing"
-                                        @dragstart="onTeacherOrderDragStart(teacherIndex, $event)"
-                                        @dragend="onTeacherOrderDragEnd"
-                                    >
+                                <div class="flex items-center gap-3">
+                                    <div draggable="true" class="flex h-11 w-11 cursor-grab items-center justify-center rounded-xl border border-stone-200 bg-stone-50 text-slate-500 active:cursor-grabbing" @dragstart="onTeacherOrderDragStart(teacherIndex, $event)" @dragend="onTeacherOrderDragEnd">
                                         <GripVertical class="h-5 w-5" />
                                     </div>
-                                    <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-[#8BED9A]/15 text-[#09B884]">
+                                    <div class="flex h-11 w-11 items-center justify-center rounded-xl bg-[#8BED9A]/18 text-[#09B884]">
                                         <UserRound class="h-5 w-5" />
                                     </div>
                                     <div class="min-w-0 flex-1">
-                                        <input v-model="teacher.name" type="text" class="field-control w-full bg-stone-50" readonly />
-                                    </div>
-                                    <div class="w-full sm:w-64">
-                                        <input v-model="teacher.phone" type="text" placeholder="WhatsApp number" class="field-control-sm w-full bg-stone-50" readonly />
+                                        <p class="truncate font-black text-slate-950">{{ teacher.name }}</p>
+                                        <p class="truncate text-xs font-semibold text-slate-500">{{ teacher.phone || 'WhatsApp not set' }}</p>
                                     </div>
                                 </div>
                             </div>
@@ -720,8 +722,8 @@ function submitRoutine() {
                         <div class="surface-card p-5">
                             <div class="flex flex-wrap items-center justify-between gap-3">
                                 <div>
-                                    <p class="section-title">Periods and Breaks</p>
-                                    <p class="mt-1 text-sm text-slate-500">Timings now belong to the routine blueprint, so different routines can carry different day structures.</p>
+                                    <p class="text-lg font-black text-[#1e2924]">Periods and breaks</p>
+                                    <p class="mt-1 text-sm text-slate-500">Build the day once. Class-specific shorter days still use the first periods from this order.</p>
                                 </div>
                                 <div class="flex gap-2">
                                     <button type="button" class="btn-secondary" @click="addPeriod('class')">Add period</button>
@@ -730,82 +732,75 @@ function submitRoutine() {
                             </div>
                         </div>
 
-                        <div class="surface-card p-5">
-                            <div class="space-y-2">
-                                <div v-for="(period, index) in periodTemplates" :key="period.id" class="grid gap-2 rounded-lg border border-stone-200 bg-stone-50 p-3 sm:grid-cols-[1fr_9rem_9rem_9rem_2rem]">
-                                    <input v-model="period.label" type="text" class="field-control-sm" />
-                                    <input v-model="period.startTime" type="time" class="field-control-sm" />
-                                    <input v-model="period.endTime" type="time" class="field-control-sm" />
-                                    <select v-model="period.type" class="field-control-sm">
-                                        <option value="class">Class period</option>
-                                        <option value="break">Break / lunch</option>
-                                    </select>
-                                    <button type="button" class="text-slate-400 hover:text-red-700" @click="removePeriod(index)">
-                                        <Trash2 class="h-4 w-4" />
-                                    </button>
+                        <div class="grid gap-3">
+                            <div v-for="(period, index) in periodTemplates" :key="period.id" class="surface-card grid gap-3 p-4 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md sm:grid-cols-[3rem_minmax(0,1fr)_9rem_9rem_10rem_2rem] sm:items-center">
+                                <div class="flex h-10 w-10 items-center justify-center rounded-xl" :class="period.type === 'break' ? 'bg-amber-100 text-amber-700' : 'bg-[#8BED9A]/18 text-[#09B884]'">
+                                    <Clock3 class="h-4 w-4" />
                                 </div>
+                                <input v-model="period.label" type="text" class="field-control-sm" />
+                                <input v-model="period.startTime" type="time" class="field-control-sm" />
+                                <input v-model="period.endTime" type="time" class="field-control-sm" />
+                                <select v-model="period.type" class="field-control-sm">
+                                    <option value="class">Class period</option>
+                                    <option value="break">Break / lunch</option>
+                                </select>
+                                <button type="button" class="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-700" @click="removePeriod(index)">
+                                    <Trash2 class="h-4 w-4" />
+                                </button>
                             </div>
                         </div>
                     </div>
 
                     <div v-else class="space-y-4">
                         <div class="surface-card p-5">
-                            <p class="section-title">Generation Rules</p>
-                            <p class="mt-1 text-sm text-slate-500">These controls describe what the engine should optimize before the user manually adjusts the generated result.</p>
+                            <p class="text-lg font-black text-[#1e2924]">Final check</p>
+                            <div class="mt-4 grid gap-3 md:grid-cols-3">
+                                <div class="rounded-xl bg-[#8BED9A]/16 p-4">
+                                    <p class="text-3xl font-black text-[#1e2924]">{{ autoBalancedSubjects }}</p>
+                                    <p class="text-xs font-black uppercase tracking-wider text-[#1e2924]/55">Auto balanced</p>
+                                </div>
+                                <div class="rounded-xl p-4" :class="unassignedSubjects.length ? 'bg-red-50 text-red-800' : 'bg-[#8BED9A]/16 text-[#1e2924]'">
+                                    <p class="text-3xl font-black">{{ unassignedSubjects.length }}</p>
+                                    <p class="text-xs font-black uppercase tracking-wider opacity-70">Unassigned</p>
+                                </div>
+                                <div class="rounded-xl bg-[#8BED9A]/16 p-4">
+                                    <p class="text-3xl font-black text-[#1e2924]">{{ classPeriods.length }}</p>
+                                    <p class="text-xs font-black uppercase tracking-wider text-[#1e2924]/55">Teaching periods</p>
+                                </div>
+                            </div>
+                        </div>
 
-                            <div class="mt-5 grid gap-4 md:grid-cols-2">
-                                <div>
-                                    <label class="section-title">Max consecutive periods per teacher</label>
+                        <div class="surface-card p-5">
+                            <div class="grid gap-4 lg:grid-cols-[16rem_minmax(0,1fr)]">
+                                <label>
+                                    <span class="section-title">Max consecutive periods</span>
                                     <input v-model.number="generationRules.maxConsecutivePeriods" min="1" max="5" type="number" class="field-control mt-1 w-full" />
-                                    <p class="mt-1 text-xs text-slate-500">Recommended: 2 to 3.</p>
-                                </div>
-                                <div class="space-y-3">
-                                    <label class="flex items-center gap-2 text-sm text-slate-700">
-                                        <input v-model="generationRules.preferGapBetweenPeriods" type="checkbox" class="rounded border-stone-300 text-[#09B884] focus:ring-[#09B884]" />
-                                        Prefer gaps between teacher periods
-                                    </label>
-                                    <label class="flex items-center gap-2 text-sm text-slate-700">
-                                        <input v-model="generationRules.autoBalanceUnsetSubjectLoads" type="checkbox" class="rounded border-stone-300 text-[#09B884] focus:ring-[#09B884]" />
-                                        Auto-balance unset weekly subject loads
-                                    </label>
-                                    <label class="flex items-center gap-2 text-sm text-slate-700">
-                                        <input v-model="generationRules.keepClassTeacherFirstPeriod" type="checkbox" class="rounded border-stone-300 text-[#09B884] focus:ring-[#09B884]" />
-                                        Prioritize class teacher in first period
-                                    </label>
-                                    <label class="flex items-center gap-2 text-sm text-slate-700">
-                                        <input v-model="generationRules.flagUnallocatedSlots" type="checkbox" class="rounded border-stone-300 text-[#09B884] focus:ring-[#09B884]" />
-                                        Flag unallocated routine gaps for manual edits
+                                </label>
+                                <div class="grid gap-2 sm:grid-cols-2">
+                                    <label v-for="item in [
+                                        ['preferGapBetweenPeriods', 'Prefer teacher gaps'],
+                                        ['autoBalanceUnsetSubjectLoads', 'Auto-balance empty loads'],
+                                        ['keepClassTeacherFirstPeriod', 'Class teacher first period'],
+                                        ['flagUnallocatedSlots', 'Flag unresolved class cells']
+                                    ]" :key="item[0]" class="flex min-h-12 items-center gap-3 rounded-xl border border-stone-200 bg-stone-50/70 px-3 text-sm font-bold text-slate-700">
+                                        <input v-model="generationRules[item[0]]" type="checkbox" class="rounded border-stone-300 text-[#09B884] focus:ring-[#09B884]" />
+                                        {{ item[1] }}
                                     </label>
                                 </div>
                             </div>
                         </div>
 
-                        <div class="grid gap-4 md:grid-cols-3">
-                            <div class="surface-card p-5">
-                                <p class="text-3xl font-bold text-slate-950">{{ autoBalancedSubjects }}</p>
-                                <p class="mt-1 text-sm text-slate-500">auto-balanced subjects</p>
-                            </div>
-                            <div class="surface-card p-5">
-                                <p class="text-3xl font-bold" :class="unassignedSubjects.length ? 'text-red-700' : 'text-[#1e2924]'">{{ unassignedSubjects.length }}</p>
-                                <p class="mt-1 text-sm text-slate-500">unassigned subject rows</p>
-                            </div>
-                            <div class="surface-card p-5">
-                                <p class="text-3xl font-bold text-slate-950">{{ periodTemplates.filter((period) => period.type === 'class').length }}</p>
-                                <p class="mt-1 text-sm text-slate-500">class periods in day template</p>
-                            </div>
-                        </div>
-
-                        <div v-if="unassignedSubjects.length" class="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+                        <div v-if="unassignedSubjects.length" class="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
                             <div class="flex gap-2">
                                 <AlertTriangle class="mt-0.5 h-4 w-4 shrink-0" />
                                 <div>
-                                    <p class="font-semibold">Assign every subject before generating.</p>
+                                    <p class="font-black">Assign every subject before generating.</p>
                                     <p class="mt-1">{{ unassignedSubjects.slice(0, 3).join(', ') }}{{ unassignedSubjects.length > 3 ? '...' : '' }}</p>
                                 </div>
                             </div>
                         </div>
 
-                        <div v-if="missingSetup" class="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-900">
+                        <div v-if="missingSetup" class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-black text-amber-900">
                             {{ missingSetup }}
                         </div>
 
@@ -815,38 +810,59 @@ function submitRoutine() {
                         </button>
                     </div>
                 </section>
+            </Transition>
+
+            <div class="surface-card flex flex-wrap items-center justify-between gap-3 p-3">
+                <button type="button" class="btn-secondary" :disabled="activeStepIndex === 0" @click="goToStep(-1)">
+                    <ArrowLeft class="h-4 w-4" />
+                    Back
+                </button>
+                <div class="flex items-center justify-center gap-1.5">
+                    <span
+                        v-for="step in steps"
+                        :key="`dot-${step}`"
+                        class="h-2.5 rounded-full transition-all duration-300"
+                        :class="steps.indexOf(step) <= activeStepIndex ? 'w-8 bg-[#09B884]' : 'w-2.5 bg-stone-300'"
+                    ></span>
+                </div>
+                <button v-if="activeStepIndex < steps.length - 1" type="button" class="btn-primary" @click="goToStep(1)">
+                    Next
+                    <ArrowRight class="h-4 w-4" />
+                </button>
+                <button v-else type="button" class="btn-primary" :disabled="isSubmitting || unassignedSubjects.length > 0 || Boolean(missingSetup)" @click="submitRoutine">
+                    <RefreshCw class="h-4 w-4" :class="isSubmitting ? 'animate-spin' : ''" />
+                    Create routine
+                </button>
             </div>
 
             <Teleport to="body">
-                <div v-if="manualAllocation" class="fixed inset-0 z-50 flex items-center justify-center bg-stone-100/70 p-4" @click.self="closeManualAllocation">
-                    <div class="w-full max-w-4xl rounded-lg border border-stone-200 bg-white p-5 shadow-xl">
+                <div v-if="manualAllocation" class="fixed inset-0 z-50 flex items-center justify-center bg-[#1e2924]/30 p-4 backdrop-blur-sm" @click.self="closeManualAllocation">
+                    <div class="w-full max-w-4xl rounded-2xl border border-[#8BED9A]/50 bg-white p-5 shadow-2xl">
                         <div class="flex flex-wrap items-start justify-between gap-3">
                             <div>
-                                <h3 class="text-base font-semibold text-slate-950">Manual allocation</h3>
-                                <p class="mt-1 text-sm text-slate-500">{{ manualAllocation.subject.name }} - {{ manualAllocation.section.name }}</p>
+                                <h3 class="text-lg font-black text-[#1e2924]">Manual allocation</h3>
+                                <p class="mt-1 text-sm font-semibold text-slate-500">{{ manualAllocation.subject.name }} - {{ manualAllocation.section.name }}</p>
                             </div>
-                            <p class="rounded-full border border-[#8BED9A]/70 bg-[#8BED9A]/20 px-3 py-1 text-xs font-semibold text-[#1e2924]">{{ manualAllocation.selectedKeys.length }} selected</p>
+                            <p class="rounded-full border border-[#8BED9A]/70 bg-[#8BED9A]/20 px-3 py-1 text-xs font-black text-[#1e2924]">{{ manualAllocation.selectedKeys.length }} selected</p>
                         </div>
 
                         <div class="mt-5 overflow-x-auto">
-                            <div class="min-w-[720px]">
-                                <div class="grid border-b border-stone-200" :style="{ gridTemplateColumns: `96px repeat(${classPeriods.length}, minmax(84px, 1fr))` }">
-                                    <div class="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Day</div>
-                                    <div v-for="period in classPeriods" :key="period.id" class="border-l border-stone-200 px-3 py-2 text-center text-xs font-semibold text-slate-600">
-                                        <p>{{ period.label }}</p>
-                                    </div>
+                            <div class="min-w-[720px] overflow-hidden rounded-xl border border-stone-200">
+                                <div class="grid border-b border-stone-200 bg-stone-50" :style="{ gridTemplateColumns: `96px repeat(${classPeriods.length}, minmax(84px, 1fr))` }">
+                                    <div class="px-3 py-2 text-xs font-black uppercase tracking-wide text-slate-500">Day</div>
+                                    <div v-for="period in classPeriods" :key="period.id" class="border-l border-stone-200 px-3 py-2 text-center text-xs font-black text-slate-600">{{ period.label }}</div>
                                 </div>
                                 <div v-for="day in weekdays" :key="day" class="grid border-b border-stone-200 last:border-b-0" :style="{ gridTemplateColumns: `96px repeat(${classPeriods.length}, minmax(84px, 1fr))` }">
-                                    <div class="flex items-center px-3 py-2 text-sm font-semibold text-slate-800">{{ day }}</div>
+                                    <div class="flex items-center bg-stone-50 px-3 py-2 text-sm font-black text-slate-800">{{ day }}</div>
                                     <div v-for="period in classPeriods" :key="`${day}-${period.id}`" class="border-l border-stone-200 p-1.5">
                                         <button
                                             type="button"
-                                            class="h-10 w-full rounded-md border text-xs font-semibold transition"
+                                            class="h-10 w-full rounded-lg border text-xs font-black transition"
                                             :class="[
                                                 !isManualSlotAllowed(manualAllocation.section, day, period)
                                                     ? 'cursor-not-allowed border-stone-100 bg-stone-50 text-stone-300'
                                                     : isManualSlotSelected(day, period.label)
-                                                        ? 'border-[#09B884] bg-[#09B884] text-white'
+                                                        ? 'border-[#09B884] bg-[#09B884] text-white shadow-sm'
                                                         : 'border-stone-200 bg-white text-transparent hover:border-[#8BED9A] hover:bg-[#8BED9A]/15'
                                             ]"
                                             :disabled="!isManualSlotAllowed(manualAllocation.section, day, period)"
@@ -869,3 +885,35 @@ function submitRoutine() {
         </div>
     </AppLayout>
 </template>
+
+<style scoped>
+.routine-create {
+    animation: routine-create-rise 420ms ease-out both;
+}
+
+.routine-step-enter-active,
+.routine-step-leave-active {
+    transition: all 220ms ease;
+}
+
+.routine-step-enter-from {
+    opacity: 0;
+    transform: translateY(10px);
+}
+
+.routine-step-leave-to {
+    opacity: 0;
+    transform: translateY(-8px);
+}
+
+@keyframes routine-create-rise {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+</style>

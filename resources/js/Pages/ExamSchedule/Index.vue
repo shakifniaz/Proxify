@@ -1,92 +1,308 @@
 <script setup>
 import { computed, ref } from 'vue';
+import { Link, router } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
-import { AlertTriangle, Printer, Plus } from 'lucide-vue-next';
+import {
+    AlertTriangle,
+    ArrowRight,
+    CalendarDays,
+    CheckCircle2,
+    ClipboardList,
+    Clock3,
+    DoorOpen,
+    Eye,
+    Pencil,
+    Plus,
+    Printer,
+    Search,
+    ShieldCheck,
+    Trash2,
+    Users,
+    X,
+} from 'lucide-vue-next';
 
 const props = defineProps({
-    session: { type: Object, default: () => ({}) }, // { title, subtitle, dateLabel }
-    halls: { type: Array, default: () => [] }, // [{ name, capacity }]
-    timeSlots: { type: Array, default: () => [] }, // [{ key, label, startLabel }]
+    pageMode: { type: String, default: 'editor' },
+    role: { type: String, default: 'admin' },
+    currentTeacherName: { type: String, default: '' },
+    viewerClassLabel: { type: String, default: '' },
+    hasActiveSchedule: { type: Boolean, default: true },
+    schedules: { type: Array, default: () => [] },
+    session: { type: Object, default: () => ({}) },
+    halls: { type: Array, default: () => [] },
+    timeSlots: { type: Array, default: () => [] },
     subjectOptions: { type: Array, default: () => [] },
     classOptions: { type: Array, default: () => [] },
     invigilatorOptions: { type: Array, default: () => [] },
-    examGrid: { type: Object, default: () => ({}) }, // { [hallName]: { [slotKey]: { subject, classLabel, invigilator } | null } }
+    examGrid: { type: Object, default: () => ({}) },
 });
 
-const grid = ref(JSON.parse(JSON.stringify(props.examGrid)));
+const canEdit = computed(() => props.pageMode === 'editor' && props.role === 'admin');
+const isViewer = computed(() => props.pageMode === 'viewer');
+const examName = ref(props.session.title || 'Mid-term Examination 2026');
+const examNote = ref(props.session.subtitle || 'Mid-term exams');
+const examStartDate = ref(props.session.startDate || '2026-06-23');
+const examEndDate = ref(props.session.endDate || '2026-06-27');
+const activeExamDate = ref(examStartDate.value);
+const activeStep = ref(canEdit.value ? 'Details' : 'Schedule');
+const classMode = ref('all');
+const selectedClasses = ref([]);
+const classSearch = ref('');
+const teacherViewMode = ref('all');
+const openMenuId = ref(null);
+const halls = ref(props.halls.map((hall, index) => ({
+    id: hall.id ?? `hall-${index + 1}`,
+    name: hall.name,
+    capacity: Number(hall.capacity ?? 30),
+})));
+const timeSlots = ref(props.timeSlots.map((slot, index) => ({
+    key: slot.key ?? `slot-${index + 1}`,
+    label: slot.label,
+    startLabel: slot.startLabel ?? slot.label?.split('-')[0] ?? '',
+    endLabel: slot.endLabel ?? slot.label?.split('-')[1] ?? '',
+})));
+const grid = ref(normalizeGrid(props.examGrid));
+const newHall = ref({ name: '', capacity: 30 });
+const newSlot = ref({ startLabel: '09:00', endLabel: '11:00' });
+const editing = ref(null);
 
-function cellAt(hallName, slotKey) {
-    return grid.value[hallName]?.[slotKey] ?? null;
-}
+const steps = ['Details', 'Setup', 'Schedule', 'Duties'];
+const stepDetails = computed(() => [
+    { name: 'Details', icon: ClipboardList, hint: `${formatDate(examStartDate.value)} to ${formatDate(examEndDate.value)}` },
+    { name: 'Setup', icon: Users, hint: `${activeClasses.value.length} classes, ${halls.value.length} halls` },
+    { name: 'Schedule', icon: CalendarDays, hint: `${scheduledRequiredExams.value}/${totalRequiredExams.value} exams placed` },
+    { name: 'Duties', icon: ShieldCheck, hint: `${guardDuties.value.length} teachers assigned` },
+]);
 
-const gridStyle = computed(() => ({
-    gridTemplateColumns: `200px repeat(${props.timeSlots.length}, minmax(160px, 1fr))`,
-}));
-
-const conflictGroups = computed(() => {
-    const groups = [];
-    for (const slot of props.timeSlots) {
-        const byInvigilator = {};
-        for (const hall of props.halls) {
-            const cell = cellAt(hall.name, slot.key);
-            if (cell && cell.invigilator) {
-                if (!byInvigilator[cell.invigilator]) byInvigilator[cell.invigilator] = [];
-                byInvigilator[cell.invigilator].push(hall.name);
+const visibleClasses = computed(() => {
+    const needle = classSearch.value.trim().toLowerCase();
+    const source = props.classOptions ?? [];
+    if (!needle) return source;
+    return source.filter((className) => className.toLowerCase().includes(needle));
+});
+const activeClasses = computed(() => {
+    if (props.role === 'student' && props.viewerClassLabel) return [props.viewerClassLabel];
+    return classMode.value === 'all' ? props.classOptions : selectedClasses.value;
+});
+const scheduledSubjectKeys = computed(() => {
+    const keys = new Set();
+    for (const cell of scheduledCells.value) {
+        keys.add(`${cell.classLabel}::${cell.subject}`);
+    }
+    return keys;
+});
+const unscheduledByClass = computed(() => activeClasses.value.map((className) => ({
+    className,
+    missing: props.subjectOptions.filter((subject) => !scheduledSubjectKeys.value.has(`${className}::${subject}`)),
+})));
+const classesWithMissingSubjects = computed(() => unscheduledByClass.value.filter((item) => item.missing.length));
+const totalRequiredExams = computed(() => activeClasses.value.length * props.subjectOptions.length);
+const scheduledRequiredExams = computed(() => {
+    let total = 0;
+    for (const className of activeClasses.value) {
+        for (const subject of props.subjectOptions) {
+            if (scheduledSubjectKeys.value.has(`${className}::${subject}`)) total += 1;
+        }
+    }
+    return total;
+});
+const coveragePercent = computed(() => Math.round((scheduledRequiredExams.value / Math.max(1, totalRequiredExams.value)) * 100));
+const examDateOptions = computed(() => {
+    if (!examStartDate.value || !examEndDate.value || examStartDate.value > examEndDate.value) return [];
+    const dates = [];
+    const current = new Date(`${examStartDate.value}T00:00:00`);
+    const end = new Date(`${examEndDate.value}T00:00:00`);
+    while (current <= end) {
+        const value = current.toISOString().slice(0, 10);
+        dates.push({ value, label: formatDate(value) });
+        current.setDate(current.getDate() + 1);
+    }
+    return dates;
+});
+const currentExamDate = computed(() => {
+    if (examDateOptions.value.some((date) => date.value === activeExamDate.value)) return activeExamDate.value;
+    return examDateOptions.value[0]?.value ?? examStartDate.value;
+});
+const scheduledCells = computed(() => {
+    const cells = [];
+    for (const hall of halls.value) {
+        for (const date of examDateOptions.value) {
+            for (const slot of timeSlots.value) {
+                const cell = cellAt(hall.name, date.value, slot.key);
+                if (cell && activeClasses.value.includes(cell.classLabel)) {
+                    cells.push({ ...cell, hallName: hall.name, examDate: date.value, slotKey: slot.key, slotLabel: slot.label });
+                }
             }
         }
-        for (const [invigilator, halls] of Object.entries(byInvigilator)) {
-            if (halls.length > 1) {
-                groups.push({ invigilator, halls, slotKey: slot.key, slotStart: slot.startLabel });
+    }
+    return cells;
+});
+const visibleScheduledCells = computed(() => {
+    if (props.role === 'teacher' && teacherViewMode.value === 'mine') {
+        return scheduledCells.value.filter((cell) => (cell.guards ?? []).includes(props.currentTeacherName));
+    }
+    return scheduledCells.value;
+});
+const guardDuties = computed(() => {
+    const map = new Map();
+    for (const cell of scheduledCells.value) {
+        for (const guard of cell.guards ?? []) {
+            if (!map.has(guard)) map.set(guard, []);
+            map.get(guard).push(cell);
+        }
+    }
+
+    return [...map.entries()]
+        .filter(([teacher]) => props.role !== 'teacher' || teacherViewMode.value === 'all' || teacher === props.currentTeacherName)
+        .map(([teacher, duties]) => ({
+            teacher,
+            duties,
+            load: duties.length,
+            hasConflict: conflictGroups.value.some((group) => group.teacher === teacher),
+        }));
+});
+const conflictGroups = computed(() => {
+    const groups = [];
+    for (const date of examDateOptions.value) {
+        for (const slot of timeSlots.value) {
+            const byTeacher = {};
+            for (const hall of halls.value) {
+                const cell = cellAt(hall.name, date.value, slot.key);
+                if (!cell || !activeClasses.value.includes(cell.classLabel)) continue;
+                for (const teacher of cell.guards ?? []) {
+                    byTeacher[teacher] ??= [];
+                    byTeacher[teacher].push(hall.name);
+                }
+            }
+
+            for (const [teacher, bookedHalls] of Object.entries(byTeacher)) {
+                if (bookedHalls.length > 1) {
+                    groups.push({ teacher, halls: bookedHalls, examDate: date.value, slotKey: slot.key, slotLabel: slot.label });
+                }
             }
         }
     }
     return groups;
 });
+const gridStyle = computed(() => ({
+    gridTemplateColumns: `190px repeat(${Math.max(timeSlots.value.length, 1)}, minmax(170px, 1fr))`,
+}));
+const activeStepIndex = computed(() => Math.max(0, steps.indexOf(activeStep.value)));
+const setupProgress = computed(() => Math.round(((activeStepIndex.value + 1) / steps.length) * 100));
+const activeSchedule = computed(() => props.schedules.find((schedule) => schedule.status === 'Active'));
 
-function isConflict(hallName, slotKey) {
-    return conflictGroups.value.some((g) => g.slotKey === slotKey && g.halls.includes(hallName));
-}
-
-function cellClasses(hallName, slotKey) {
-    const cell = cellAt(hallName, slotKey);
-    if (!cell) return 'border border-dashed border-stone-300 bg-stone-50 hover:bg-stone-100';
-    if (isConflict(hallName, slotKey)) return 'border-l-2 border-red-500 bg-red-50';
-    return 'border-l-2 border-emerald-400 bg-blue-50';
-}
-
-const invigilatorDuties = computed(() => {
-    const map = new Map();
-    for (const hall of props.halls) {
-        for (const slot of props.timeSlots) {
-            const cell = cellAt(hall.name, slot.key);
-            if (cell && cell.invigilator) {
-                if (!map.has(cell.invigilator)) map.set(cell.invigilator, { duties: [], conflict: false });
-                const entry = map.get(cell.invigilator);
-                entry.duties.push(`${hall.name} ${slot.startLabel}`);
-                if (isConflict(hall.name, slot.key)) entry.conflict = true;
-            }
+function normalizeGrid(source) {
+    const normalized = {};
+    for (const [hallName, slots] of Object.entries(source ?? {})) {
+        normalized[hallName] = {};
+        for (const [slotKey, cell] of Object.entries(slots ?? {})) {
+            if (!cell) continue;
+            const date = cell.examDate ?? examStartDate.value;
+            normalized[hallName][date] ??= {};
+            normalized[hallName][date][slotKey] = {
+                subject: cell.subject ?? '',
+                classLabel: cell.classLabel ?? '',
+                guards: Array.isArray(cell.guards) ? cell.guards : [cell.invigilator].filter(Boolean),
+            };
         }
     }
-    return Array.from(map.entries()).map(([name, info]) => ({
-        name,
-        dutiesText: info.duties.join(', '),
-        load: info.duties.length,
-        conflict: info.conflict,
-    }));
-});
+    return normalized;
+}
 
+function cellAt(hallName, date, slotKey) {
+    return grid.value[hallName]?.[date]?.[slotKey] ?? null;
+}
 
-const editing = ref(null); // { hallName, slotKey, subject, classLabel, invigilator, isNew }
+function shouldShowCell(hallName, date, slotKey) {
+    const cell = cellAt(hallName, date, slotKey);
+    if (!cell) return !(props.role === 'teacher' && teacherViewMode.value === 'mine');
+    if (!activeClasses.value.includes(cell.classLabel)) return false;
+    if (props.role === 'teacher' && teacherViewMode.value === 'mine') {
+        return (cell.guards ?? []).includes(props.currentTeacherName);
+    }
+    return true;
+}
 
-function openEditor(hallName, slotKey) {
-    const cell = cellAt(hallName, slotKey);
+function isConflict(hallName, date, slotKey) {
+    return conflictGroups.value.some((group) => group.examDate === date && group.slotKey === slotKey && group.halls.includes(hallName));
+}
+
+function cellClasses(hallName, date, slotKey) {
+    const cell = cellAt(hallName, date, slotKey);
+    if (!cell || !activeClasses.value.includes(cell.classLabel)) return 'border-dashed border-stone-300 bg-stone-50 text-slate-500 hover:border-[#8BED9A] hover:bg-[#8BED9A]/10';
+    if (isConflict(hallName, date, slotKey)) return 'border-red-300 bg-red-50 text-red-900 ring-2 ring-red-100';
+    return 'border-[#8BED9A]/70 bg-[#8BED9A]/14 text-[#1e2924] hover:bg-[#8BED9A]/20';
+}
+
+function toggleMenu(scheduleId) {
+    openMenuId.value = openMenuId.value === scheduleId ? null : scheduleId;
+}
+
+function makeActive(schedule) {
+    openMenuId.value = null;
+    router.post(`/exam-schedule/${schedule.id}/activate`, {}, { preserveScroll: true });
+}
+
+function clearActiveSchedule() {
+    openMenuId.value = null;
+    router.post('/exam-schedule/none/activate', {}, { preserveScroll: true });
+}
+
+function addHall() {
+    const name = newHall.value.name.trim();
+    if (!name || halls.value.some((hall) => hall.name.toLowerCase() === name.toLowerCase())) return;
+    halls.value.push({ id: `hall-${Date.now()}`, name, capacity: Number(newHall.value.capacity || 30) });
+    grid.value[name] ??= {};
+    newHall.value = { name: '', capacity: 30 };
+}
+
+function removeHall(hallName) {
+    halls.value = halls.value.filter((hall) => hall.name !== hallName);
+    delete grid.value[hallName];
+}
+
+function addSlot() {
+    if (!newSlot.value.startLabel || !newSlot.value.endLabel) return;
+    const key = `slot-${Date.now()}`;
+    timeSlots.value.push({
+        key,
+        label: `${newSlot.value.startLabel}-${newSlot.value.endLabel}`,
+        startLabel: newSlot.value.startLabel,
+        endLabel: newSlot.value.endLabel,
+    });
+}
+
+function removeSlot(slotKey) {
+    timeSlots.value = timeSlots.value.filter((slot) => slot.key !== slotKey);
+    for (const hallName of Object.keys(grid.value)) {
+        for (const date of Object.keys(grid.value[hallName] ?? {})) {
+            delete grid.value[hallName][date][slotKey];
+        }
+    }
+}
+
+function setClassMode(mode) {
+    classMode.value = mode;
+    if (mode === 'specific') selectedClasses.value = [];
+}
+
+function toggleClass(className) {
+    selectedClasses.value = selectedClasses.value.includes(className)
+        ? selectedClasses.value.filter((item) => item !== className)
+        : [...selectedClasses.value, className];
+}
+
+function openEditor(hallName, date, slotKey) {
+    if (!canEdit.value) return;
+    const cell = cellAt(hallName, date, slotKey);
     editing.value = {
         hallName,
         slotKey,
+        examDate: date,
+        originalExamDate: date,
         subject: cell?.subject ?? '',
-        classLabel: cell?.classLabel ?? '',
-        invigilator: cell?.invigilator ?? '',
-        isNew: !cell,
+        classLabel: cell?.classLabel ?? activeClasses.value[0] ?? '',
+        guards: [...(cell?.guards ?? [])],
     };
 }
 
@@ -94,234 +310,566 @@ function closeEditor() {
     editing.value = null;
 }
 
-function saveEditor() {
+function toggleGuard(name) {
     if (!editing.value) return;
-    const { hallName, slotKey, subject, classLabel, invigilator } = editing.value;
-    if (!subject || !classLabel || !invigilator) return;
-    if (!grid.value[hallName]) grid.value[hallName] = {};
-    grid.value[hallName][slotKey] = { subject, classLabel, invigilator };
+    editing.value.guards = editing.value.guards.includes(name)
+        ? editing.value.guards.filter((item) => item !== name)
+        : [...editing.value.guards, name];
+}
+
+function saveEditor() {
+    if (!editing.value?.examDate || !editing.value?.subject || !editing.value?.classLabel || !editing.value.guards.length) return;
+    grid.value[editing.value.hallName] ??= {};
+    if (editing.value.originalExamDate !== editing.value.examDate && grid.value[editing.value.hallName]?.[editing.value.originalExamDate]) {
+        grid.value[editing.value.hallName][editing.value.originalExamDate][editing.value.slotKey] = null;
+    }
+    grid.value[editing.value.hallName][editing.value.examDate] ??= {};
+    grid.value[editing.value.hallName][editing.value.examDate][editing.value.slotKey] = {
+        subject: editing.value.subject,
+        classLabel: editing.value.classLabel,
+        guards: [...editing.value.guards],
+    };
     closeEditor();
 }
 
-const editingSlotLabel = computed(() => {
-    if (!editing.value) return '';
-    return props.timeSlots.find((s) => s.key === editing.value.slotKey)?.label ?? '';
-});
+function clearCell() {
+    if (!editing.value) return;
+    if (grid.value[editing.value.hallName]?.[editing.value.examDate]) {
+        grid.value[editing.value.hallName][editing.value.examDate][editing.value.slotKey] = null;
+    }
+    closeEditor();
+}
+
+function goToStep(offset) {
+    const nextIndex = Math.min(steps.length - 1, Math.max(0, activeStepIndex.value + offset));
+    activeStep.value = steps[nextIndex];
+}
 
 function printPage() {
     window.print();
+}
+
+function formatDate(value) {
+    const [year, month, day] = String(value || '').split('-');
+    if (!year || !month || !day) return value || '';
+    return `${day}/${month}/${year.slice(-2)}`;
 }
 </script>
 
 <template>
     <AppLayout title="Exam Schedule">
-        <div class="space-y-6">
-            <!-- Page header -->
-            <div class="flex flex-wrap items-start justify-between gap-4">
-                <div>
-                    <h2 class="text-xl font-semibold text-slate-950">{{ session.title }}</h2>
-                    <p class="mt-1 text-sm text-slate-500">{{ session.subtitle }}</p>
-                </div>
-                <div class="flex items-center gap-2">
-                    <button
-                        type="button"
-                        class="flex items-center gap-2 rounded-lg border border-stone-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-stone-100"
-                        @click="printPage"
-                    >
-                        <Printer class="h-4 w-4" />
-                        Print
-                    </button>
-                    <button
-                        type="button"
-                        class="flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800"
-                    >
-                        <Plus class="h-4 w-4" />
-                        New session
-                    </button>
-                </div>
-            </div>
-
-            <!-- Conflict banner -->
-            <div
-                v-if="conflictGroups.length"
-                class="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
-            >
-                <AlertTriangle class="h-4 w-4 shrink-0" />
-                <span>
-                    {{ conflictGroups.length }} conflict{{ conflictGroups.length > 1 ? 's' : '' }} detected &mdash;
-                    {{ conflictGroups[0].invigilator }} is double-booked in {{ conflictGroups[0].halls.join(' & ') }}
-                    at {{ conflictGroups[0].slotStart }}
-                </span>
-            </div>
-
-            <!-- Exam grid -->
-            <div class="surface-card">
-                <div class="flex items-center justify-between border-b border-stone-200 px-5 py-4">
-                    <p class="text-sm font-semibold text-slate-950">{{ session.dateLabel }} &mdash; Exam Grid</p>
-                    <span
-                        v-if="conflictGroups.length"
-                        class="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700"
-                    >
-                        {{ conflictGroups.length }} conflict{{ conflictGroups.length > 1 ? 's' : '' }}
-                    </span>
-                </div>
-
-                <div class="overflow-x-auto">
-                    <div class="min-w-[820px]">
-                        <!-- Header row -->
-                        <div class="grid border-b border-stone-200" :style="gridStyle">
-                            <div class="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Hall</div>
-                            <div
-                                v-for="slot in timeSlots"
-                                :key="slot.key"
-                                class="border-l border-stone-200 px-3 py-3 text-center text-xs font-semibold uppercase tracking-wider text-slate-500"
-                            >
-                                {{ slot.label }}
-                            </div>
-                        </div>
-
-                        <!-- Hall rows -->
-                        <div
-                            v-for="hall in halls"
-                            :key="hall.name"
-                            class="grid border-b border-stone-200 last:border-b-0"
-                            :style="gridStyle"
-                        >
-                            <div class="px-4 py-4">
-                                <p class="text-sm font-semibold text-slate-900">{{ hall.name }}</p>
-                                <p class="text-xs text-slate-500">Capacity: {{ hall.capacity }}</p>
-                            </div>
-
-                            <div v-for="slot in timeSlots" :key="slot.key" class="border-l border-stone-200 p-2">
-                                <button
-                                    type="button"
-                                    class="flex h-full w-full flex-col items-start justify-center gap-0.5 rounded-lg px-3 py-2 text-left transition-colors"
-                                    :class="cellClasses(hall.name, slot.key)"
-                                    @click="openEditor(hall.name, slot.key)"
-                                >
-                                    <template v-if="!cellAt(hall.name, slot.key)">
-                                        <span class="text-xs text-slate-600">+ Add</span>
-                                    </template>
-                                    <template v-else>
-                                        <span
-                                            v-if="isConflict(hall.name, slot.key)"
-                                            class="flex items-center gap-1 text-xs font-semibold text-red-700"
-                                        >
-                                            <AlertTriangle class="h-3 w-3" /> Conflict
-                                        </span>
-                                        <span
-                                            class="text-xs font-semibold"
-                                            :class="isConflict(hall.name, slot.key) ? 'text-red-700' : 'text-blue-700'"
-                                        >
-                                            {{ cellAt(hall.name, slot.key).subject }}
-                                        </span>
-                                        <span class="text-xs text-slate-600">
-                                            {{ cellAt(hall.name, slot.key).classLabel }} &middot; {{ cellAt(hall.name, slot.key).invigilator }}
-                                        </span>
-                                    </template>
-                                </button>
-                            </div>
-                        </div>
+        <div v-if="pageMode === 'list'" class="space-y-5">
+            <section class="surface-card overflow-hidden">
+                <div class="flex flex-wrap items-center justify-between gap-3 bg-white p-5">
+                    <div class="min-w-0">
+                        <p class="text-lg font-black text-[#1e2924]">Plan and publish exams</p>
+                        <p class="mt-1 truncate text-sm font-semibold text-slate-500">Manage drafts, previews, and active visibility.</p>
+                        <p v-if="!hasActiveSchedule" class="mt-2 inline-flex rounded-full bg-amber-50 px-3 py-1 text-xs font-black text-amber-800">
+                            No exam schedule is currently published
+                        </p>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <Link href="/exam-schedule?previewRole=teacher" class="btn-secondary min-h-11">
+                            <ShieldCheck class="h-4 w-4" />
+                            Teacher preview
+                        </Link>
+                        <Link href="/exam-schedule?previewRole=student" class="btn-secondary min-h-11">
+                            <Users class="h-4 w-4" />
+                            Student preview
+                        </Link>
+                        <button type="button" class="btn-secondary min-h-11 border-amber-200 text-amber-800 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50" :disabled="!hasActiveSchedule" @click="clearActiveSchedule">
+                            <X class="h-4 w-4" />
+                            Clear active
+                        </button>
+                        <Link href="/exam-schedule/new" class="btn-primary min-h-11">
+                            <Plus class="h-4 w-4" />
+                            New exam schedule
+                        </Link>
                     </div>
                 </div>
-            </div>
+            </section>
 
-            <!-- Invigilator duty list -->
-            <div class="surface-card">
-                <div class="border-b border-stone-200 px-5 py-4">
-                    <p class="text-sm font-semibold text-slate-950">Invigilator duty list</p>
-                </div>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left text-sm">
-                        <thead>
-                            <tr class="text-xs uppercase tracking-wider text-slate-500">
-                                <th class="px-5 py-3 font-medium">Invigilator</th>
-                                <th class="px-5 py-3 font-medium">Duties</th>
-                                <th class="px-5 py-3 font-medium">Load</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-stone-200">
-                            <tr v-for="d in invigilatorDuties" :key="d.name">
-                                <td class="px-5 py-3 font-medium text-slate-800">{{ d.name }}</td>
-                                <td class="px-5 py-3 text-slate-600">{{ d.dutiesText }}</td>
-                                <td class="px-5 py-3">
-                                    <span
-                                        class="rounded-full px-2.5 py-1 text-xs font-semibold"
-                                        :class="d.conflict ? 'bg-red-50 text-red-700' : 'bg-blue-50 text-blue-700'"
-                                    >
-                                        {{ d.load }}{{ d.conflict ? ' — conflict!' : '' }}
-                                    </span>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
+            <div class="space-y-3" @click="openMenuId = null">
+                <div
+                    v-for="schedule in schedules"
+                    :key="schedule.id"
+                    class="surface-card relative flex cursor-pointer items-center gap-4 p-4 transition hover:border-[#8BED9A]/70 hover:shadow-md"
+                    :class="schedule.status === 'Active' ? 'border-[#8BED9A]/70 bg-[#8BED9A]/10 shadow-sm shadow-[#1e2924]/5' : 'border-stone-200 bg-white'"
+                    @click="router.visit(`/exam-schedule/${schedule.id}`)"
+                >
+                    <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border" :class="schedule.status === 'Active' ? 'border-[#8BED9A]/70 bg-white text-[#09B884]' : 'border-stone-200 bg-stone-50 text-slate-500'">
+                        <ClipboardList class="h-5 w-5" />
+                    </div>
+                    <div class="min-w-0 flex-1">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <p class="font-black text-[#1e2924]">{{ schedule.name }}</p>
+                            <span v-if="schedule.status === 'Active'" class="rounded-full border border-[#8BED9A]/70 bg-[#8BED9A]/20 px-2 py-0.5 text-[11px] font-black text-[#1e2924]">Active</span>
+                        </div>
+                        <p class="mt-0.5 text-sm font-semibold text-slate-500">
+                            {{ schedule.dateRange }} - {{ schedule.classes }} classes - {{ schedule.halls }} halls - {{ schedule.exams }} exams
+                        </p>
+                    </div>
+                    <span class="rounded-full px-3 py-1 text-xs font-black" :class="schedule.status === 'Active' ? 'bg-[#1e2924] text-white' : schedule.status === 'Draft' ? 'bg-amber-50 text-amber-700' : 'bg-stone-100 text-slate-600'">
+                        {{ schedule.status }}
+                    </span>
+                    <div class="relative" @click.stop>
+                        <button type="button" class="btn-secondary h-10 px-3" @click="toggleMenu(schedule.id)">
+                            <Pencil class="h-4 w-4" />
+                        </button>
+                        <div v-if="openMenuId === schedule.id" class="absolute right-0 top-12 z-20 w-52 rounded-xl border border-stone-200 bg-white p-1.5 shadow-lg">
+                            <button v-if="schedule.status !== 'Active'" type="button" class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-bold text-[#1e2924] hover:bg-[#8BED9A]/15" @click="makeActive(schedule)">
+                                <CheckCircle2 class="h-4 w-4" />
+                                Make active
+                            </button>
+                            <Link :href="`/exam-schedule/${schedule.id}`" class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-bold text-slate-700 hover:bg-stone-100">
+                                <Eye class="h-4 w-4" />
+                                Open schedule
+                            </Link>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- Edit / Add exam slot popup -->
-        <Teleport to="body">
-            <div
-                v-if="editing"
-                class="fixed inset-0 z-50 flex items-center justify-center bg-stone-100/70 p-4"
-                @click.self="closeEditor"
-            >
-                <div class="w-full max-w-sm surface-card p-5 shadow-xl">
-                    <h3 class="text-base font-semibold text-slate-950">{{ editing.isNew ? 'Add Exam Slot' : 'Edit Exam Slot' }}</h3>
-                    <p class="mt-1 text-xs text-slate-500">{{ editing.hallName }} &middot; {{ editingSlotLabel }}</p>
+        <div v-else class="space-y-5">
+            <section v-if="canEdit" class="surface-card overflow-hidden p-5">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                    <div class="flex items-center gap-4">
+                        <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-[#1e2924] text-[#8BED9A] shadow-lg shadow-[#1e2924]/15">
+                            <ClipboardList class="h-6 w-6" />
+                        </div>
+                        <div>
+                            <p class="text-sm font-black uppercase tracking-[0.18em] text-[#09B884]">Exam builder</p>
+                            <p class="mt-1 text-xl font-black text-[#1e2924]">{{ examName }}</p>
+                        </div>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <Link href="/exam-schedule" class="btn-secondary">All schedules</Link>
+                        <button type="button" class="btn-primary min-h-11" @click="printPage">
+                            <Printer class="h-4 w-4" />
+                            Print
+                        </button>
+                    </div>
+                </div>
+                <div class="relative mt-5 overflow-hidden rounded-full bg-stone-100">
+                    <div class="h-2 rounded-full bg-gradient-to-r from-[#09B884] to-[#8BED9A] transition-all duration-500" :style="{ width: `${setupProgress}%` }"></div>
+                </div>
+            </section>
 
-                    <div class="mt-4 space-y-3">
-                        <div>
-                            <label class="text-xs font-medium text-slate-600">Subject</label>
-                            <select
-                                v-model="editing.subject"
-                                class="mt-1 w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none"
-                            >
-                                <option value="" disabled>Select subject</option>
-                                <option v-for="s in subjectOptions" :key="s" :value="s">{{ s }}</option>
-                            </select>
+            <section v-if="canEdit" class="surface-card p-2">
+                <div class="grid gap-2 md:grid-cols-4">
+                    <button
+                        v-for="(step, index) in stepDetails"
+                        :key="step.name"
+                        type="button"
+                        class="group rounded-xl border p-3 text-left transition-all duration-300 hover:-translate-y-0.5"
+                        :class="activeStep === step.name ? 'border-[#1e2924] bg-[#1e2924] text-white shadow-lg shadow-[#1e2924]/15' : 'border-transparent bg-stone-50 text-[#1e2924] hover:border-[#8BED9A]/70 hover:bg-[#8BED9A]/15'"
+                        @click="activeStep = step.name"
+                    >
+                        <div class="flex items-center justify-between gap-2">
+                            <span class="flex h-9 w-9 items-center justify-center rounded-lg" :class="activeStep === step.name ? 'bg-[#8BED9A]/20 text-[#8BED9A]' : 'bg-white text-[#09B884]'">
+                                <component :is="step.icon" class="h-4 w-4" />
+                            </span>
+                            <span class="text-xs font-black opacity-60">0{{ index + 1 }}</span>
+                        </div>
+                        <p class="mt-3 text-sm font-black">{{ step.name }}</p>
+                        <p class="mt-1 truncate text-xs font-semibold" :class="activeStep === step.name ? 'text-white/60' : 'text-slate-500'">{{ step.hint }}</p>
+                    </button>
+                </div>
+            </section>
+
+            <section v-if="isViewer" class="surface-card overflow-hidden">
+                <div class="flex flex-wrap items-center justify-between gap-3 bg-white p-5">
+                    <div class="flex items-center gap-4">
+                        <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-[#1e2924] text-[#8BED9A]">
+                            <ClipboardList class="h-6 w-6" />
                         </div>
                         <div>
-                            <label class="text-xs font-medium text-slate-600">Class</label>
-                            <select
-                                v-model="editing.classLabel"
-                                class="mt-1 w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none"
-                            >
-                                <option value="" disabled>Select class</option>
-                                <option v-for="c in classOptions" :key="c" :value="c">{{ c }}</option>
-                            </select>
+                            <p class="text-lg font-black text-[#1e2924]">{{ examName }}</p>
+                            <p class="mt-1 text-sm font-semibold text-slate-500">
+                                {{ role === 'student' ? viewerClassLabel : role === 'teacher' ? `${currentTeacherName} view` : 'Active exam schedule' }} - {{ formatDate(examStartDate) }} to {{ formatDate(examEndDate) }}
+                            </p>
                         </div>
-                        <div>
-                            <label class="text-xs font-medium text-slate-600">Invigilator</label>
-                            <select
-                                v-model="editing.invigilator"
-                                class="mt-1 w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none"
-                            >
-                                <option value="" disabled>Select invigilator</option>
-                                <option v-for="i in invigilatorOptions" :key="i" :value="i">{{ i }}</option>
-                            </select>
+                    </div>
+                    <div v-if="role === 'teacher'" class="grid rounded-2xl border border-[#8BED9A]/50 bg-[#8BED9A]/10 p-1 sm:grid-cols-2">
+                        <button type="button" class="rounded-xl px-4 py-2 text-sm font-black transition" :class="teacherViewMode === 'all' ? 'bg-[#1e2924] text-white shadow-md shadow-[#1e2924]/15' : 'text-[#1e2924] hover:bg-white/80'" @click="teacherViewMode = 'all'">Full routine</button>
+                        <button type="button" class="rounded-xl px-4 py-2 text-sm font-black transition" :class="teacherViewMode === 'mine' ? 'bg-[#1e2924] text-white shadow-md shadow-[#1e2924]/15' : 'text-[#1e2924] hover:bg-white/80'" @click="teacherViewMode = 'mine'">My duties</button>
+                    </div>
+                </div>
+            </section>
+
+            <section v-if="isViewer && !hasActiveSchedule" class="surface-card overflow-hidden">
+                <div class="grid gap-px bg-stone-200/80 lg:grid-cols-[minmax(0,1fr)_22rem]">
+                    <div class="bg-white p-8">
+                        <div class="flex items-start gap-4">
+                            <div class="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[#8BED9A]/18 text-[#09B884]">
+                                <CalendarDays class="h-7 w-7" />
+                            </div>
+                            <div>
+                                <p class="text-xl font-black text-[#1e2924]">No exam schedule is published right now</p>
+                                <p class="mt-2 max-w-2xl text-sm font-semibold leading-6 text-slate-600">
+                                    Exam routines are made visible to teachers and students only when an exam schedule has been marked active by the admin.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-[#8BED9A]/12 p-6">
+                        <div class="rounded-2xl border border-[#8BED9A]/60 bg-white p-5">
+                            <p class="text-sm font-black text-[#1e2924]">Availability</p>
+                            <p class="mt-2 text-sm font-semibold text-slate-600">Schedules will appear here during published exam periods.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <Transition v-else name="exam-step" mode="out-in">
+                <section :key="activeStep" class="space-y-5">
+                    <div v-if="canEdit && activeStep === 'Details'" class="surface-card overflow-hidden">
+                        <div class="grid gap-px bg-stone-200/80 lg:grid-cols-[minmax(0,1fr)_22rem]">
+                            <div class="space-y-5 bg-white p-5">
+                                <div>
+                                    <label class="section-title">Exam name</label>
+                                    <input v-model="examName" class="field-control mt-1 w-full bg-white text-lg font-black text-[#1e2924]" placeholder="Example: June 2026 Mid-term" />
+                                </div>
+                                <div>
+                                    <label class="section-title">Short note</label>
+                                    <input v-model="examNote" class="field-control mt-1 w-full bg-white" placeholder="Example: Mid-term exams" />
+                                </div>
+                                <div class="grid gap-3 sm:grid-cols-2">
+                                    <div>
+                                        <label class="section-title">Start date</label>
+                                        <input v-model="examStartDate" type="date" class="field-control mt-1 w-full bg-white" :max="examEndDate || undefined" />
+                                    </div>
+                                    <div>
+                                        <label class="section-title">End date</label>
+                                        <input v-model="examEndDate" type="date" class="field-control mt-1 w-full bg-white" :min="examStartDate || undefined" />
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="bg-[#8BED9A]/12 p-5">
+                                <div class="rounded-2xl border border-[#8BED9A]/60 bg-white p-5">
+                                    <p class="text-sm font-black text-[#1e2924]">Schedule identity</p>
+                                    <p class="mt-3 text-sm font-semibold text-slate-600">{{ examNote || 'No note added yet' }}</p>
+                                    <div class="mt-5 rounded-xl bg-[#1e2924] p-4 text-white">
+                                        <p class="text-xs font-black uppercase tracking-[0.16em] text-[#8BED9A]">Window</p>
+                                        <p class="mt-1 text-lg font-black">{{ formatDate(examStartDate) }} - {{ formatDate(examEndDate) }}</p>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
-                    <div class="mt-5 flex justify-end gap-2">
-                        <button
-                            type="button"
-                            class="rounded-lg border border-stone-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-stone-100"
-                            @click="closeEditor"
-                        >
-                            Cancel
-                        </button>
-                        <button
-                            type="button"
-                            class="rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-40"
-                            :disabled="!editing.subject || !editing.classLabel || !editing.invigilator"
-                            @click="saveEditor"
-                        >
-                            Save
-                        </button>
+                    <div v-else-if="canEdit && activeStep === 'Setup'" class="surface-card overflow-hidden">
+                        <div class="grid gap-px bg-stone-200/80 lg:grid-cols-3">
+                            <div class="bg-white p-5">
+                                <div class="flex items-center gap-3">
+                                    <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-[#8BED9A]/18 text-[#09B884]">
+                                        <Users class="h-5 w-5" />
+                                    </div>
+                                    <div>
+                                        <p class="text-base font-black text-[#1e2924]">Classes</p>
+                                        <p class="text-xs font-semibold text-slate-500">{{ classMode === 'all' ? 'All selected' : `${selectedClasses.length} selected` }}</p>
+                                    </div>
+                                </div>
+                                <div class="mt-4 grid gap-2 rounded-2xl border border-[#8BED9A]/50 bg-[#8BED9A]/10 p-1.5">
+                                    <button type="button" class="rounded-xl px-4 py-3 text-sm font-black transition" :class="classMode === 'all' ? 'bg-[#1e2924] text-white shadow-md shadow-[#1e2924]/15' : 'text-[#1e2924] hover:bg-white/80'" @click="setClassMode('all')">All classes</button>
+                                    <button type="button" class="rounded-xl px-4 py-3 text-sm font-black transition" :class="classMode === 'specific' ? 'bg-[#1e2924] text-white shadow-md shadow-[#1e2924]/15' : 'text-[#1e2924] hover:bg-white/80'" @click="setClassMode('specific')">Specific classes</button>
+                                </div>
+                                <div v-if="classMode === 'specific'" class="mt-4">
+                                    <div class="relative">
+                                        <Search class="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                                        <input v-model="classSearch" type="text" class="field-control w-full pl-9" placeholder="Search classes" />
+                                    </div>
+                                    <div class="mt-3 max-h-44 space-y-2 overflow-y-auto pr-1">
+                                        <button v-for="className in visibleClasses" :key="className" type="button" class="w-full rounded-xl border px-3 py-2 text-left text-sm font-bold transition" :class="selectedClasses.includes(className) ? 'border-[#09B884] bg-[#8BED9A]/18 text-[#1e2924]' : 'border-stone-200 bg-white text-slate-600 hover:bg-stone-50'" @click="toggleClass(className)">
+                                            {{ className }}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="bg-white p-5">
+                                <div class="flex items-center gap-3">
+                                    <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-[#8BED9A]/18 text-[#09B884]">
+                                        <DoorOpen class="h-5 w-5" />
+                                    </div>
+                                    <div>
+                                        <p class="text-base font-black text-[#1e2924]">Halls</p>
+                                        <p class="text-xs font-semibold text-slate-500">{{ halls.length }} available</p>
+                                    </div>
+                                </div>
+                                <div class="mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_5rem_3rem]">
+                                    <input v-model="newHall.name" class="field-control" placeholder="Hall name" />
+                                    <input v-model.number="newHall.capacity" type="number" min="1" class="field-control text-center" />
+                                    <button type="button" class="flex min-h-11 items-center justify-center rounded-xl bg-[#1e2924] text-white transition hover:bg-[#1e2924]/90" @click="addHall">
+                                        <Plus class="h-4 w-4" />
+                                    </button>
+                                </div>
+                                <div class="mt-4 max-h-44 space-y-2 overflow-y-auto pr-1">
+                                    <div v-for="hall in halls" :key="hall.id" class="flex items-center justify-between gap-3 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2">
+                                        <div>
+                                            <p class="text-sm font-black text-[#1e2924]">{{ hall.name }}</p>
+                                            <p class="text-xs font-semibold text-slate-500">Capacity {{ hall.capacity }}</p>
+                                        </div>
+                                        <button type="button" class="rounded-lg p-2 text-red-600 transition hover:bg-red-50" @click="removeHall(hall.name)">
+                                            <Trash2 class="h-4 w-4" />
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="bg-white p-5">
+                                <div class="flex items-center gap-3">
+                                    <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-[#8BED9A]/18 text-[#09B884]">
+                                        <Clock3 class="h-5 w-5" />
+                                    </div>
+                                    <div>
+                                        <p class="text-base font-black text-[#1e2924]">Times</p>
+                                        <p class="text-xs font-semibold text-slate-500">{{ timeSlots.length }} exam windows</p>
+                                    </div>
+                                </div>
+                                <div class="mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_3rem]">
+                                    <input v-model="newSlot.startLabel" type="time" class="field-control bg-white" />
+                                    <input v-model="newSlot.endLabel" type="time" class="field-control bg-white" />
+                                    <button type="button" class="flex min-h-11 items-center justify-center rounded-xl bg-[#1e2924] text-white transition hover:bg-[#1e2924]/90" @click="addSlot">
+                                        <Plus class="h-4 w-4" />
+                                    </button>
+                                </div>
+                                <div class="mt-4 max-h-44 space-y-2 overflow-y-auto pr-1">
+                                    <div v-for="slot in timeSlots" :key="slot.key" class="flex items-center justify-between gap-3 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2">
+                                        <p class="text-sm font-black text-[#1e2924]">{{ slot.label }}</p>
+                                        <button type="button" class="rounded-lg p-2 text-red-600 transition hover:bg-red-50" @click="removeSlot(slot.key)">
+                                            <X class="h-4 w-4" />
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div v-else-if="activeStep === 'Schedule'" class="space-y-5">
+                        <section v-if="canEdit && conflictGroups.length" class="surface-card border-red-200 bg-red-50 p-4">
+                            <div class="flex items-start gap-3 text-red-800">
+                                <AlertTriangle class="mt-0.5 h-5 w-5 shrink-0" />
+                                <div>
+                                    <p class="text-sm font-black">{{ conflictGroups.length }} invigilator conflict{{ conflictGroups.length === 1 ? '' : 's' }}</p>
+                                    <p class="mt-1 text-sm font-semibold">{{ conflictGroups[0].teacher }} is booked in {{ conflictGroups[0].halls.join(', ') }} on {{ formatDate(conflictGroups[0].examDate) }} at {{ conflictGroups[0].slotLabel }}.</p>
+                                </div>
+                            </div>
+                        </section>
+
+                        <div class="grid gap-5" :class="canEdit ? 'xl:grid-cols-[minmax(0,1fr)_27rem]' : ''">
+                            <section class="surface-card overflow-hidden">
+                                <div class="flex flex-col gap-3 border-b border-stone-200 bg-white p-5 sm:flex-row sm:items-center sm:justify-between">
+                                    <div>
+                                        <p class="text-base font-black text-[#1e2924]">Exam routine</p>
+                                        <p class="text-xs font-semibold text-slate-500">{{ canEdit ? 'Click any cell to assign or edit an exam.' : 'Active exam schedule' }}</p>
+                                    </div>
+                                    <button type="button" class="flex min-h-10 items-center justify-center gap-2 rounded-xl border border-stone-200 bg-white px-4 text-sm font-black text-[#1e2924] transition hover:bg-stone-50" @click="printPage">
+                                        <Printer class="h-4 w-4" />
+                                        Print
+                                    </button>
+                                </div>
+
+                                <div class="border-b border-stone-200 bg-stone-50 p-4">
+                                    <div class="flex gap-2 overflow-x-auto pb-1">
+                                        <button v-for="date in examDateOptions" :key="date.value" type="button" class="shrink-0 rounded-xl border px-4 py-2 text-sm font-black transition" :class="currentExamDate === date.value ? 'border-[#1e2924] bg-[#1e2924] text-white shadow-md shadow-[#1e2924]/15' : 'border-stone-200 bg-white text-[#1e2924] hover:border-[#8BED9A]/70 hover:bg-[#8BED9A]/15'" @click="activeExamDate = date.value">
+                                            {{ date.label }}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div class="overflow-x-auto">
+                                    <div class="min-w-[880px]">
+                                        <div class="grid border-b border-stone-200 bg-stone-50" :style="gridStyle">
+                                            <div class="px-4 py-3 text-xs font-black uppercase tracking-[0.14em] text-slate-500">Hall</div>
+                                            <div v-for="slot in timeSlots" :key="slot.key" class="border-l border-stone-200 px-3 py-3 text-center text-xs font-black uppercase tracking-[0.14em] text-slate-500">{{ slot.label }}</div>
+                                        </div>
+
+                                        <div v-for="hall in halls" :key="hall.id" class="grid border-b border-stone-200 last:border-b-0" :style="gridStyle">
+                                            <div class="bg-white px-4 py-4">
+                                                <p class="text-sm font-black text-[#1e2924]">{{ hall.name }}</p>
+                                                <p class="text-xs font-semibold text-slate-500">Capacity {{ hall.capacity }}</p>
+                                            </div>
+                                            <div v-for="slot in timeSlots" :key="slot.key" class="border-l border-stone-200 bg-white p-2">
+                                                <button v-if="shouldShowCell(hall.name, currentExamDate, slot.key)" type="button" class="min-h-28 w-full rounded-xl border p-3 text-left transition" :class="[cellClasses(hall.name, currentExamDate, slot.key), canEdit ? 'hover:-translate-y-0.5 hover:shadow-sm' : 'cursor-default']" @click="openEditor(hall.name, currentExamDate, slot.key)">
+                                                    <template v-if="!cellAt(hall.name, currentExamDate, slot.key) || !activeClasses.includes(cellAt(hall.name, currentExamDate, slot.key).classLabel)">
+                                                        <span class="flex h-full min-h-20 items-center justify-center gap-2 text-xs font-black">
+                                                            <Plus v-if="canEdit" class="h-4 w-4" />
+                                                            {{ canEdit ? 'Add exam' : 'No exam' }}
+                                                        </span>
+                                                    </template>
+                                                    <template v-else>
+                                                        <div class="flex items-start justify-between gap-2">
+                                                            <p class="text-sm font-black">{{ cellAt(hall.name, currentExamDate, slot.key).subject }}</p>
+                                                            <Pencil v-if="canEdit" class="h-4 w-4 text-[#09B884]" />
+                                                        </div>
+                                                        <p class="mt-1 text-xs font-bold">{{ cellAt(hall.name, currentExamDate, slot.key).classLabel }}</p>
+                                                        <div class="mt-3 flex flex-wrap gap-1.5">
+                                                            <span v-for="guard in cellAt(hall.name, currentExamDate, slot.key).guards" :key="`${hall.name}-${currentExamDate}-${slot.key}-${guard}`" class="rounded-full bg-white/80 px-2 py-1 text-[11px] font-bold">{{ guard }}</span>
+                                                        </div>
+                                                    </template>
+                                                </button>
+                                                <div v-else class="min-h-28 rounded-xl border border-dashed border-stone-200 bg-stone-50/70"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </section>
+
+                            <section v-if="canEdit" class="surface-card overflow-hidden">
+                                <div class="border-b border-stone-200 bg-white p-5">
+                                    <div class="flex items-center justify-between gap-3">
+                                        <div>
+                                            <p class="text-base font-black text-[#1e2924]">Remaining subjects</p>
+                                            <p class="text-xs font-semibold text-slate-500">{{ totalRequiredExams - scheduledRequiredExams }} exams still need dates</p>
+                                        </div>
+                                        <CheckCircle2 v-if="!classesWithMissingSubjects.length" class="h-5 w-5 text-[#09B884]" />
+                                        <AlertTriangle v-else class="h-5 w-5 text-amber-600" />
+                                    </div>
+                                </div>
+                                <div class="max-h-[40rem] space-y-3 overflow-y-auto bg-stone-50 p-4">
+                                    <div v-if="!classesWithMissingSubjects.length" class="rounded-xl border border-[#8BED9A]/70 bg-[#8BED9A]/15 p-5 text-center">
+                                        <p class="text-sm font-black text-[#1e2924]">Every selected class has all subjects scheduled.</p>
+                                    </div>
+                                    <div v-for="item in classesWithMissingSubjects" :key="`side-${item.className}`" class="rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
+                                        <div class="flex items-center justify-between gap-3">
+                                            <p class="text-sm font-black text-[#1e2924]">{{ item.className }}</p>
+                                            <span class="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-black text-amber-700">{{ item.missing.length }} left</span>
+                                        </div>
+                                        <div class="mt-3 flex flex-wrap gap-1.5">
+                                            <span v-for="subject in item.missing" :key="`side-${item.className}-${subject}`" class="rounded-full border border-stone-200 bg-stone-50 px-2.5 py-1 text-[11px] font-bold text-slate-600">{{ subject }}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </section>
+                        </div>
+                    </div>
+
+                    <section v-else-if="activeStep === 'Duties'" class="surface-card overflow-hidden">
+                        <div class="border-b border-stone-200 bg-white p-5">
+                            <div class="flex items-center gap-3">
+                                <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-[#8BED9A]/18 text-[#09B884]">
+                                    <ShieldCheck class="h-5 w-5" />
+                                </div>
+                                <div>
+                                    <p class="text-base font-black text-[#1e2924]">Hall guard duty list</p>
+                                    <p class="text-xs font-semibold text-slate-500">{{ guardDuties.length }} teachers assigned</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="grid gap-px bg-stone-200 md:grid-cols-2 xl:grid-cols-3">
+                            <div v-for="duty in guardDuties" :key="duty.teacher" class="bg-white p-4">
+                                <div class="flex items-center justify-between gap-3">
+                                    <p class="text-sm font-black text-[#1e2924]">{{ duty.teacher }}</p>
+                                    <span class="rounded-full px-2.5 py-1 text-xs font-black" :class="duty.hasConflict ? 'bg-red-50 text-red-700' : 'bg-[#8BED9A]/18 text-[#1e2924]'">{{ duty.load }} duties</span>
+                                </div>
+                                <div class="mt-3 space-y-1.5">
+                                    <p v-for="cell in duty.duties" :key="`${duty.teacher}-${cell.hallName}-${cell.slotKey}`" class="rounded-lg bg-stone-50 px-3 py-2 text-xs font-semibold text-slate-600">
+                                        {{ formatDate(cell.examDate) }} - {{ cell.hallName }} - {{ cell.slotLabel }} - {{ cell.classLabel }}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                </section>
+            </Transition>
+
+            <section v-if="canEdit" class="surface-card p-4">
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <button type="button" class="btn-secondary min-h-11" :disabled="activeStepIndex === 0" @click="goToStep(-1)">Back</button>
+                    <div class="flex items-center justify-center gap-1.5">
+                        <span v-for="step in steps" :key="`dot-${step}`" class="h-2.5 rounded-full transition-all duration-300" :class="steps.indexOf(step) <= activeStepIndex ? 'w-8 bg-[#09B884]' : 'w-2.5 bg-stone-300'"></span>
+                    </div>
+                    <button v-if="activeStepIndex < steps.length - 1" type="button" class="btn-primary min-h-11" @click="goToStep(1)">
+                        Next
+                        <ArrowRight class="h-4 w-4" />
+                    </button>
+                    <button v-else type="button" class="btn-primary min-h-11" @click="printPage">
+                        <Printer class="h-4 w-4" />
+                        Print schedule
+                    </button>
+                </div>
+            </section>
+        </div>
+
+        <Teleport to="body">
+            <div v-if="editing" class="fixed inset-0 z-50 flex items-center justify-center bg-[#1e2924]/35 p-4 backdrop-blur-sm" @click.self="closeEditor">
+                <div class="surface-card w-full max-w-xl overflow-hidden shadow-2xl">
+                    <div class="border-b border-stone-200 bg-white p-5">
+                        <div class="flex items-start justify-between gap-4">
+                            <div>
+                                <p class="text-base font-black text-[#1e2924]">Schedule exam slot</p>
+                                <p class="mt-1 text-xs font-semibold text-slate-500">{{ editing.hallName }} - {{ timeSlots.find((slot) => slot.key === editing.slotKey)?.label }}</p>
+                            </div>
+                            <button type="button" class="rounded-lg p-2 text-slate-500 transition hover:bg-stone-100" @click="closeEditor">
+                                <X class="h-4 w-4" />
+                            </button>
+                        </div>
+                    </div>
+                    <div class="space-y-4 p-5">
+                        <div class="grid gap-4 sm:grid-cols-3">
+                            <div>
+                                <label class="section-title">Date</label>
+                                <select v-model="editing.examDate" class="field-control mt-1 w-full bg-white">
+                                    <option value="" disabled>Select date</option>
+                                    <option v-for="date in examDateOptions" :key="date.value" :value="date.value">{{ date.label }}</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="section-title">Subject</label>
+                                <select v-model="editing.subject" class="field-control mt-1 w-full bg-white">
+                                    <option value="" disabled>Select subject</option>
+                                    <option v-for="subject in subjectOptions" :key="subject" :value="subject">{{ subject }}</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="section-title">Class</label>
+                                <select v-model="editing.classLabel" class="field-control mt-1 w-full bg-white">
+                                    <option value="" disabled>Select class</option>
+                                    <option v-for="className in activeClasses" :key="className" :value="className">{{ className }}</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div>
+                            <div class="flex items-center justify-between gap-3">
+                                <label class="section-title">Hall guards</label>
+                                <span class="text-xs font-semibold text-slate-500">{{ editing.guards.length }} selected</span>
+                            </div>
+                            <div class="mt-2 grid max-h-64 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+                                <button v-for="teacher in invigilatorOptions" :key="teacher" type="button" class="rounded-xl border px-3 py-2 text-left text-sm font-bold transition" :class="editing.guards.includes(teacher) ? 'border-[#09B884] bg-[#8BED9A]/18 text-[#1e2924]' : 'border-stone-200 bg-white text-slate-600 hover:bg-stone-50'" @click="toggleGuard(teacher)">
+                                    {{ teacher }}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex flex-col-reverse gap-2 border-t border-stone-200 bg-stone-50 p-4 sm:flex-row sm:justify-between">
+                        <button type="button" class="rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-black text-red-700 transition hover:bg-red-50" @click="clearCell">Clear slot</button>
+                        <div class="flex gap-2">
+                            <button type="button" class="rounded-xl border border-stone-200 bg-white px-4 py-2 text-sm font-black text-slate-700 transition hover:bg-stone-100" @click="closeEditor">Cancel</button>
+                            <button type="button" class="rounded-xl bg-[#1e2924] px-5 py-2 text-sm font-black text-white shadow-md shadow-[#1e2924]/15 transition hover:bg-[#1e2924]/90 disabled:cursor-not-allowed disabled:bg-slate-300" :disabled="!editing.examDate || !editing.subject || !editing.classLabel || !editing.guards.length" @click="saveEditor">Save slot</button>
+                        </div>
                     </div>
                 </div>
             </div>
         </Teleport>
     </AppLayout>
 </template>
+
+<style scoped>
+.exam-step-enter-active,
+.exam-step-leave-active {
+    transition: opacity 220ms ease, transform 220ms ease;
+}
+
+.exam-step-enter-from {
+    opacity: 0;
+    transform: translateY(10px);
+}
+
+.exam-step-leave-to {
+    opacity: 0;
+    transform: translateY(-8px);
+}
+</style>

@@ -27,10 +27,11 @@ class ProxyEngine
         $day = (string) ($payload['day'] ?? ($this->days[0] ?? 'Sun'));
         $absences = $this->normalizeAbsences($payload['absentTeachers'] ?? [], $day);
         $subjectGroups = $this->normalizeSubjectGroups($payload['subjectGroups'] ?? []);
+        $manualAssignments = $this->normalizeManualAssignments($payload['manualAssignments'] ?? []);
         $affected = $this->affectedClasses($day, $absences);
 
         foreach ($affected as $target) {
-            $this->resolveTarget($day, $target, $subjectGroups);
+            $this->resolveTarget($day, $target, $subjectGroups, $manualAssignments);
         }
 
         $resolved = count(array_filter($this->assignments, fn ($assignment) => ($assignment['status'] ?? '') === 'resolved'));
@@ -182,6 +183,24 @@ class ProxyEngine
         }, $groups, array_keys($groups))));
     }
 
+    private function normalizeManualAssignments(array $assignments): array
+    {
+        $normalized = [];
+
+        foreach ($assignments as $assignment) {
+            $targetKey = trim((string) ($assignment['targetKey'] ?? ''));
+            $teacherId = (string) ($assignment['teacherId'] ?? '');
+
+            if ($targetKey === '' || $teacherId === '' || ! isset($this->teacherNames[$teacherId])) {
+                continue;
+            }
+
+            $normalized[$targetKey] = $teacherId;
+        }
+
+        return $normalized;
+    }
+
     private function affectedClasses(string $day, array $absences): array
     {
         $targets = [];
@@ -205,9 +224,29 @@ class ProxyEngine
         return $targets;
     }
 
-    private function resolveTarget(string $day, array $target, array $subjectGroups): void
+    private function resolveTarget(string $day, array $target, array $subjectGroups, array $manualAssignments = []): void
     {
         $assignmentId = count($this->assignments) + 1;
+        $targetKey = $this->targetKey($target);
+
+        if (isset($manualAssignments[$targetKey])) {
+            $manualTeacherId = (string) $manualAssignments[$targetKey];
+
+            if ($manualTeacherId !== (string) ($target['teacherId'] ?? '') && $this->teacherFree($day, $manualTeacherId, (string) ($target['periodKey'] ?? ''))) {
+                $this->applyProxy($day, $target, $manualTeacherId);
+                $this->assignments[] = $this->assignment($assignmentId, $target, 'resolved', 'manual_proxy', $manualTeacherId, [
+                    'strategyLabel' => 'Manual proxy',
+                    'reason' => 'Selected manually by the admin before auto generation.',
+                ]);
+                return;
+            }
+
+            $this->assignments[] = $this->assignment($assignmentId, $target, 'unresolved', 'manual_proxy_unavailable', null, [
+                'strategyLabel' => 'Manual selection unavailable',
+                'reason' => 'The selected manual teacher was no longer free for this period.',
+            ]);
+            return;
+        }
 
         if ($swap = $this->findDirectSwap($day, $target)) {
             $this->applySwap($day, $target, $swap);
@@ -460,6 +499,15 @@ class ProxyEngine
             'status' => $status,
             'strategy' => $strategy,
         ], $extra);
+    }
+
+    private function targetKey(array $target): string
+    {
+        return implode('|', [
+            (string) ($target['sectionKey'] ?? ''),
+            (string) ($target['periodKey'] ?? ''),
+            (string) ($target['teacherId'] ?? ''),
+        ]);
     }
 
     private function groupAssignmentsByPeriod(array $assignments): array

@@ -1,13 +1,15 @@
 <script setup>
-import { computed } from 'vue';
+import { computed, nextTick, onMounted, ref } from 'vue';
 import { Link, usePage } from '@inertiajs/vue3';
 import {
     LayoutDashboard,
     CalendarDays,
     Repeat,
-    GraduationCap,
+    ClipboardList,
     CalendarOff,
     Megaphone,
+    BookOpenCheck,
+    MessagesSquare,
     School,
     BarChart3,
     Users,
@@ -26,6 +28,8 @@ defineEmits(['toggle']);
 
 const page = usePage();
 const currentUrl = computed(() => page.url.split('?')[0]);
+const navEl = ref(null);
+const sidebarScrollKey = 'campulse_sidebar_scroll_top';
 
 const authUser = computed(() => ({
     name: page.props.auth?.user?.name ?? 'Test User',
@@ -47,7 +51,7 @@ const adminNavGroups = [
             { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
             { name: 'Routines', href: '/routines', icon: CalendarDays },
             { name: 'Proxy Manager', href: '/proxy-manager', icon: Repeat },
-            { name: 'Exam Schedule', href: '/exam-schedule', icon: GraduationCap },
+            { name: 'Exam Schedule', href: '/exam-schedule', icon: ClipboardList },
         ],
     },
     {
@@ -55,6 +59,8 @@ const adminNavGroups = [
         items: [
             { name: 'Leave Requests', href: '/leave-requests', icon: CalendarOff },
             { name: 'Noticeboard', href: '/noticeboard', icon: Megaphone },
+            { name: 'Staffroom', href: '/staffroom', icon: MessagesSquare },
+            { name: 'Classroom', href: '/classroom', icon: BookOpenCheck },
         ],
     },
     {
@@ -80,8 +86,8 @@ const teacherNavGroups = [
         label: 'Core',
         items: [
             { name: 'My Dashboard', href: '/dashboard', icon: LayoutDashboard },
-            { name: 'Routines', href: '/routines', icon: CalendarDays },
-            { name: 'Exam Duties', href: '/exam-schedule', icon: GraduationCap },
+            { name: 'Routine', href: '/routines', icon: CalendarDays },
+            { name: 'Exam Duties', href: '/exam-schedule', icon: ClipboardList },
         ],
     },
     {
@@ -89,6 +95,8 @@ const teacherNavGroups = [
         items: [
             { name: 'My Leave', href: '/leave-requests', icon: CalendarOff },
             { name: 'Noticeboard', href: '/noticeboard', icon: Megaphone },
+            { name: 'Staffroom', href: '/staffroom', icon: MessagesSquare },
+            { name: 'Classroom', href: '/classroom', icon: BookOpenCheck },
         ],
     },
     {
@@ -104,9 +112,10 @@ const studentNavGroups = [
         label: 'Student',
         items: [
             { name: 'My Dashboard', href: '/dashboard', icon: LayoutDashboard },
-            { name: 'Routine', href: '/routines', icon: CalendarDays },
+            { name: 'My Routine', href: '/routines', icon: CalendarDays },
+            { name: 'Exam Schedule', href: '/exam-schedule', icon: ClipboardList },
             { name: 'Noticeboard', href: '/noticeboard', icon: Megaphone },
-            { name: 'Classrooms', href: '/classrooms', icon: School },
+            { name: 'Classroom', href: '/classroom', icon: BookOpenCheck },
         ],
     },
 ];
@@ -119,8 +128,24 @@ const activeNavGroups = computed(() => {
 });
 
 function isActive(href) {
-    return currentUrl.value === href;
+    if (href === '/routines') {
+        return currentUrl.value === '/routines' || (currentUrl.value !== '/routines/create' && /^\/routines\/[^/]+$/.test(currentUrl.value));
+    }
+
+    return currentUrl.value === href || currentUrl.value.startsWith(`${href}/`);
 }
+
+function rememberSidebarScroll() {
+    if (!navEl.value) return;
+    localStorage.setItem(sidebarScrollKey, String(navEl.value.scrollTop));
+}
+
+onMounted(() => {
+    nextTick(() => {
+        if (!navEl.value) return;
+        navEl.value.scrollTop = Number(localStorage.getItem(sidebarScrollKey) || 0);
+    });
+});
 </script>
 
 <template>
@@ -134,8 +159,10 @@ function isActive(href) {
         </div>
 
         <nav
+            ref="navEl"
             class="flex-1"
             :class="collapsed ? 'space-y-2 overflow-hidden px-2 py-2' : 'space-y-5 overflow-y-auto px-3 py-4'"
+            @scroll="rememberSidebarScroll"
         >
             <div v-for="group in activeNavGroups" :key="group.label">
                 <p

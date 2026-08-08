@@ -93,7 +93,10 @@ function importRoutine(event) {
         <div class="space-y-6">
             <div class="surface-card p-2">
                 <div class="flex flex-wrap items-center justify-between gap-3">
-                    <h2 class="px-3 text-lg font-bold text-slate-950">Routines</h2>
+                    <div class="px-3">
+                        <h2 class="text-lg font-bold text-slate-950">Manage academic timetables</h2>
+                        <p class="mt-1 text-sm font-semibold text-slate-500">Set the active routine, import a DOCX routine, or create a new draft.</p>
+                    </div>
                 
                 <div v-if="isAdmin" class="flex items-center gap-2">
                     <input ref="importInput" type="file" accept=".docx" class="hidden" @change="importRoutine" />
