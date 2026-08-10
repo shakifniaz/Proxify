@@ -237,7 +237,7 @@ const classBlueprint = ref(
                   subjects: (section.subjects || []).map((subject) => ({ ...subject })),
               }))
           )
-        : (props.classOptions.length ? props.classOptions.slice(0, 6) : ['Class 6A', 'Class 7A', 'Class 8A']).map((label, index) => ({
+        : props.classOptions.slice(0, 6).map((label, index) => ({
               id: index + 1,
               label,
               dailyPeriods: index < 2 ? 6 : 7,

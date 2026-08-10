@@ -1,6 +1,8 @@
 <script setup>
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
+import { getApps, initializeApp } from 'firebase/app';
+import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
 import {
     ArrowRight,
     CalendarDays,
@@ -15,22 +17,61 @@ import GuestLayout from '@/Layouts/GuestLayout.vue';
 import InputError from '@/Components/InputError.vue';
 import Checkbox from '@/Components/Checkbox.vue';
 
-defineProps({
+const props = defineProps({
     canResetPassword: { type: Boolean, default: false },
     status: { type: String, default: null },
+    firebaseConfig: { type: Object, default: () => ({}) },
 });
 
 const form = useForm({
     email: '',
     password: '',
     remember: false,
+    id_token: '',
 });
 
 const showPassword = ref(false);
+const firebaseError = ref('');
+const firebaseLoading = ref(false);
 
-function submit() {
+const hasFirebaseConfig = computed(() =>
+    ['apiKey', 'authDomain', 'projectId', 'appId'].every((key) => Boolean(props.firebaseConfig?.[key]))
+);
+
+async function loadFirebaseAuth() {
+    const app = getApps().length ? getApps()[0] : initializeApp(props.firebaseConfig);
+
+    return { auth: getAuth(app), signInWithEmailAndPassword };
+}
+
+async function submit() {
+    firebaseError.value = '';
+    form.clearErrors();
+
+    if (!hasFirebaseConfig.value) {
+        firebaseError.value = 'Firebase is not configured yet. Add the Firebase keys to .env and clear Laravel config.';
+        return;
+    }
+
+    firebaseLoading.value = true;
+
+    try {
+        const { auth, signInWithEmailAndPassword } = await loadFirebaseAuth();
+        const credential = await signInWithEmailAndPassword(auth, form.email, form.password);
+        form.id_token = await credential.user.getIdToken();
+    } catch (error) {
+        firebaseError.value = error?.code === 'auth/invalid-credential'
+            ? 'Email or password is incorrect.'
+            : `Firebase sign-in failed: ${error?.code || error?.message || 'Unknown error'}`;
+        firebaseLoading.value = false;
+        return;
+    }
+
     form.post('/login', {
-        onFinish: () => form.reset('password'),
+        onFinish: () => {
+            firebaseLoading.value = false;
+            form.reset('password', 'id_token');
+        },
     });
 }
 </script>
@@ -91,6 +132,9 @@ function submit() {
                 <div v-if="status" class="mb-4 rounded-lg border border-[#8BED9A]/70 bg-[#8BED9A]/20 px-3 py-2 text-sm font-semibold text-[#1e2924]">
                     {{ status }}
                 </div>
+                <div v-if="firebaseError" class="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">
+                    {{ firebaseError }}
+                </div>
 
                 <form class="space-y-4" @submit.prevent="submit">
                     <div>
@@ -150,8 +194,8 @@ function submit() {
                         </Link>
                     </div>
 
-                    <button type="submit" class="btn-primary min-h-12 w-full text-base" :disabled="form.processing">
-                        Sign in
+                    <button type="submit" class="btn-primary min-h-12 w-full text-base" :disabled="form.processing || firebaseLoading">
+                        {{ firebaseLoading || form.processing ? 'Signing in...' : 'Sign in' }}
                         <ArrowRight class="h-4 w-4" />
                     </button>
                 </form>

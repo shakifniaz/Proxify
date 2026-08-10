@@ -13,7 +13,7 @@ import {
 
 const props = defineProps({
     studentName: { type: String, default: 'Student' },
-    classLabel: { type: String, default: 'Class 9A' },
+    classLabel: { type: String, default: '' },
     dateLabel: { type: String, default: 'Today' },
     stats: { type: Object, default: () => ({}) },
     todayRoutine: { type: Array, default: () => [] },

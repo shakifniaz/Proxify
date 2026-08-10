@@ -55,6 +55,11 @@ class RoutineGenerator
                     }
                 }
 
+                if ($section['fullCoverageEnabled'] ?? false) {
+                    $this->placeFullCoverageSection($section, $class, $days, $classPeriods, $grid, $teacherBusy, $sectionBusy, $unallocated, $teachers);
+                    continue;
+                }
+
                 $assignments = $this->buildAssignments($class, $section, count($days));
 
                 $this->placeManualAssignments(
@@ -116,6 +121,20 @@ class RoutineGenerator
                     }
                 }
                 unset($assignment);
+
+                $this->fillOpenClassPeriods(
+                    $assignments,
+                    $section,
+                    $class,
+                    $days,
+                    $classPeriods,
+                    $grid,
+                    $teacherBusy,
+                    $sectionBusy,
+                    $subjectDays,
+                    $unallocated,
+                    $teachers
+                );
             }
         }
 
@@ -211,6 +230,13 @@ class RoutineGenerator
                             $section['dailyPeriodsByDay'] ?? $class['dailyPeriodsByDay'] ?? []
                         ),
                         'classTeacherId' => isset($section['classTeacherId']) ? (string) $section['classTeacherId'] : null,
+                        'fullCoverageEnabled' => (bool) ($section['fullCoverageEnabled'] ?? false),
+                        'fullCoverageTeacherId' => isset($section['fullCoverageTeacherId']) ? (string) $section['fullCoverageTeacherId'] : null,
+                        'fullCoverageCoTeacherIds' => array_values(array_unique(array_filter(array_map(
+                            fn ($teacherId) => (string) $teacherId,
+                            $section['fullCoverageCoTeacherIds'] ?? []
+                        )))),
+                        'fullCoverageSubject' => trim((string) ($section['fullCoverageSubject'] ?? 'Class session')) ?: 'Class session',
                         'subjects' => array_values(array_map(fn ($subject, $subjectIndex) => [
                             'id' => (string) ($subject['id'] ?? (($class['id'] ?? $classIndex + 1).'-'.($sectionIndex + 1).'-'.($subjectIndex + 1))),
                             'name' => trim((string) ($subject['name'] ?? 'Subject '.($subjectIndex + 1))),
@@ -227,6 +253,77 @@ class RoutineGenerator
                 }, $class['sections'] ?? [], array_keys($class['sections'] ?? []))),
             ];
         }, $classes, array_keys($classes)));
+    }
+
+    private function placeFullCoverageSection(array $section, array $class, array $days, array $classPeriods, array &$grid, array &$teacherBusy, array &$sectionBusy, array &$unallocated, array $teachers): void
+    {
+        $primaryTeacherId = $section['fullCoverageTeacherId'] ?? $section['classTeacherId'] ?? null;
+        $teacherIds = array_values(array_unique(array_filter([
+            $primaryTeacherId ? (string) $primaryTeacherId : null,
+            ...array_map(fn ($teacherId) => (string) $teacherId, $section['fullCoverageCoTeacherIds'] ?? []),
+        ])));
+
+        if (empty($teacherIds)) {
+            $unallocated[] = [
+                'classLabel' => trim($class['name'].' '.$section['name']),
+                'subject' => $section['fullCoverageSubject'] ?? 'Class session',
+                'teacherId' => null,
+                'teacherName' => '',
+                'remaining' => array_sum($section['dailyPeriodsByDay'] ?? []) ?: (($section['dailyPeriods'] ?? $class['dailyPeriods']) * count($days)),
+                'reason' => 'Full-period coverage is enabled without a selected teacher.',
+            ];
+            return;
+        }
+
+        $sectionKey = $this->sectionKey($class['id'], $section['id']);
+        $subject = $section['fullCoverageSubject'] ?? 'Class session';
+        $primaryTeacherId = $teacherIds[0];
+        $coTeacherIds = array_values(array_diff($teacherIds, [$primaryTeacherId]));
+
+        foreach ($days as $day) {
+            $dailyPeriods = $this->dailyPeriodsForDay($section, $day);
+
+            foreach ($classPeriods as $periodIndex => $period) {
+                if ($periodIndex >= $dailyPeriods) {
+                    continue;
+                }
+
+                $periodKey = $period['key'];
+                $busyTeacherId = collect($teacherIds)->first(fn ($teacherId) => isset($teacherBusy[$day][$teacherId][$periodKey]));
+
+                if ($busyTeacherId || isset($sectionBusy[$sectionKey][$day][$periodKey])) {
+                    $unallocated[] = [
+                        'classLabel' => trim($class['name'].' '.$section['name']),
+                        'subject' => $subject,
+                        'teacherId' => $busyTeacherId,
+                        'teacherName' => $busyTeacherId ? $this->teacherName($teachers, $busyTeacherId) : '',
+                        'remaining' => 1,
+                        'reason' => 'Full-period coverage conflicts with another assignment.',
+                    ];
+                    continue;
+                }
+
+                $cell = [
+                    'type' => 'class',
+                    'subject' => $subject,
+                    'subjectCode' => $this->subjectCode($subject),
+                    'color' => $this->subjectColor($subject),
+                    'classLabel' => trim($class['name'].' '.$section['name']),
+                    'teacherId' => $primaryTeacherId,
+                    'coTeacherIds' => $coTeacherIds,
+                    'coTeacherNames' => array_values(array_map(fn ($teacherId) => $this->teacherName($teachers, $teacherId), $coTeacherIds)),
+                    'periodKey' => $periodKey,
+                    'day' => $day,
+                    'fullCoverage' => true,
+                ];
+
+                $grid[$sectionKey]['days'][$day][$periodKey] = $cell;
+                foreach ($teacherIds as $teacherId) {
+                    $teacherBusy[$day][$teacherId][$periodKey] = $cell;
+                }
+                $sectionBusy[$sectionKey][$day][$periodKey] = true;
+            }
+        }
     }
 
     private function dailyPeriodsForDay(array $class, string $day): int
@@ -322,6 +419,71 @@ class RoutineGenerator
             }
         }
         unset($assignment);
+    }
+
+    private function fillOpenClassPeriods(array &$assignments, array $section, array $class, array $days, array $classPeriods, array &$grid, array &$teacherBusy, array &$sectionBusy, array &$subjectDays, array &$unallocated, array $teachers): void
+    {
+        if (empty($assignments)) {
+            return;
+        }
+
+        $sectionKey = $this->sectionKey($class['id'], $section['id']);
+
+        foreach ($days as $day) {
+            $dailyPeriods = $this->dailyPeriodsForDay($section, $day);
+
+            foreach ($classPeriods as $periodIndex => $period) {
+                if ($periodIndex >= $dailyPeriods) {
+                    continue;
+                }
+
+                $periodKey = $period['key'];
+                if (($grid[$sectionKey]['days'][$day][$periodKey]['type'] ?? 'empty') !== 'empty') {
+                    continue;
+                }
+
+                $assignmentIndex = $this->bestFillerAssignmentIndex($assignments, $class, $section, $day, $period, $grid, $teacherBusy, $sectionBusy, $subjectDays);
+
+                if ($assignmentIndex === null) {
+                    $unallocated[] = [
+                        'classLabel' => trim($class['name'].' '.$section['name']),
+                        'subject' => '',
+                        'teacherId' => null,
+                        'teacherName' => '',
+                        'remaining' => 1,
+                        'reason' => 'No section subject has a free teacher for this class period.',
+                        'day' => $day,
+                        'periodKey' => $periodKey,
+                    ];
+                    continue;
+                }
+
+                $this->placeAssignment($assignments[$assignmentIndex], $class, $section, $day, $period, $grid, $teacherBusy, $sectionBusy, $subjectDays);
+                $assignments[$assignmentIndex]['target']++;
+            }
+        }
+    }
+
+    private function bestFillerAssignmentIndex(array $assignments, array $class, array $section, string $day, array $period, array $grid, array $teacherBusy, array $sectionBusy, array $subjectDays): ?int
+    {
+        $candidates = [];
+
+        foreach ($assignments as $index => $assignment) {
+            if (! $this->canPlace($assignment, $class, $section, $day, $period, $grid, $teacherBusy, $sectionBusy, $subjectDays, true)) {
+                continue;
+            }
+
+            $teacherDayLoad = count($teacherBusy[$day][$assignment['teacherId']] ?? []);
+            $totalPlaced = max(0, ($assignment['target'] ?? 0) - ($assignment['remaining'] ?? 0));
+            $candidates[] = [
+                'index' => $index,
+                'score' => ($totalPlaced * 10) + $teacherDayLoad,
+            ];
+        }
+
+        usort($candidates, fn ($a, $b) => $a['score'] <=> $b['score']);
+
+        return $candidates[0]['index'] ?? null;
     }
 
     private function placeClassTeacherFirstPeriods(array &$assignments, array $section, array $class, array $days, array $classPeriods, array &$grid, array &$teacherBusy, array &$sectionBusy, array &$subjectDays): void

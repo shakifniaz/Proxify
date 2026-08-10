@@ -1,5 +1,13 @@
 <script setup>
+import { computed, ref } from 'vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
+import { getApps, initializeApp } from 'firebase/app';
+import {
+    createUserWithEmailAndPassword,
+    deleteUser,
+    getAuth,
+    updateProfile,
+} from 'firebase/auth';
 import {
     ArrowRight,
     BookOpen,
@@ -14,6 +22,10 @@ import {
 } from 'lucide-vue-next';
 import GuestLayout from '@/Layouts/GuestLayout.vue';
 import InputError from '@/Components/InputError.vue';
+
+const props = defineProps({
+    firebaseConfig: { type: Object, default: () => ({}) },
+});
 
 const form = useForm({
     name: '',
@@ -30,7 +42,11 @@ const form = useForm({
     class_code: '',
     password: '',
     password_confirmation: '',
+    id_token: '',
 });
+
+const firebaseError = ref('');
+const firebaseLoading = ref(false);
 
 const roles = [
     {
@@ -53,9 +69,68 @@ const roles = [
     },
 ];
 
-function submit() {
+const hasFirebaseConfig = computed(() =>
+    ['apiKey', 'authDomain', 'projectId', 'appId'].every((key) => Boolean(props.firebaseConfig?.[key]))
+);
+
+async function loadFirebaseAuth() {
+    const app = getApps().length ? getApps()[0] : initializeApp(props.firebaseConfig);
+
+    return {
+        auth: getAuth(app),
+        createUserWithEmailAndPassword,
+        deleteUser,
+        updateProfile,
+    };
+}
+
+async function submit() {
+    firebaseError.value = '';
+    form.clearErrors();
+
+    if (!hasFirebaseConfig.value) {
+        firebaseError.value = 'Firebase is not configured yet. Add the Firebase keys to .env and clear Laravel config.';
+        return;
+    }
+
+    if (form.password !== form.password_confirmation) {
+        form.setError('password_confirmation', 'The password confirmation does not match.');
+        return;
+    }
+
+    firebaseLoading.value = true;
+    let createdFirebaseUser = null;
+    let deleteFirebaseUser = null;
+
+    try {
+        const firebase = await loadFirebaseAuth();
+        deleteFirebaseUser = firebase.deleteUser;
+        const credential = await firebase.createUserWithEmailAndPassword(firebase.auth, form.email, form.password);
+        createdFirebaseUser = credential.user;
+        await firebase.updateProfile(createdFirebaseUser, { displayName: form.name });
+        form.id_token = await createdFirebaseUser.getIdToken();
+    } catch (error) {
+        firebaseError.value = error?.code === 'auth/email-already-in-use'
+            ? 'This email already has a Firebase account. Please sign in instead.'
+            : `Firebase registration failed: ${error?.code || error?.message || 'Unknown error'}`;
+        firebaseLoading.value = false;
+        return;
+    }
+
     form.post('/register', {
-        onFinish: () => form.reset('password', 'password_confirmation'),
+        onError: async () => {
+            if (createdFirebaseUser && deleteFirebaseUser) {
+                try {
+                    await deleteFirebaseUser(createdFirebaseUser);
+                } catch {
+                    firebaseError.value = 'The local account could not be created. A Firebase account may already exist for this email, so delete it from Firebase Authentication or use another email.';
+                }
+            }
+        },
+        onFinish: () => {
+            firebaseLoading.value = false;
+            form.reset('password', 'password_confirmation', 'id_token');
+        },
     });
 }
 </script>
@@ -116,6 +191,10 @@ function submit() {
                         <p class="mt-2 text-sm text-slate-500">Set up your institute account.</p>
                     </div>
 
+                    <div v-if="firebaseError" class="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">
+                        {{ firebaseError }}
+                    </div>
+
                     <form class="space-y-4" @submit.prevent="submit">
                     <div class="grid grid-cols-3 gap-2">
                         <button
@@ -148,7 +227,7 @@ function submit() {
                         <div class="mt-3 grid gap-3 sm:grid-cols-2">
                             <div class="sm:col-span-2">
                                 <label class="section-title">Institution name</label>
-                                <input v-model="form.institution_name" type="text" class="field-control mt-1 w-full" placeholder="Metropolitan School" />
+                                <input v-model="form.institution_name" type="text" class="field-control mt-1 w-full" placeholder="Institution name" />
                                 <InputError class="mt-1" :message="form.errors.institution_name" />
                             </div>
                             <div>
@@ -243,8 +322,8 @@ function submit() {
                         </div>
                     </div>
 
-                    <button type="submit" class="btn-primary min-h-12 w-full text-base" :disabled="form.processing">
-                        Create account
+                    <button type="submit" class="btn-primary min-h-12 w-full text-base" :disabled="form.processing || firebaseLoading">
+                        {{ firebaseLoading || form.processing ? 'Creating account...' : 'Create account' }}
                         <ArrowRight class="h-4 w-4" />
                     </button>
                     </form>

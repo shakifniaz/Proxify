@@ -32,7 +32,7 @@ const navEl = ref(null);
 const sidebarScrollKey = 'campulse_sidebar_scroll_top';
 
 const authUser = computed(() => ({
-    name: page.props.auth?.user?.name ?? 'Test User',
+    name: page.props.auth?.user?.name ?? 'User',
     role: page.props.auth?.user?.role ?? 'admin', // Defaults to admin if no role is found
 }));
 

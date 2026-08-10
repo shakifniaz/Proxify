@@ -33,16 +33,17 @@ const props = defineProps({
     timeSlots: { type: Array, default: () => [] },
     subjectOptions: { type: Array, default: () => [] },
     classOptions: { type: Array, default: () => [] },
+    classSubjectOptions: { type: Object, default: () => ({}) },
     invigilatorOptions: { type: Array, default: () => [] },
     examGrid: { type: Object, default: () => ({}) },
 });
 
 const canEdit = computed(() => props.pageMode === 'editor' && props.role === 'admin');
 const isViewer = computed(() => props.pageMode === 'viewer');
-const examName = ref(props.session.title || 'Mid-term Examination 2026');
-const examNote = ref(props.session.subtitle || 'Mid-term exams');
-const examStartDate = ref(props.session.startDate || '2026-06-23');
-const examEndDate = ref(props.session.endDate || '2026-06-27');
+const examName = ref(props.session.title || 'New exam schedule');
+const examNote = ref(props.session.subtitle || '');
+const examStartDate = ref(props.session.startDate || '');
+const examEndDate = ref(props.session.endDate || '');
 const activeExamDate = ref(examStartDate.value);
 const activeStep = ref(canEdit.value ? 'Details' : 'Schedule');
 const classMode = ref('all');
@@ -55,7 +56,12 @@ const halls = ref(props.halls.map((hall, index) => ({
     name: hall.name,
     capacity: Number(hall.capacity ?? 30),
 })));
-const timeSlots = ref(props.timeSlots.map((slot, index) => ({
+const defaultTimeSlots = [
+    { key: 'slot-1', label: '09:00-11:00', startLabel: '09:00', endLabel: '11:00' },
+    { key: 'slot-2', label: '11:30-13:30', startLabel: '11:30', endLabel: '13:30' },
+];
+const sourceTimeSlots = props.timeSlots.length ? props.timeSlots : defaultTimeSlots;
+const timeSlots = ref(sourceTimeSlots.map((slot, index) => ({
     key: slot.key ?? `slot-${index + 1}`,
     label: slot.label,
     startLabel: slot.startLabel ?? slot.label?.split('-')[0] ?? '',
@@ -87,20 +93,22 @@ const activeClasses = computed(() => {
 const scheduledSubjectKeys = computed(() => {
     const keys = new Set();
     for (const cell of scheduledCells.value) {
-        keys.add(`${cell.classLabel}::${cell.subject}`);
+        for (const exam of cell.exams ?? []) {
+            keys.add(`${exam.classLabel}::${exam.subject}`);
+        }
     }
     return keys;
 });
 const unscheduledByClass = computed(() => activeClasses.value.map((className) => ({
     className,
-    missing: props.subjectOptions.filter((subject) => !scheduledSubjectKeys.value.has(`${className}::${subject}`)),
+    missing: subjectsForClass(className).filter((subject) => !scheduledSubjectKeys.value.has(`${className}::${subject}`)),
 })));
 const classesWithMissingSubjects = computed(() => unscheduledByClass.value.filter((item) => item.missing.length));
-const totalRequiredExams = computed(() => activeClasses.value.length * props.subjectOptions.length);
+const totalRequiredExams = computed(() => activeClasses.value.reduce((total, className) => total + subjectsForClass(className).length, 0));
 const scheduledRequiredExams = computed(() => {
     let total = 0;
     for (const className of activeClasses.value) {
-        for (const subject of props.subjectOptions) {
+        for (const subject of subjectsForClass(className)) {
             if (scheduledSubjectKeys.value.has(`${className}::${subject}`)) total += 1;
         }
     }
@@ -110,10 +118,10 @@ const coveragePercent = computed(() => Math.round((scheduledRequiredExams.value 
 const examDateOptions = computed(() => {
     if (!examStartDate.value || !examEndDate.value || examStartDate.value > examEndDate.value) return [];
     const dates = [];
-    const current = new Date(`${examStartDate.value}T00:00:00`);
-    const end = new Date(`${examEndDate.value}T00:00:00`);
+    const current = parseLocalDate(examStartDate.value);
+    const end = parseLocalDate(examEndDate.value);
     while (current <= end) {
-        const value = current.toISOString().slice(0, 10);
+        const value = toLocalDateValue(current);
         dates.push({ value, label: formatDate(value) });
         current.setDate(current.getDate() + 1);
     }
@@ -129,8 +137,8 @@ const scheduledCells = computed(() => {
         for (const date of examDateOptions.value) {
             for (const slot of timeSlots.value) {
                 const cell = cellAt(hall.name, date.value, slot.key);
-                if (cell && activeClasses.value.includes(cell.classLabel)) {
-                    cells.push({ ...cell, hallName: hall.name, examDate: date.value, slotKey: slot.key, slotLabel: slot.label });
+                if (cell && cellHasActiveClass(cell)) {
+                    cells.push({ ...cell, hallName: hall.name, examDate: date.value, slotKey: slot.key, slotLabel: slotDisplayLabel(slot) });
                 }
             }
         }
@@ -168,7 +176,7 @@ const conflictGroups = computed(() => {
             const byTeacher = {};
             for (const hall of halls.value) {
                 const cell = cellAt(hall.name, date.value, slot.key);
-                if (!cell || !activeClasses.value.includes(cell.classLabel)) continue;
+                if (!cell || !cellHasActiveClass(cell)) continue;
                 for (const teacher of cell.guards ?? []) {
                     byTeacher[teacher] ??= [];
                     byTeacher[teacher].push(hall.name);
@@ -177,7 +185,7 @@ const conflictGroups = computed(() => {
 
             for (const [teacher, bookedHalls] of Object.entries(byTeacher)) {
                 if (bookedHalls.length > 1) {
-                    groups.push({ teacher, halls: bookedHalls, examDate: date.value, slotKey: slot.key, slotLabel: slot.label });
+                    groups.push({ teacher, halls: bookedHalls, examDate: date.value, slotKey: slot.key, slotLabel: slotDisplayLabel(slot) });
                 }
             }
         }
@@ -193,20 +201,43 @@ const activeSchedule = computed(() => props.schedules.find((schedule) => schedul
 
 function normalizeGrid(source) {
     const normalized = {};
-    for (const [hallName, slots] of Object.entries(source ?? {})) {
+    for (const [hallName, dateOrSlots] of Object.entries(source ?? {})) {
         normalized[hallName] = {};
-        for (const [slotKey, cell] of Object.entries(slots ?? {})) {
+        for (const [key, value] of Object.entries(dateOrSlots ?? {})) {
+            const looksLikeDateBucket = String(key).includes('-') && value && typeof value === 'object' && !('subject' in value) && !('exams' in value);
+            if (looksLikeDateBucket) {
+                normalized[hallName][key] ??= {};
+                for (const [slotKey, cell] of Object.entries(value ?? {})) {
+                    if (!cell) continue;
+                    normalized[hallName][key][slotKey] = normalizeCell(cell);
+                }
+                continue;
+            }
+
+            const cell = value;
             if (!cell) continue;
             const date = cell.examDate ?? examStartDate.value;
             normalized[hallName][date] ??= {};
-            normalized[hallName][date][slotKey] = {
-                subject: cell.subject ?? '',
-                classLabel: cell.classLabel ?? '',
-                guards: Array.isArray(cell.guards) ? cell.guards : [cell.invigilator].filter(Boolean),
-            };
+            normalized[hallName][date][key] = normalizeCell(cell);
         }
     }
     return normalized;
+}
+
+function normalizeCell(cell) {
+    const exams = Array.isArray(cell.exams) && cell.exams.length
+        ? cell.exams
+        : [{ subject: cell.subject ?? '', classLabel: cell.classLabel ?? '' }];
+
+    return {
+        exams: exams
+            .map((exam) => ({
+                subject: exam.subject ?? '',
+                classLabel: exam.classLabel ?? '',
+            }))
+            .filter((exam) => exam.subject && exam.classLabel),
+        guards: Array.isArray(cell.guards) ? cell.guards : [cell.invigilator].filter(Boolean),
+    };
 }
 
 function cellAt(hallName, date, slotKey) {
@@ -216,11 +247,29 @@ function cellAt(hallName, date, slotKey) {
 function shouldShowCell(hallName, date, slotKey) {
     const cell = cellAt(hallName, date, slotKey);
     if (!cell) return !(props.role === 'teacher' && teacherViewMode.value === 'mine');
-    if (!activeClasses.value.includes(cell.classLabel)) return false;
+    if (!cellHasActiveClass(cell)) return false;
     if (props.role === 'teacher' && teacherViewMode.value === 'mine') {
         return (cell.guards ?? []).includes(props.currentTeacherName);
     }
     return true;
+}
+
+function cellHasActiveClass(cell) {
+    return (cell?.exams ?? []).some((exam) => activeClasses.value.includes(exam.classLabel));
+}
+
+function cellTitle(cell) {
+    const exams = cell?.exams ?? [];
+    if (!exams.length) return 'No exam assigned';
+    if (exams.length === 1) return exams[0].subject;
+    return `${exams.length} exam groups`;
+}
+
+function cellSubtitle(cell) {
+    const exams = cell?.exams ?? [];
+    if (!exams.length) return '';
+    if (exams.length === 1) return exams[0].classLabel;
+    return exams.map((exam) => `${exam.classLabel} - ${exam.subject}`).join(', ');
 }
 
 function isConflict(hallName, date, slotKey) {
@@ -229,7 +278,7 @@ function isConflict(hallName, date, slotKey) {
 
 function cellClasses(hallName, date, slotKey) {
     const cell = cellAt(hallName, date, slotKey);
-    if (!cell || !activeClasses.value.includes(cell.classLabel)) return 'border-dashed border-stone-300 bg-stone-50 text-slate-500 hover:border-[#8BED9A] hover:bg-[#8BED9A]/10';
+    if (!cell || !cellHasActiveClass(cell)) return 'border-dashed border-stone-300 bg-stone-50 text-slate-500 hover:border-[#8BED9A] hover:bg-[#8BED9A]/10';
     if (isConflict(hallName, date, slotKey)) return 'border-red-300 bg-red-50 text-red-900 ring-2 ring-red-100';
     return 'border-[#8BED9A]/70 bg-[#8BED9A]/14 text-[#1e2924] hover:bg-[#8BED9A]/20';
 }
@@ -246,6 +295,38 @@ function makeActive(schedule) {
 function clearActiveSchedule() {
     openMenuId.value = null;
     router.post('/exam-schedule/none/activate', {}, { preserveScroll: true });
+}
+
+function examSchedulePayload() {
+    return {
+        name: examName.value,
+        subtitle: examNote.value,
+        start_date: examStartDate.value || null,
+        end_date: examEndDate.value || null,
+        halls: halls.value,
+        time_slots: timeSlots.value,
+        class_options: props.classOptions,
+        subject_options: props.subjectOptions,
+        invigilator_options: props.invigilatorOptions,
+        exam_grid: grid.value,
+    };
+}
+
+function saveSchedule() {
+    const payload = examSchedulePayload();
+    if (!payload.name.trim()) return;
+
+    if (props.session.id) {
+        router.put(`/exam-schedule/${props.session.id}`, payload, { preserveScroll: true });
+        return;
+    }
+
+    router.post('/exam-schedule', payload, { preserveScroll: true });
+}
+
+function deleteSchedule(schedule) {
+    openMenuId.value = null;
+    router.delete(`/exam-schedule/${schedule.id}`, { preserveScroll: true });
 }
 
 function addHall() {
@@ -292,6 +373,17 @@ function toggleClass(className) {
         : [...selectedClasses.value, className];
 }
 
+function subjectsForClass(className) {
+    const classSubjects = props.classSubjectOptions?.[className] ?? [];
+    return classSubjects.length ? classSubjects : props.subjectOptions;
+}
+
+function handleExamClassChange(exam) {
+    if (!subjectsForClass(exam.classLabel).includes(exam.subject)) {
+        exam.subject = '';
+    }
+}
+
 function openEditor(hallName, date, slotKey) {
     if (!canEdit.value) return;
     const cell = cellAt(hallName, date, slotKey);
@@ -300,8 +392,9 @@ function openEditor(hallName, date, slotKey) {
         slotKey,
         examDate: date,
         originalExamDate: date,
-        subject: cell?.subject ?? '',
-        classLabel: cell?.classLabel ?? activeClasses.value[0] ?? '',
+        exams: cell?.exams?.length
+            ? cell.exams.map((exam) => ({ ...exam }))
+            : [{ subject: '', classLabel: activeClasses.value[0] ?? '' }],
         guards: [...(cell?.guards ?? [])],
     };
 }
@@ -317,16 +410,30 @@ function toggleGuard(name) {
         : [...editing.value.guards, name];
 }
 
+function addExamGroup() {
+    if (!editing.value) return;
+    editing.value.exams.push({ classLabel: activeClasses.value[0] ?? '', subject: '' });
+}
+
+function removeExamGroup(index) {
+    if (!editing.value || editing.value.exams.length <= 1) return;
+    editing.value.exams.splice(index, 1);
+}
+
+function validExamGroups() {
+    return (editing.value?.exams ?? []).filter((exam) => exam.classLabel && exam.subject);
+}
+
 function saveEditor() {
-    if (!editing.value?.examDate || !editing.value?.subject || !editing.value?.classLabel || !editing.value.guards.length) return;
+    const exams = validExamGroups();
+    if (!editing.value?.examDate || !exams.length || !editing.value.guards.length) return;
     grid.value[editing.value.hallName] ??= {};
     if (editing.value.originalExamDate !== editing.value.examDate && grid.value[editing.value.hallName]?.[editing.value.originalExamDate]) {
         grid.value[editing.value.hallName][editing.value.originalExamDate][editing.value.slotKey] = null;
     }
     grid.value[editing.value.hallName][editing.value.examDate] ??= {};
     grid.value[editing.value.hallName][editing.value.examDate][editing.value.slotKey] = {
-        subject: editing.value.subject,
-        classLabel: editing.value.classLabel,
+        exams: exams.map((exam) => ({ ...exam })),
         guards: [...editing.value.guards],
     };
     closeEditor();
@@ -349,10 +456,40 @@ function printPage() {
     window.print();
 }
 
+function parseLocalDate(value) {
+    const [year, month, day] = String(value || '').split('-').map(Number);
+    return new Date(year, month - 1, day);
+}
+
+function toLocalDateValue(date) {
+    return [
+        date.getFullYear(),
+        String(date.getMonth() + 1).padStart(2, '0'),
+        String(date.getDate()).padStart(2, '0'),
+    ].join('-');
+}
+
 function formatDate(value) {
     const [year, month, day] = String(value || '').split('-');
     if (!year || !month || !day) return value || '';
     return `${day}/${month}/${year.slice(-2)}`;
+}
+
+function formatTimeLabel(value) {
+    const [hourValue, minuteValue = '00'] = String(value || '').trim().split(':');
+    const hour = Number(hourValue);
+    if (Number.isNaN(hour)) return value || '';
+    const period = hour >= 12 ? 'PM' : 'AM';
+    const displayHour = hour % 12 || 12;
+    return `${displayHour}:${minuteValue.padStart(2, '0')} ${period}`;
+}
+
+function slotDisplayLabel(slot) {
+    const [labelStart = '', labelEnd = ''] = String(slot.label || '').split('-');
+    const start = slot.startLabel || labelStart.trim();
+    const end = slot.endLabel || labelEnd.trim();
+    if (!start || !end) return slot.label || '';
+    return `${formatTimeLabel(start)} - ${formatTimeLabel(end)}`;
 }
 </script>
 
@@ -425,6 +562,10 @@ function formatDate(value) {
                                 <Eye class="h-4 w-4" />
                                 Open schedule
                             </Link>
+                            <button type="button" class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-bold text-red-700 hover:bg-red-50" @click="deleteSchedule(schedule)">
+                                <Trash2 class="h-4 w-4" />
+                                Delete schedule
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -445,9 +586,13 @@ function formatDate(value) {
                     </div>
                     <div class="flex flex-wrap items-center gap-2">
                         <Link href="/exam-schedule" class="btn-secondary">All schedules</Link>
-                        <button type="button" class="btn-primary min-h-11" @click="printPage">
+                        <button type="button" class="btn-secondary min-h-11" @click="printPage">
                             <Printer class="h-4 w-4" />
                             Print
+                        </button>
+                        <button type="button" class="btn-primary min-h-11" :disabled="!examName.trim()" @click="saveSchedule">
+                            <CheckCircle2 class="h-4 w-4" />
+                            Save draft
                         </button>
                     </div>
                 </div>
@@ -529,11 +674,11 @@ function formatDate(value) {
                             <div class="space-y-5 bg-white p-5">
                                 <div>
                                     <label class="section-title">Exam name</label>
-                                    <input v-model="examName" class="field-control mt-1 w-full bg-white text-lg font-black text-[#1e2924]" placeholder="Example: June 2026 Mid-term" />
+                                    <input v-model="examName" class="field-control mt-1 w-full bg-white text-lg font-black text-[#1e2924]" placeholder="Exam schedule name" />
                                 </div>
                                 <div>
                                     <label class="section-title">Short note</label>
-                                    <input v-model="examNote" class="field-control mt-1 w-full bg-white" placeholder="Example: Mid-term exams" />
+                                    <input v-model="examNote" class="field-control mt-1 w-full bg-white" placeholder="Optional note" />
                                 </div>
                                 <div class="grid gap-3 sm:grid-cols-2">
                                     <div>
@@ -637,7 +782,7 @@ function formatDate(value) {
                                 </div>
                                 <div class="mt-4 max-h-44 space-y-2 overflow-y-auto pr-1">
                                     <div v-for="slot in timeSlots" :key="slot.key" class="flex items-center justify-between gap-3 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2">
-                                        <p class="text-sm font-black text-[#1e2924]">{{ slot.label }}</p>
+                                        <p class="text-sm font-black text-[#1e2924]">{{ slotDisplayLabel(slot) }}</p>
                                         <button type="button" class="rounded-lg p-2 text-red-600 transition hover:bg-red-50" @click="removeSlot(slot.key)">
                                             <X class="h-4 w-4" />
                                         </button>
@@ -683,7 +828,7 @@ function formatDate(value) {
                                     <div class="min-w-[880px]">
                                         <div class="grid border-b border-stone-200 bg-stone-50" :style="gridStyle">
                                             <div class="px-4 py-3 text-xs font-black uppercase tracking-[0.14em] text-slate-500">Hall</div>
-                                            <div v-for="slot in timeSlots" :key="slot.key" class="border-l border-stone-200 px-3 py-3 text-center text-xs font-black uppercase tracking-[0.14em] text-slate-500">{{ slot.label }}</div>
+                                            <div v-for="slot in timeSlots" :key="slot.key" class="border-l border-stone-200 px-3 py-3 text-center text-xs font-black uppercase tracking-[0.14em] text-slate-500">{{ slotDisplayLabel(slot) }}</div>
                                         </div>
 
                                         <div v-for="hall in halls" :key="hall.id" class="grid border-b border-stone-200 last:border-b-0" :style="gridStyle">
@@ -693,7 +838,7 @@ function formatDate(value) {
                                             </div>
                                             <div v-for="slot in timeSlots" :key="slot.key" class="border-l border-stone-200 bg-white p-2">
                                                 <button v-if="shouldShowCell(hall.name, currentExamDate, slot.key)" type="button" class="min-h-28 w-full rounded-xl border p-3 text-left transition" :class="[cellClasses(hall.name, currentExamDate, slot.key), canEdit ? 'hover:-translate-y-0.5 hover:shadow-sm' : 'cursor-default']" @click="openEditor(hall.name, currentExamDate, slot.key)">
-                                                    <template v-if="!cellAt(hall.name, currentExamDate, slot.key) || !activeClasses.includes(cellAt(hall.name, currentExamDate, slot.key).classLabel)">
+                                                    <template v-if="!cellAt(hall.name, currentExamDate, slot.key) || !cellHasActiveClass(cellAt(hall.name, currentExamDate, slot.key))">
                                                         <span class="flex h-full min-h-20 items-center justify-center gap-2 text-xs font-black">
                                                             <Plus v-if="canEdit" class="h-4 w-4" />
                                                             {{ canEdit ? 'Add exam' : 'No exam' }}
@@ -701,10 +846,10 @@ function formatDate(value) {
                                                     </template>
                                                     <template v-else>
                                                         <div class="flex items-start justify-between gap-2">
-                                                            <p class="text-sm font-black">{{ cellAt(hall.name, currentExamDate, slot.key).subject }}</p>
+                                                            <p class="text-sm font-black">{{ cellTitle(cellAt(hall.name, currentExamDate, slot.key)) }}</p>
                                                             <Pencil v-if="canEdit" class="h-4 w-4 text-[#09B884]" />
                                                         </div>
-                                                        <p class="mt-1 text-xs font-bold">{{ cellAt(hall.name, currentExamDate, slot.key).classLabel }}</p>
+                                                        <p class="mt-1 line-clamp-2 text-xs font-bold">{{ cellSubtitle(cellAt(hall.name, currentExamDate, slot.key)) }}</p>
                                                         <div class="mt-3 flex flex-wrap gap-1.5">
                                                             <span v-for="guard in cellAt(hall.name, currentExamDate, slot.key).guards" :key="`${hall.name}-${currentExamDate}-${slot.key}-${guard}`" class="rounded-full bg-white/80 px-2 py-1 text-[11px] font-bold">{{ guard }}</span>
                                                         </div>
@@ -766,7 +911,7 @@ function formatDate(value) {
                                 </div>
                                 <div class="mt-3 space-y-1.5">
                                     <p v-for="cell in duty.duties" :key="`${duty.teacher}-${cell.hallName}-${cell.slotKey}`" class="rounded-lg bg-stone-50 px-3 py-2 text-xs font-semibold text-slate-600">
-                                        {{ formatDate(cell.examDate) }} - {{ cell.hallName }} - {{ cell.slotLabel }} - {{ cell.classLabel }}
+                                        {{ formatDate(cell.examDate) }} - {{ cell.hallName }} - {{ cell.slotLabel }} - {{ cellSubtitle(cell) }}
                                     </p>
                                 </div>
                             </div>
@@ -785,9 +930,9 @@ function formatDate(value) {
                         Next
                         <ArrowRight class="h-4 w-4" />
                     </button>
-                    <button v-else type="button" class="btn-primary min-h-11" @click="printPage">
-                        <Printer class="h-4 w-4" />
-                        Print schedule
+                    <button v-else type="button" class="btn-primary min-h-11" :disabled="!examName.trim()" @click="saveSchedule">
+                        <CheckCircle2 class="h-4 w-4" />
+                        Save schedule
                     </button>
                 </div>
             </section>
@@ -800,7 +945,7 @@ function formatDate(value) {
                         <div class="flex items-start justify-between gap-4">
                             <div>
                                 <p class="text-base font-black text-[#1e2924]">Schedule exam slot</p>
-                                <p class="mt-1 text-xs font-semibold text-slate-500">{{ editing.hallName }} - {{ timeSlots.find((slot) => slot.key === editing.slotKey)?.label }}</p>
+                                <p class="mt-1 text-xs font-semibold text-slate-500">{{ editing.hallName }} - {{ slotDisplayLabel(timeSlots.find((slot) => slot.key === editing.slotKey) ?? {}) }}</p>
                             </div>
                             <button type="button" class="rounded-lg p-2 text-slate-500 transition hover:bg-stone-100" @click="closeEditor">
                                 <X class="h-4 w-4" />
@@ -808,7 +953,7 @@ function formatDate(value) {
                         </div>
                     </div>
                     <div class="space-y-4 p-5">
-                        <div class="grid gap-4 sm:grid-cols-3">
+                        <div class="grid gap-4 sm:grid-cols-1">
                             <div>
                                 <label class="section-title">Date</label>
                                 <select v-model="editing.examDate" class="field-control mt-1 w-full bg-white">
@@ -816,19 +961,29 @@ function formatDate(value) {
                                     <option v-for="date in examDateOptions" :key="date.value" :value="date.value">{{ date.label }}</option>
                                 </select>
                             </div>
-                            <div>
-                                <label class="section-title">Subject</label>
-                                <select v-model="editing.subject" class="field-control mt-1 w-full bg-white">
-                                    <option value="" disabled>Select subject</option>
-                                    <option v-for="subject in subjectOptions" :key="subject" :value="subject">{{ subject }}</option>
-                                </select>
+                        </div>
+
+                        <div>
+                            <div class="flex items-center justify-between gap-3">
+                                <label class="section-title">Classes and subjects in this slot</label>
+                                <button type="button" class="rounded-lg border border-[#8BED9A]/70 bg-[#8BED9A]/15 px-3 py-1.5 text-xs font-black text-[#1e2924] transition hover:bg-[#8BED9A]/25" @click="addExamGroup">
+                                    Add group
+                                </button>
                             </div>
-                            <div>
-                                <label class="section-title">Class</label>
-                                <select v-model="editing.classLabel" class="field-control mt-1 w-full bg-white">
-                                    <option value="" disabled>Select class</option>
-                                    <option v-for="className in activeClasses" :key="className" :value="className">{{ className }}</option>
-                                </select>
+                            <div class="mt-2 space-y-2">
+                                <div v-for="(exam, index) in editing.exams" :key="`exam-group-${index}`" class="grid gap-2 rounded-xl border border-stone-200 bg-stone-50 p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_2.5rem]">
+                                    <select v-model="exam.classLabel" class="field-control bg-white" @change="handleExamClassChange(exam)">
+                                        <option value="" disabled>Select class/section</option>
+                                        <option v-for="className in activeClasses" :key="className" :value="className">{{ className }}</option>
+                                    </select>
+                                    <select v-model="exam.subject" class="field-control bg-white">
+                                        <option value="" disabled>Select subject</option>
+                                        <option v-for="subject in subjectsForClass(exam.classLabel)" :key="subject" :value="subject">{{ subject }}</option>
+                                    </select>
+                                    <button type="button" class="flex min-h-11 items-center justify-center rounded-xl border border-red-200 bg-white text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40" :disabled="editing.exams.length <= 1" @click="removeExamGroup(index)">
+                                        <X class="h-4 w-4" />
+                                    </button>
+                                </div>
                             </div>
                         </div>
 
@@ -848,7 +1003,7 @@ function formatDate(value) {
                         <button type="button" class="rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-black text-red-700 transition hover:bg-red-50" @click="clearCell">Clear slot</button>
                         <div class="flex gap-2">
                             <button type="button" class="rounded-xl border border-stone-200 bg-white px-4 py-2 text-sm font-black text-slate-700 transition hover:bg-stone-100" @click="closeEditor">Cancel</button>
-                            <button type="button" class="rounded-xl bg-[#1e2924] px-5 py-2 text-sm font-black text-white shadow-md shadow-[#1e2924]/15 transition hover:bg-[#1e2924]/90 disabled:cursor-not-allowed disabled:bg-slate-300" :disabled="!editing.examDate || !editing.subject || !editing.classLabel || !editing.guards.length" @click="saveEditor">Save slot</button>
+                            <button type="button" class="rounded-xl bg-[#1e2924] px-5 py-2 text-sm font-black text-white shadow-md shadow-[#1e2924]/15 transition hover:bg-[#1e2924]/90 disabled:cursor-not-allowed disabled:bg-slate-300" :disabled="!editing.examDate || !validExamGroups().length || !editing.guards.length" @click="saveEditor">Save slot</button>
                         </div>
                     </div>
                 </div>

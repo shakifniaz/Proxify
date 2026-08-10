@@ -77,14 +77,17 @@ class RoutineController extends Controller
                     'id' => $section->id,
                     'name' => $section->section_name,
                     'classTeacherId' => $section->class_teacher_profile_id,
-                    'subjects' => ($section->subjects && count($section->subjects)) ? $section->subjects : ['Mathematics', 'English'],
+                    'subjects' => ($section->subjects && count($section->subjects)) ? $section->subjects : [],
                 ])->values()->all(),
             ])
             ->values()
             ->all();
 
         return Inertia::render('Routines/Create', [
-            'classesConfig' => config('routine_demo.classes_config'),
+            'classesConfig' => [
+                'numberOfClasses' => count($sections),
+                'maxPeriodsPerDay' => 7,
+            ],
             'classes' => $sections,
             'teachersConfig' => ['numberOfTeachers' => count($teachers)],
             'teachers' => $teachers,

@@ -18,6 +18,7 @@ class PasswordResetLinkController extends Controller
     public function create(): Response
     {
         return Inertia::render('Auth/ForgotPassword', [
+            'firebaseConfig' => config('services.firebase'),
             'status' => session('status'),
         ]);
     }

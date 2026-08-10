@@ -3,11 +3,13 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Auth\LoginRequest;
+use App\Models\User;
+use App\Services\FirebaseTokenVerifier;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -20,6 +22,7 @@ class AuthenticatedSessionController extends Controller
     {
         return Inertia::render('Auth/Login', [
             'canResetPassword' => Route::has('password.request'),
+            'firebaseConfig' => config('services.firebase'),
             'status' => session('status'),
         ]);
     }
@@ -27,9 +30,38 @@ class AuthenticatedSessionController extends Controller
     /**
      * Handle an incoming authentication request.
      */
-    public function store(LoginRequest $request): RedirectResponse
+    public function store(Request $request, FirebaseTokenVerifier $firebase): RedirectResponse
     {
-        $request->authenticate();
+        $request->validate([
+            'email' => ['required', 'email'],
+            'id_token' => ['required', 'string'],
+            'remember' => ['nullable', 'boolean'],
+        ]);
+
+        $payload = $firebase->verify($request->string('id_token')->toString());
+        $email = strtolower((string) ($payload['email'] ?? ''));
+        $uid = (string) ($payload['sub'] ?? '');
+
+        if ($email !== strtolower($request->string('email')->toString())) {
+            throw ValidationException::withMessages(['email' => 'Firebase account does not match this email address.']);
+        }
+
+        $user = User::query()
+            ->where('firebase_uid', $uid)
+            ->orWhere(function ($query) use ($email) {
+                $query->where('email', $email)->whereNull('firebase_uid');
+            })
+            ->first();
+
+        if (! $user) {
+            throw ValidationException::withMessages(['email' => 'No Campulse account is connected to this Firebase user.']);
+        }
+
+        if (! $user->firebase_uid) {
+            $user->update(['firebase_uid' => $uid]);
+        }
+
+        Auth::login($user, $request->boolean('remember'));
 
         $request->session()->regenerate();
 

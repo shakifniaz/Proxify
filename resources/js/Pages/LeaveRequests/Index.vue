@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { router, usePage } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import {
@@ -28,7 +28,7 @@ const props = defineProps({
 
 const page = usePage();
 const isAdmin = computed(() => (page.props.auth?.user?.role ?? 'admin') === 'admin');
-const currentUser = computed(() => page.props.auth?.user?.name || 'Shakif Niaz');
+const currentUser = computed(() => page.props.auth?.user?.name || 'User');
 
 const localRequests = ref(props.requests.map((request) => ({ ...request })));
 const teacherAllowances = ref(
@@ -46,6 +46,26 @@ const teacherAllowances = ref(
         discretionary: Number(teacher.discretionary ?? 0),
     }))
 );
+
+watch(() => props.requests, (requests) => {
+    localRequests.value = requests.map((request) => ({ ...request }));
+}, { deep: true });
+
+watch(() => props.leaveBalances, (balances) => {
+    teacherAllowances.value = balances.map((teacher, index) => ({
+        id: teacher.id ?? index + 1,
+        routineId: teacher.routineId ?? null,
+        teacher: teacher.teacher,
+        subject: teacher.subject ?? '',
+        maxLeaves: Number(teacher.maxLeaves ?? 12),
+        used: Number(teacher.used ?? 0),
+        pending: Number(teacher.pending ?? 0),
+        paid: Number(teacher.paid ?? 0),
+        casual: Number(teacher.casual ?? 0),
+        unpaid: Number(teacher.unpaid ?? 0),
+        discretionary: Number(teacher.discretionary ?? 0),
+    }));
+}, { deep: true });
 
 const typeFilter = ref('All types');
 const statusFilter = ref('All status');
@@ -235,16 +255,10 @@ function typeClass(type) {
 function setRequestStatus(id, status) {
     const request = localRequests.value.find((item) => item.id === id);
     if (!request) return;
-    request.status = status;
-    request.proxyRelevant = status === 'approved';
 
-    const teacher = teacherAllowances.value.find((item) => item.teacher === request.teacherName);
-    if (!teacher) return;
-
-    teacher.pending = Math.max(0, localRequests.value.filter((item) => item.teacherName === teacher.teacher && item.status === 'pending').length);
-    teacher.used = localRequests.value
-        .filter((item) => item.teacherName === teacher.teacher && item.status === 'approved')
-        .reduce((sum, item) => sum + item.days, 0);
+    router.patch(`/leave-requests/${id}/status`, { status }, {
+        preserveScroll: true,
+    });
 }
 
 function saveTeacherAllowance(teacher) {
@@ -283,36 +297,32 @@ function saveTeacherAllowance(teacher) {
 function submitLeaveRequest() {
     if (!canSubmitLeaveRequest.value) return;
 
-    const start = new Date(`${requestForm.value.startDate}T00:00:00`);
-    const end = new Date(`${requestForm.value.endDate}T00:00:00`);
-    const days = Math.max(1, Math.round((end - start) / 86400000) + 1);
     const teacherName = isAdmin.value ? selectedTeacher.value?.teacher : currentUser.value;
-
-    localRequests.value.unshift({
-        id: Date.now(),
+    router.post('/leave-requests', {
+        routineId: selectedTeacher.value?.routineId ?? null,
+        teacherId: isAdmin.value ? String(selectedTeacher.value?.id ?? '') : null,
         teacherName,
-        initials: initials(teacherName),
         subject: selectedTeacher.value?.subject ?? '',
         type: requestForm.value.type,
-        dateRange: `${formatDate(requestForm.value.startDate)} - ${formatDate(requestForm.value.endDate)}`,
-        days,
+        startDate: requestForm.value.startDate,
+        endDate: requestForm.value.endDate,
         duration: requestForm.value.duration,
-        status: 'pending',
-        reason: requestForm.value.reason,
-        submittedAt: 'Just now',
-        proxyRelevant: false,
         periods: [...selectedLeavePeriodKeys.value],
+        reason: requestForm.value.reason,
+    }, {
+        preserveScroll: true,
+        onSuccess: () => {
+            requestForm.value = {
+                type: props.typeOptions[0] ?? 'Paid leave',
+                startDate: '',
+                endDate: '',
+                duration: 'Full day',
+                reason: '',
+            };
+            selectedTeacherId.value = null;
+            selectedLeavePeriodKeys.value = [...periodKeys.value];
+        },
     });
-
-    requestForm.value = {
-        type: props.typeOptions[0] ?? 'Paid leave',
-        startDate: '',
-        endDate: '',
-        duration: 'Full day',
-        reason: '',
-    };
-    selectedTeacherId.value = null;
-    selectedLeavePeriodKeys.value = [...periodKeys.value];
 }
 
 function formatDate(value) {
@@ -325,7 +335,7 @@ selectedLeavePeriodKeys.value = [...periodKeys.value];
 </script>
 
 <template>
-    <AppLayout title="Leave Management">
+    <AppLayout title="Leave Management" live-refresh :refresh-interval="12000">
         <div class="space-y-5">
             <template v-if="isAdmin">
                 <div class="space-y-5">

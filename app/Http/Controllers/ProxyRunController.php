@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\ProxyRun;
 use App\Models\ProxySubjectGroup;
 use App\Models\Routine;
+use App\Models\LeaveRequest;
 use App\Services\ProxyEngine;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -457,75 +458,27 @@ class ProxyRunController extends Controller
 
     private function defaultSubjectGroups(array $routineSubjects = []): array
     {
-        $groups = [
-            ['id' => 'science', 'name' => 'Science', 'subjects' => ['physics', 'chemistry', 'biology', 'science', 'sci', 'bio', 'chem', 'phy']],
-            ['id' => 'math', 'name' => 'Mathematics', 'subjects' => ['math', 'mathematics', 'higher mathematics', 'h.math', 'h.math1', 'math1', 'math2']],
-            ['id' => 'language', 'name' => 'Language', 'subjects' => ['english', 'eng', 'e1', 'e2', 'bangla', 'bang', 'b1', 'b2', 'lit', 'lang']],
-            ['id' => 'social', 'name' => 'Social studies', 'subjects' => ['bgs', 'history', 's.std', 'social studies', 'geography']],
-            ['id' => 'commerce', 'name' => 'Commerce', 'subjects' => ['accounting', 'acc', 'acc1', 'business', 'b.ent', 'bom', 'f&b', 'pmm']],
-        ];
-
-        if (empty($routineSubjects)) {
-            return $groups;
-        }
-
-        $subjectsByKey = collect($routineSubjects)->mapWithKeys(fn ($subject) => [strtolower($subject) => $subject]);
-
-        return array_map(function ($group) use ($subjectsByKey) {
-            $matched = collect($group['subjects'])
-                ->map(fn ($subject) => $subjectsByKey->get(strtolower($subject)))
-                ->filter()
-                ->unique(fn ($subject) => strtolower($subject))
-                ->values()
-                ->all();
-
-            return array_merge($group, ['subjects' => $matched]);
-        }, $groups);
+        return [];
     }
 
     private function approvedLeaveAbsences(Routine $routine): array
     {
-        $teachers = collect($this->routinePayload($routine)['teachers'] ?? [])
-            ->filter(fn ($teacher) => filled($teacher['id'] ?? null))
-            ->values();
-        $periods = collect($routine->periods ?? [])
-            ->filter(fn ($period) => ($period['type'] ?? 'class') === 'class')
-            ->pluck('key')
-            ->filter()
-            ->values();
-
-        if ($teachers->isEmpty()) {
-            return [];
-        }
-
-        $mockLeaves = [
-            [
-                'teacher' => $teachers->get(0),
-                'periodKeys' => $periods->all(),
-                'type' => 'Sick leave',
-                'dateRange' => 'Today',
-                'note' => 'Approved full-day leave',
-            ],
-            [
-                'teacher' => $teachers->get(1),
-                'periodKeys' => $periods->slice(1, 2)->values()->all(),
-                'type' => 'Emergency leave',
-                'dateRange' => 'Today',
-                'note' => 'Approved for selected periods',
-            ],
-        ];
-
-        return collect($mockLeaves)
-            ->filter(fn ($leave) => filled($leave['teacher']['id'] ?? null))
-            ->map(fn ($leave, $index) => [
-                'id' => 'mock-approved-'.$index,
-                'teacherId' => (string) $leave['teacher']['id'],
-                'teacherName' => $leave['teacher']['name'] ?? 'Teacher',
-                'periodKeys' => $leave['periodKeys'],
-                'type' => $leave['type'],
-                'dateRange' => $leave['dateRange'],
+        return LeaveRequest::query()
+            ->where('routine_id', $routine->id)
+            ->where('status', 'approved')
+            ->where('proxy_relevant', true)
+            ->whereDate('end_date', '>=', now()->toDateString())
+            ->latest()
+            ->get()
+            ->map(fn (LeaveRequest $leave) => [
+                'id' => 'leave-'.$leave->id,
+                'teacherId' => (string) $leave->teacher_id,
+                'teacherName' => $leave->teacher_name,
+                'periodKeys' => $leave->periods ?? [],
+                'type' => $leave->type,
+                'dateRange' => $leave->start_date->format('d/m/y').' - '.$leave->end_date->format('d/m/y'),
                 'status' => 'approved',
-                'note' => $leave['note'],
+                'note' => $leave->duration,
             ])
             ->values()
             ->all();

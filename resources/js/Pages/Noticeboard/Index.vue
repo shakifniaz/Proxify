@@ -1,6 +1,6 @@
 <script setup>
-import { computed, ref } from 'vue';
-import { usePage } from '@inertiajs/vue3';
+import { computed, ref, watch } from 'vue';
+import { router, usePage } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import {
     BadgeCheck,
@@ -24,61 +24,44 @@ const props = defineProps({
     staffNotices: { type: Array, default: () => [] },
     urgencyOptions: { type: Array, default: () => ['Low', 'Normal', 'Important', 'Urgent'] },
     visibilityOptions: { type: Array, default: () => ['All', 'Teachers', 'Admins'] },
-    totalStaff: { type: Number, default: 18 },
+    totalStaff: { type: Number, default: 0 },
 });
 
 const page = usePage();
 const authUser = computed(() => ({
-    name: page.props.auth?.user?.name ?? 'Shakif Niaz',
+    name: page.props.auth?.user?.name ?? 'User',
     role: page.props.auth?.user?.role ?? 'admin',
 }));
 const isAdmin = computed(() => authUser.value.role?.toLowerCase() === 'admin');
 const isTeacher = computed(() => authUser.value.role?.toLowerCase() === 'teacher');
 const canUseStaffBoard = computed(() => isAdmin.value || isTeacher.value);
 
-const fallbackStaffNotices = [
-    {
-        id: 101,
-        title: 'Class 10-A projector handoff',
-        message: 'Presentation started late. Please give them five minutes at the beginning of next period to close their slides properly.',
-        urgency: 'Important',
-        postedBy: 'Mrs. Ananya',
-        postedDate: '10 mins ago',
-        acknowledgedBy: ['Mr. Rahman', 'Ms. Karim'],
-        owner: false,
-    },
-    {
-        id: 102,
-        title: 'Science Lab B setup',
-        message: 'Circuit calibration meters are wired on row 3 for the sixth period lab. Please keep the layout unchanged.',
-        urgency: 'Normal',
-        postedBy: authUser.value.name,
-        postedDate: '1 hour ago',
-        acknowledgedBy: ['Ms. Islam'],
-        owner: true,
-    },
-    {
-        id: 103,
-        title: 'Friday period swap request',
-        message: 'Looking to trade my Friday afternoon fifth period for a morning slot because of an external conference.',
-        urgency: 'Low',
-        postedBy: 'Ms. Khan',
-        postedDate: '3 hours ago',
-        acknowledgedBy: [],
-        owner: false,
-    },
-];
-
 const institutional = ref((props.institutionalNotices.length ? props.institutionalNotices : props.notices).map((notice) => ({
     visibility: 'All',
     totalViewers: props.totalStaff,
     ...notice,
 })));
-const staff = ref((props.staffNotices.length ? props.staffNotices : fallbackStaffNotices).map((notice) => ({
+const staff = ref(props.staffNotices.map((notice) => ({
     acknowledgedBy: [],
     owner: notice.postedBy === authUser.value.name,
     ...notice,
 })));
+
+watch(() => props.institutionalNotices, (notices) => {
+    institutional.value = (notices.length ? notices : props.notices).map((notice) => ({
+        visibility: 'All',
+        totalViewers: props.totalStaff,
+        ...notice,
+    }));
+}, { deep: true });
+
+watch(() => props.staffNotices, (notices) => {
+    staff.value = notices.map((notice) => ({
+        acknowledgedBy: [],
+        owner: notice.postedBy === authUser.value.name,
+        ...notice,
+    }));
+}, { deep: true });
 
 const activeTab = ref('institutional');
 const search = ref('');
@@ -162,33 +145,28 @@ function resetForm() {
 function submitNotice() {
     if (!form.value.title.trim() || !form.value.message.trim()) return;
 
-    const target = activeTab.value === 'institutional' ? institutional : staff;
-    const existing = target.value.find((notice) => notice.id === editingNoticeId.value);
-
-    if (existing) {
-        existing.title = form.value.title;
-        existing.message = form.value.message;
-        existing.urgency = form.value.urgency;
-        existing.visibility = activeTab.value === 'institutional' ? form.value.visibility : undefined;
-        resetForm();
-        return;
-    }
-
-    target.value.unshift({
-        id: Date.now(),
+    const payload = {
+        board: activeTab.value,
         title: form.value.title,
         message: form.value.message,
         urgency: form.value.urgency,
         visibility: activeTab.value === 'institutional' ? form.value.visibility : undefined,
-        postedBy: activeTab.value === 'institutional' ? 'Admin' : authUser.value.name,
-        postedDate: 'Just now',
-        readCount: 0,
-        totalViewers: activeTab.value === 'institutional' ? props.totalStaff : undefined,
-        acknowledgedBy: [],
-        owner: activeTab.value === 'staff',
-    });
+    };
 
-    resetForm();
+    if (editingNoticeId.value) {
+        router.patch(`/noticeboard/${editingNoticeId.value}`, payload, {
+            preserveScroll: true,
+            preserveState: false,
+            onSuccess: resetForm,
+        });
+        return;
+    }
+
+    router.post('/noticeboard', payload, {
+        preserveScroll: true,
+        preserveState: false,
+        onSuccess: resetForm,
+    });
 }
 
 function editNotice(notice) {
@@ -202,9 +180,13 @@ function editNotice(notice) {
 }
 
 function deleteNotice(notice) {
-    const target = activeTab.value === 'institutional' ? institutional : staff;
-    target.value = target.value.filter((item) => item.id !== notice.id);
-    if (editingNoticeId.value === notice.id) resetForm();
+    router.delete(`/noticeboard/${notice.id}`, {
+        preserveScroll: true,
+        preserveState: false,
+        onSuccess: () => {
+            if (editingNoticeId.value === notice.id) resetForm();
+        },
+    });
 }
 
 function canManageNotice(notice) {
@@ -217,12 +199,10 @@ function hasAcknowledged(notice) {
 
 function toggleAcknowledge(notice) {
     if (activeTab.value !== 'staff') return;
-    notice.acknowledgedBy ??= [];
-    if (hasAcknowledged(notice)) {
-        notice.acknowledgedBy = notice.acknowledgedBy.filter((name) => name !== authUser.value.name);
-        return;
-    }
-    notice.acknowledgedBy.push(authUser.value.name);
+    router.post(`/noticeboard/${notice.id}/acknowledge`, {}, {
+        preserveScroll: true,
+        preserveState: false,
+    });
 }
 
 function selectTab(tab) {
@@ -236,7 +216,7 @@ function selectTab(tab) {
 </script>
 
 <template>
-    <AppLayout title="Noticeboard">
+    <AppLayout title="Noticeboard" live-refresh :refresh-interval="10000">
         <div class="notice-shell relative overflow-hidden rounded-xl border border-[#8BED9A]/45 bg-white shadow-sm">
             <div class="pointer-events-none absolute -right-28 -top-28 h-72 w-72 rounded-full bg-[#8BED9A]/30 blur-3xl"></div>
             <div class="pointer-events-none absolute -bottom-36 left-1/4 h-72 w-72 rounded-full bg-[#09B884]/10 blur-3xl"></div>

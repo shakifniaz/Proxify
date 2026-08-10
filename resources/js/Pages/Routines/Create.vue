@@ -117,7 +117,7 @@ function makeSubject(subjectName = 'New Subject', subjectIndex = 0, classId = Da
 function makeSection(sectionInput = 'Section A', sectionIndex = 0, cls = {}) {
     const sectionName = typeof sectionInput === 'string' ? sectionInput : (sectionInput.name ?? `Section ${String.fromCharCode(65 + sectionIndex)}`);
     const sectionDailyPeriods = Number(sectionInput.dailyPeriods ?? cls.dailyPeriods ?? props.classesConfig.maxPeriodsPerDay) || 7;
-    const sourceSubjects = sectionInput.subjects ?? cls.subjects ?? ['Mathematics', 'English'];
+    const sourceSubjects = sectionInput.subjects ?? cls.subjects ?? [];
 
     return {
         id: sectionInput.id ?? `${cls.id ?? Date.now()}-${sectionIndex + 1}`,
@@ -129,6 +129,10 @@ function makeSection(sectionInput = 'Section A', sectionIndex = 0, cls = {}) {
             ...(sectionInput.dailyPeriodsByDay ?? {}),
         },
         classTeacherId: sectionInput.classTeacherId ?? teacherPool.value[sectionIndex % Math.max(1, teacherPool.value.length)]?.id ?? null,
+        fullCoverageEnabled: Boolean(sectionInput.fullCoverageEnabled ?? false),
+        fullCoverageTeacherId: sectionInput.fullCoverageTeacherId ?? sectionInput.classTeacherId ?? null,
+        fullCoverageCoTeacherIds: sectionInput.fullCoverageCoTeacherIds ?? [],
+        fullCoverageSubject: sectionInput.fullCoverageSubject ?? 'Class session',
         subjects: sourceSubjects.map((subject, subjectIndex) => makeSubject(subject, subjectIndex, cls.id, sectionIndex)),
     };
 }
@@ -183,15 +187,25 @@ const totalSubjectRows = computed(() =>
 const unassignedSubjects = computed(() =>
     classes.value.flatMap((cls) =>
         cls.sections.flatMap((section) =>
-            section.subjects
-                .filter((subject) => !subject.teacherId)
-                .map((subject) => `${cls.name} ${section.name} - ${subject.name}`)
+            section.fullCoverageEnabled
+                ? []
+                : section.subjects
+                    .filter((subject) => !subject.teacherId)
+                    .map((subject) => `${cls.name} ${section.name} - ${subject.name}`)
         )
+    )
+);
+const missingFullCoverageTeachers = computed(() =>
+    classes.value.flatMap((cls) =>
+        cls.sections
+            .filter((section) => section.fullCoverageEnabled && !section.fullCoverageTeacherId)
+            .map((section) => `${cls.name} ${section.name}`)
     )
 );
 const missingSetup = computed(() => {
     if (!classes.value.length) return 'Add classes in the Classrooms tab before generating a routine.';
     if (!teacherPool.value.length) return 'Add teachers in the Teachers tab before generating a routine.';
+    if (missingFullCoverageTeachers.value.length) return `Select a full-period teacher for ${missingFullCoverageTeachers.value[0]}.`;
     return '';
 });
 const autoBalancedSubjects = computed(() =>
@@ -204,6 +218,20 @@ const autoBalancedSubjects = computed(() =>
 
 function teacherName(id) {
     return teacherPool.value.find((teacher) => teacher.id === id)?.name ?? 'Unassigned';
+}
+
+function availableCoTeachers(section) {
+    return teacherPool.value.filter((teacher) => teacher.id !== section.fullCoverageTeacherId);
+}
+
+function addFullCoverageCoTeacher(section) {
+    section.fullCoverageCoTeacherIds ??= [];
+    const nextTeacher = availableCoTeachers(section).find((teacher) => !section.fullCoverageCoTeacherIds.includes(teacher.id));
+    if (nextTeacher) section.fullCoverageCoTeacherIds.push(nextTeacher.id);
+}
+
+function removeFullCoverageCoTeacher(section, index) {
+    section.fullCoverageCoTeacherIds.splice(index, 1);
 }
 
 function subjectCode(name) {
@@ -258,6 +286,8 @@ function removeTeacher(index) {
     classes.value.forEach((cls) => {
         cls.sections.forEach((section) => {
             if (section.classTeacherId === teacher.id) section.classTeacherId = null;
+            if (section.fullCoverageTeacherId === teacher.id) section.fullCoverageTeacherId = null;
+            section.fullCoverageCoTeacherIds = (section.fullCoverageCoTeacherIds ?? []).filter((teacherId) => teacherId !== teacher.id);
             section.subjects.forEach((subject) => {
                 if (subject.teacherId === teacher.id) subject.teacherId = null;
             });
@@ -643,7 +673,57 @@ function goToStep(offset) {
                                         </button>
                                     </div>
 
-                                    <div class="mt-4 grid gap-3 xl:grid-cols-2">
+                                    <div class="mt-4 rounded-xl border border-[#8BED9A]/55 bg-[#8BED9A]/10 p-4">
+                                        <div class="flex flex-wrap items-start justify-between gap-3">
+                                            <div>
+                                                <p class="text-sm font-black text-[#1e2924]">Full-period teaching team</p>
+                                                <p class="mt-1 text-xs font-semibold text-slate-500">Use when one teacher handles every scheduled period for this section.</p>
+                                            </div>
+                                            <label class="inline-flex cursor-pointer items-center gap-2 rounded-full border border-[#8BED9A]/70 bg-white px-3 py-2 text-xs font-black text-[#1e2924] shadow-sm">
+                                                <input v-model="section.fullCoverageEnabled" type="checkbox" class="rounded border-stone-300 text-[#09B884] focus:ring-[#09B884]" />
+                                                Enable
+                                            </label>
+                                        </div>
+
+                                        <div v-if="section.fullCoverageEnabled" class="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                                            <label>
+                                                <span class="section-title">Primary teacher</span>
+                                                <select v-model="section.fullCoverageTeacherId" class="field-control-sm mt-1 w-full bg-white">
+                                                    <option :value="null">Select teacher</option>
+                                                    <option v-for="teacher in teacherPool" :key="teacher.id" :value="teacher.id">{{ teacher.name }}</option>
+                                                </select>
+                                            </label>
+                                            <label>
+                                                <span class="section-title">Routine label</span>
+                                                <input v-model="section.fullCoverageSubject" type="text" class="field-control-sm mt-1 w-full bg-white" placeholder="Class session" />
+                                            </label>
+                                            <div class="lg:col-span-2">
+                                                <div class="flex flex-wrap items-center justify-between gap-2">
+                                                    <span class="section-title">Simultaneous teachers</span>
+                                                    <button type="button" class="btn-secondary min-h-8 px-3 py-1 text-xs" @click="addFullCoverageCoTeacher(section)">
+                                                        <Plus class="h-3.5 w-3.5" />
+                                                        Add teacher
+                                                    </button>
+                                                </div>
+                                                <div v-if="section.fullCoverageCoTeacherIds.length" class="mt-2 space-y-2">
+                                                    <div v-for="(teacherId, teacherIndex) in section.fullCoverageCoTeacherIds" :key="`${section.id}-co-${teacherIndex}`" class="flex items-center gap-2">
+                                                        <select v-model="section.fullCoverageCoTeacherIds[teacherIndex]" class="field-control-sm min-w-0 flex-1 bg-white">
+                                                            <option :value="null">Select teacher</option>
+                                                            <option v-for="teacher in availableCoTeachers(section)" :key="teacher.id" :value="teacher.id">{{ teacher.name }}</option>
+                                                        </select>
+                                                        <button type="button" class="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-700" @click="removeFullCoverageCoTeacher(section, teacherIndex)">
+                                                            <Trash2 class="h-4 w-4" />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                                <p v-else class="mt-2 rounded-lg border border-dashed border-[#8BED9A]/60 bg-white/70 px-3 py-2 text-xs font-semibold text-slate-500">
+                                                    Add co-teachers only if more than one teacher takes the same periods together.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div v-if="!section.fullCoverageEnabled" class="mt-4 grid gap-3 xl:grid-cols-2">
                                         <div v-for="(subject, subjectIndex) in section.subjects" :key="subject.id" class="group rounded-xl border border-stone-200 bg-stone-50/70 p-3 transition hover:-translate-y-0.5 hover:border-[#8BED9A]/70 hover:bg-white hover:shadow-sm">
                                             <div class="flex items-start gap-3">
                                                 <input v-model="subject.color" type="color" class="mt-1 h-10 w-10 shrink-0 cursor-pointer rounded-xl border border-stone-300 bg-white p-1" />
@@ -669,6 +749,9 @@ function goToStep(offset) {
                                                 </button>
                                             </div>
                                         </div>
+                                    </div>
+                                    <div v-else class="mt-4 rounded-xl border border-stone-200 bg-stone-50 p-4 text-sm font-semibold text-slate-600">
+                                        Subject rows are ignored for this section while full-period coverage is enabled.
                                     </div>
                                 </div>
                             </div>

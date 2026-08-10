@@ -21,6 +21,7 @@
         "vue": "^3.4.0"
     },
     "dependencies": {
+        "firebase": "^12.17.1",
         "lucide-vue-next": "^1.0.0",
         "sortablejs": "^1.15.7"
     }
