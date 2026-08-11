@@ -18,6 +18,11 @@ class Institution extends Model
         'email',
         'address',
         'academic_year',
+        'settings',
+    ];
+
+    protected $casts = [
+        'settings' => 'array',
     ];
 
     public function teachers(): HasMany

@@ -29,6 +29,7 @@ class User extends Authenticatable
         'institution_id',
         'teacher_profile_id',
         'class_section_id',
+        'settings',
     ];
 
     /**
@@ -51,6 +52,7 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'settings' => 'array',
         ];
     }
 

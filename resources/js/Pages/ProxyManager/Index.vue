@@ -10,8 +10,10 @@ import {
     Clock3,
     Layers3,
     Plus,
+    Printer,
     RefreshCw,
     Search,
+    Send,
     ShieldCheck,
     SlidersHorizontal,
     Trash2,
@@ -33,9 +35,28 @@ const groupsDirty = ref(false);
 const subjectPicker = ref({ groupId: null, query: '', draft: [] });
 const activeTab = ref('plan');
 const activeProxyStep = ref('Plan');
+const showProxyBuilder = ref(false);
+const selectedRun = ref(props.latestRun);
 const showApprovedLeaves = ref(false);
 const query = ref('');
 const manualAssignments = ref({});
+const confirmDialog = ref({
+    open: false,
+    tone: 'danger',
+    title: '',
+    message: '',
+    confirmLabel: 'Confirm',
+    onConfirm: null,
+});
+const whatsappDialog = ref({
+    open: false,
+    loading: false,
+    sending: false,
+    error: '',
+    run: null,
+    messages: [],
+    copiedIndex: null,
+});
 const defaultRunTarget = nextRoutineTarget(props.activeRoutine?.days ?? []);
 const selectedDay = ref(defaultRunTarget.day);
 const runName = ref(`Proxy run - ${selectedDay.value}`);
@@ -183,9 +204,22 @@ const normalizedSubjectGroups = computed(() => subjectGroups.value.map((group) =
     subjects: (group.subjects ?? []).map(normalizeSubject).filter(Boolean),
 })));
 const latestResolvedRate = computed(() => {
-    const affected = props.latestRun?.metrics?.affectedPeriods ?? 0;
+    const affected = activeRun.value?.metrics?.affectedPeriods ?? 0;
     if (!affected) return 0;
-    return Math.round(((props.latestRun?.metrics?.resolved ?? 0) / affected) * 100);
+    return Math.round(((activeRun.value?.metrics?.resolved ?? 0) / affected) * 100);
+});
+const activeRun = computed(() => selectedRun.value);
+const activeConflictRun = computed(() => {
+    if (!activeRun.value) return null;
+    return props.runs.find((run) =>
+        run.id !== activeRun.value.id
+        && run.status === 'Approved'
+        && String(run.routineId ?? '') === String(activeRun.value.routineId ?? '')
+        && (
+            String(run.day) === String(activeRun.value.day)
+            || (run.date && activeRun.value.date && String(run.date) === String(activeRun.value.date))
+        )
+    ) ?? null;
 });
 
 function nextRoutineTarget(routineDays = []) {
@@ -386,6 +420,23 @@ function useAutoGenerationOnly() {
     activeProxyStep.value = 'Generate';
 }
 
+function startNewProxy() {
+    selectedRun.value = null;
+    showProxyBuilder.value = true;
+    activeProxyStep.value = 'Plan';
+}
+
+function openProxyRun(run) {
+    selectedRun.value = run;
+    showProxyBuilder.value = true;
+    activeProxyStep.value = 'Generate';
+}
+
+function backToProxyLibrary() {
+    showProxyBuilder.value = false;
+    activeProxyStep.value = 'Plan';
+}
+
 function clearAllManualPicks() {
     manualAssignments.value = {};
 }
@@ -535,8 +586,169 @@ function generateProxyRun() {
         manualAssignments: validManualAssignments.value,
     }, {
         preserveScroll: true,
+        onSuccess: (page) => {
+            selectedRun.value = page.props.latestRun ?? null;
+            showProxyBuilder.value = true;
+            activeProxyStep.value = 'Generate';
+        },
         onFinish: () => {
             isSubmitting.value = false;
+        },
+    });
+}
+
+function syncSelectedRun(page, runId) {
+    const updated = page.props.runs?.find((run) => run.id === runId);
+    selectedRun.value = updated ?? null;
+    if (!updated) {
+        showProxyBuilder.value = false;
+        activeProxyStep.value = 'Plan';
+    }
+}
+
+function openConfirmDialog({ tone = 'danger', title, message, confirmLabel = 'Confirm', onConfirm }) {
+    confirmDialog.value = {
+        open: true,
+        tone,
+        title,
+        message,
+        confirmLabel,
+        onConfirm,
+    };
+}
+
+function closeConfirmDialog() {
+    confirmDialog.value = {
+        open: false,
+        tone: 'danger',
+        title: '',
+        message: '',
+        confirmLabel: 'Confirm',
+        onConfirm: null,
+    };
+}
+
+function confirmDialogAction() {
+    const action = confirmDialog.value.onConfirm;
+    closeConfirmDialog();
+    if (typeof action === 'function') {
+        action();
+    }
+}
+
+function enableProxyRun(run) {
+    const conflict = props.runs.find((item) =>
+        item.id !== run.id
+        && item.status === 'Approved'
+        && String(item.routineId ?? '') === String(run.routineId ?? '')
+        && (
+            String(item.day) === String(run.day)
+            || (item.date && run.date && String(item.date) === String(run.date))
+        )
+    );
+
+    const submit = () => router.post(`/proxy-manager/${run.id}/approve`, {}, {
+        preserveScroll: true,
+        onSuccess: (page) => syncSelectedRun(page, run.id),
+    });
+
+    if (conflict) {
+        openConfirmDialog({
+            tone: 'warning',
+            title: 'Enable this proxy plan?',
+            message: `"${conflict.name}" is already enabled for ${run.day}. Enabling "${run.name}" will disable the other proxy plan for that day.`,
+            confirmLabel: 'Enable and disable other',
+            onConfirm: submit,
+        });
+        return;
+    }
+
+    submit();
+}
+
+function disableProxyRun(run) {
+    router.post(`/proxy-manager/${run.id}/disable`, {}, {
+        preserveScroll: true,
+        onSuccess: (page) => syncSelectedRun(page, run.id),
+    });
+}
+
+function deleteProxyRun(run) {
+    openConfirmDialog({
+        tone: 'danger',
+        title: 'Delete proxy plan?',
+        message: `"${run.name}" will be permanently removed. If it is currently enabled, it will also stop affecting the active routine.`,
+        confirmLabel: 'Delete proxy',
+        onConfirm: () => router.delete(`/proxy-manager/${run.id}`, {
+            preserveScroll: true,
+            onSuccess: () => backToProxyLibrary(),
+        }),
+    });
+}
+
+async function sendWhatsAppUpdates(run) {
+    whatsappDialog.value = {
+        open: true,
+        loading: true,
+        sending: false,
+        error: '',
+        run,
+        messages: [],
+        copiedIndex: null,
+    };
+
+    try {
+        const response = await fetch(`/proxy-manager/${run.id}/whatsapp-preview`, {
+            headers: { Accept: 'application/json' },
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+            throw new Error(payload.message || 'Could not load WhatsApp messages.');
+        }
+
+        whatsappDialog.value.messages = payload.messages ?? [];
+    } catch (error) {
+        whatsappDialog.value.error = error.message || 'Could not load WhatsApp messages.';
+    } finally {
+        whatsappDialog.value.loading = false;
+    }
+}
+
+function closeWhatsAppDialog() {
+    whatsappDialog.value.open = false;
+}
+
+async function copyWhatsAppMessage(index) {
+    const message = whatsappDialog.value.messages[index]?.message ?? '';
+    if (!message) return;
+
+    await navigator.clipboard?.writeText(message);
+    whatsappDialog.value.copiedIndex = index;
+    window.setTimeout(() => {
+        if (whatsappDialog.value.copiedIndex === index) {
+            whatsappDialog.value.copiedIndex = null;
+        }
+    }, 1400);
+}
+
+function submitWhatsAppMessages() {
+    const run = whatsappDialog.value.run;
+    if (!run || whatsappDialog.value.sending) return;
+
+    whatsappDialog.value.sending = true;
+    router.post(`/proxy-manager/${run.id}/whatsapp`, {
+        messages: whatsappDialog.value.messages,
+    }, {
+        preserveScroll: true,
+        onSuccess: (page) => {
+            syncSelectedRun(page, run.id);
+            closeWhatsAppDialog();
+        },
+        onError: () => {
+            whatsappDialog.value.error = 'Could not send WhatsApp messages. Check the message content and WhatsApp settings.';
+        },
+        onFinish: () => {
+            whatsappDialog.value.sending = false;
         },
     });
 }
@@ -559,6 +771,10 @@ function strategyTone(item) {
     if (item.status === 'review') return 'text-amber-800';
     if (item.strategy === 'period_swap') return 'text-[#1e2924]';
     return 'text-[#09B884]';
+}
+
+function printPage() {
+    window.print();
 }
 </script>
 
@@ -615,6 +831,108 @@ function strategyTone(item) {
 
                 <Transition name="proxy-tab" mode="out-in">
                 <div v-if="activeTab === 'plan'" key="plan" class="space-y-5">
+                    <section v-if="!showProxyBuilder" class="surface-card overflow-hidden">
+                        <div class="flex flex-col gap-4 border-b border-stone-200 bg-white p-5 lg:flex-row lg:items-center lg:justify-between">
+                            <div>
+                                <p class="text-lg font-black text-[#1e2924]">Proxy plan library</p>
+                                <p class="mt-1 text-sm font-semibold text-slate-500">Review previous proxy plans, enable one for its day, or create a new plan.</p>
+                            </div>
+                            <button type="button" class="btn-primary min-h-11" @click="startNewProxy">
+                                <Plus class="h-4 w-4" />
+                                Create new proxy
+                            </button>
+                        </div>
+
+                        <div v-if="!runs.length" class="p-8 text-center">
+                            <Layers3 class="mx-auto h-8 w-8 text-slate-300" />
+                            <p class="mt-3 text-sm font-black text-[#1e2924]">No proxy plans yet</p>
+                            <p class="mt-1 text-sm font-semibold text-slate-500">Create a proxy plan when a teacher is unavailable.</p>
+                        </div>
+
+                        <div v-else class="grid gap-4 p-5 lg:grid-cols-2 2xl:grid-cols-3">
+                            <article
+                                v-for="run in runs"
+                                :key="run.id"
+                                class="group rounded-2xl border bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                                :class="run.status === 'Approved' ? 'border-[#8BED9A]/80 bg-[#8BED9A]/10' : 'border-stone-200'"
+                            >
+                                <div class="flex items-start justify-between gap-3">
+                                    <div class="min-w-0">
+                                        <button type="button" class="block max-w-full truncate text-left text-base font-black text-[#1e2924] group-hover:text-[#09B884]" @click="openProxyRun(run)">
+                                            {{ run.name }}
+                                        </button>
+                                        <p class="mt-1 truncate text-xs font-semibold text-slate-500">{{ run.routineName }} · {{ run.day }}<span v-if="run.date"> · {{ run.date }}</span></p>
+                                    </div>
+                                    <span class="shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-black" :class="statusClass(run.status)">
+                                        {{ run.status === 'Approved' ? 'Enabled' : run.status }}
+                                    </span>
+                                </div>
+
+                                <div class="mt-4 grid grid-cols-3 gap-2 text-center">
+                                    <div class="rounded-xl bg-stone-50 px-2 py-3">
+                                        <p class="text-lg font-black text-[#1e2924]">{{ run.affected }}</p>
+                                        <p class="text-[10px] font-black uppercase tracking-wide text-slate-500">Affected</p>
+                                    </div>
+                                    <div class="rounded-xl bg-[#8BED9A]/18 px-2 py-3">
+                                        <p class="text-lg font-black text-[#1e2924]">{{ run.resolved }}</p>
+                                        <p class="text-[10px] font-black uppercase tracking-wide text-slate-500">Resolved</p>
+                                    </div>
+                                    <div class="rounded-xl bg-red-50 px-2 py-3">
+                                        <p class="text-lg font-black text-red-700">{{ run.unresolved }}</p>
+                                        <p class="text-[10px] font-black uppercase tracking-wide text-red-700">Open</p>
+                                    </div>
+                                </div>
+
+                                <div class="mt-4 flex flex-wrap gap-2">
+                                    <button type="button" class="btn-secondary min-h-10 flex-1" @click="openProxyRun(run)">View</button>
+                                    <button
+                                        v-if="run.status === 'Approved'"
+                                        type="button"
+                                        class="min-h-10 flex-1 rounded-xl border border-amber-200 bg-amber-50 px-3 text-sm font-black text-amber-800 transition hover:bg-amber-100"
+                                        @click="disableProxyRun(run)"
+                                    >
+                                        Disable
+                                    </button>
+                                    <button
+                                        v-else
+                                        type="button"
+                                        class="min-h-10 flex-1 rounded-xl bg-[#1e2924] px-3 text-sm font-black text-white transition hover:bg-[#1e2924]/90"
+                                        @click="enableProxyRun(run)"
+                                    >
+                                        Enable
+                                    </button>
+                                    <button
+                                        v-if="run.status === 'Approved'"
+                                        type="button"
+                                        class="min-h-10 rounded-xl border border-[#8BED9A]/70 bg-[#8BED9A]/15 px-3 text-sm font-black text-[#1e2924] transition hover:bg-[#8BED9A]/25"
+                                        @click="sendWhatsAppUpdates(run)"
+                                    >
+                                        <Send class="inline h-4 w-4" />
+                                        WhatsApp
+                                    </button>
+                                    <button type="button" class="min-h-10 rounded-xl border border-red-200 bg-white px-3 text-sm font-black text-red-700 transition hover:bg-red-50" @click="deleteProxyRun(run)">
+                                        Delete
+                                    </button>
+                                </div>
+                                <p v-if="run.messageSummary?.total" class="mt-3 rounded-xl bg-white/80 px-3 py-2 text-xs font-bold text-slate-600">
+                                    WhatsApp: {{ run.messageSummary.sent }} sent, {{ run.messageSummary.skipped }} skipped, {{ run.messageSummary.failed }} failed
+                                </p>
+                            </article>
+                        </div>
+                    </section>
+
+                    <template v-else>
+                    <div class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-stone-200 bg-white p-3 shadow-sm">
+                        <button type="button" class="btn-secondary min-h-10" @click="backToProxyLibrary">All proxy plans</button>
+                        <p class="text-sm font-black text-[#1e2924]">
+                            {{ activeRun ? activeRun.name : 'Create new proxy plan' }}
+                        </p>
+                        <button v-if="activeRun" type="button" class="btn-secondary min-h-10" @click="printPage">
+                            <Printer class="h-4 w-4" />
+                            Export
+                        </button>
+                    </div>
+
                     <section class="surface-card overflow-hidden p-2">
                         <div class="grid grid-cols-5 gap-2">
                             <button
@@ -963,7 +1281,7 @@ function strategyTone(item) {
                             </div>
                         </div>
                     </div>
-                    <div v-if="activeProxyStep === 'Generate'" class="surface-card overflow-hidden bg-white">
+                    <div v-if="activeProxyStep === 'Generate' && !activeRun" class="surface-card overflow-hidden bg-white">
                         <div class="flex flex-col gap-4 bg-white p-5 lg:flex-row lg:items-center lg:justify-between">
                             <div>
                                 <div class="flex items-center gap-3">
@@ -991,73 +1309,75 @@ function strategyTone(item) {
                     </div>
 
                     <div v-if="activeProxyStep === 'Generate'" class="surface-card overflow-hidden">
-                        <div class="flex items-center justify-between gap-3 px-5 py-4 text-sm font-black text-[#1e2924]">
-                            <span>Generated proxy plans</span>
-                            <span class="rounded-full bg-[#8BED9A]/16 px-2.5 py-1 text-xs font-black text-[#1e2924]">
-                                {{ runs.length }} saved
-                            </span>
-                        </div>
-                        <div class="border-t border-stone-200 p-4">
-                            <div class="grid grid-cols-1 gap-4 xl:grid-cols-[0.75fr_1.25fr]">
-                        <div class="rounded-xl border border-stone-200 bg-white p-5">
-                            <div class="flex items-center justify-between">
-                                <div>
-                                    <p class="text-sm font-semibold text-slate-950">Recent proxy runs</p>
-                                </div>
-                                <Layers3 class="h-4 w-4 text-slate-400" />
+                        <div class="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                                <p class="text-sm font-black text-[#1e2924]">Generated proxy plan</p>
+                                <p class="mt-1 text-xs font-semibold text-slate-500">
+                                    {{ activeRun ? `${activeRun.routineName} - ${activeRun.day} - ${activeRun.createdAt}` : 'Generate a plan to review proxy changes here.' }}
+                                </p>
                             </div>
-
-                            <div v-if="!runs.length" class="mt-4 rounded-lg border border-dashed border-stone-300 p-6 text-center text-sm text-slate-500">
-                                Generated proxy plans will appear here.
-                            </div>
-
-                            <div v-else class="mt-4 space-y-3">
-                                <div v-for="run in runs" :key="run.id" class="rounded-lg border border-stone-200 bg-white p-4 shadow-sm transition hover:border-slate-300">
-                                    <div class="flex items-start justify-between gap-3">
-                                        <div class="min-w-0">
-                                            <p class="truncate text-sm font-semibold text-slate-950">{{ run.name }}</p>
-                                            <p class="mt-1 text-xs text-slate-500">{{ run.routineName }} &middot; {{ run.day }} &middot; {{ run.createdAt }}</p>
-                                        </div>
-                                        <span class="shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-semibold" :class="statusClass(run.status)">
-                                            {{ run.status }}
-                                        </span>
-                                    </div>
-                                    <div class="mt-3 grid grid-cols-3 gap-2 text-center">
-                                        <div class="rounded-md bg-stone-50 px-2 py-2">
-                                            <p class="text-base font-bold text-slate-950">{{ run.affected }}</p>
-                                            <p class="text-[11px] text-slate-500">affected</p>
-                                        </div>
-                                        <div class="rounded-md bg-[#8BED9A]/20 px-2 py-2">
-                                            <p class="text-base font-bold text-[#1e2924]">{{ run.resolved }}</p>
-                                            <p class="text-[11px] text-[#1e2924]">resolved</p>
-                                        </div>
-                                        <div class="rounded-md bg-red-50 px-2 py-2">
-                                            <p class="text-base font-bold text-red-700">{{ run.unresolved }}</p>
-                                            <p class="text-[11px] text-red-700">open</p>
-                                        </div>
-                                    </div>
-                                    <Link
-                                        :href="`/proxy-manager/${run.id}`"
-                                        class="mt-4 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#1e2924] px-4 text-sm font-black text-white shadow-md shadow-[#1e2924]/15 ring-2 ring-[#8BED9A]/35 transition hover:-translate-y-0.5 hover:bg-[#1e2924]/90"
-                                    >
-                                        Review and apply
-                                    </Link>
-                                </div>
+                            <div class="flex items-center gap-2">
+                                <button v-if="activeRun" type="button" class="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-stone-200 bg-white px-3 text-xs font-black text-[#1e2924] transition hover:bg-stone-50" @click="printPage">
+                                    <Printer class="h-3.5 w-3.5" />
+                                    Export
+                                </button>
+                                <button
+                                    v-if="activeRun && activeRun.status === 'Approved'"
+                                    type="button"
+                                    class="inline-flex min-h-9 items-center justify-center rounded-xl border border-amber-200 bg-amber-50 px-3 text-xs font-black text-amber-800 transition hover:bg-amber-100"
+                                    @click="disableProxyRun(activeRun)"
+                                >
+                                    Disable
+                                </button>
+                                <button
+                                    v-if="activeRun && activeRun.status === 'Approved'"
+                                    type="button"
+                                    class="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-[#8BED9A]/70 bg-[#8BED9A]/15 px-3 text-xs font-black text-[#1e2924] transition hover:bg-[#8BED9A]/25"
+                                    @click="sendWhatsAppUpdates(activeRun)"
+                                >
+                                    <Send class="h-3.5 w-3.5" />
+                                    Send WhatsApp
+                                </button>
+                                <button
+                                    v-else-if="activeRun"
+                                    type="button"
+                                    class="inline-flex min-h-9 items-center justify-center rounded-xl bg-[#1e2924] px-3 text-xs font-black text-white transition hover:-translate-y-0.5 hover:bg-[#1e2924]/90"
+                                    @click="enableProxyRun(activeRun)"
+                                >
+                                    Enable
+                                </button>
+                                <Link
+                                    v-if="activeRun"
+                                    :href="`/proxy-manager/${activeRun.id}`"
+                                    class="inline-flex min-h-9 items-center justify-center rounded-xl border border-[#8BED9A]/70 bg-[#8BED9A]/15 px-3 text-xs font-black text-[#1e2924] transition hover:bg-[#8BED9A]/25"
+                                >
+                                    Open proxy routine
+                                </Link>
                             </div>
                         </div>
+                        <div class="border-t border-stone-200 p-5">
+                            <div v-if="!activeRun" class="rounded-xl border border-dashed border-stone-300 p-10 text-center">
+                                <ShieldCheck class="mx-auto h-9 w-9 text-slate-300" />
+                                <p class="mt-3 text-sm font-semibold text-slate-950">No proxy plan selected</p>
+                                <p class="mt-1 text-sm text-slate-500">Create a new proxy plan or open one from the library.</p>
+                            </div>
 
-                        <div class="rounded-xl border border-stone-200 bg-white p-5">
-                            <div class="flex flex-col gap-3 border-b border-stone-200 pb-4 sm:flex-row sm:items-start sm:justify-between">
-                                <div>
-                                    <p class="text-sm font-semibold text-slate-950">Latest generated plan</p>
-                                </div>
-                                <div v-if="latestRun" class="grid grid-cols-3 gap-2 text-center">
+                            <div v-else class="space-y-5">
+                                <div class="flex flex-col gap-3 rounded-xl border border-stone-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+                                    <div>
+                                        <p class="text-sm font-black text-[#1e2924]">{{ activeRun.name }}</p>
+                                        <p class="mt-1 text-xs font-semibold text-slate-500">{{ activeRun.status === 'Approved' ? 'Enabled on the active routine' : 'Saved as a draft proxy plan' }}</p>
+                                        <p v-if="activeRun.messageSummary?.total" class="mt-2 text-xs font-bold text-slate-500">
+                                            WhatsApp updates: {{ activeRun.messageSummary.sent }} sent, {{ activeRun.messageSummary.skipped }} skipped, {{ activeRun.messageSummary.failed }} failed
+                                        </p>
+                                    </div>
+                                    <div class="grid grid-cols-3 gap-2 text-center">
                                     <div class="rounded-md border border-[#09B884]/30 bg-[#8BED9A]/15 px-3 py-2">
-                                        <p class="text-sm font-bold text-[#1e2924]">{{ latestRun.metrics.swapCount ?? 0 }}</p>
+                                        <p class="text-sm font-bold text-[#1e2924]">{{ activeRun.metrics.swapCount ?? 0 }}</p>
                                         <p class="text-[10px] font-semibold uppercase tracking-wider text-[#1e2924]">Swaps</p>
                                     </div>
                                     <div class="rounded-md border border-[#8BED9A]/70 bg-[#8BED9A]/20 px-3 py-2">
-                                        <p class="text-sm font-bold text-[#1e2924]">{{ latestRun.metrics.proxyCount ?? 0 }}</p>
+                                        <p class="text-sm font-bold text-[#1e2924]">{{ activeRun.metrics.proxyCount ?? 0 }}</p>
                                         <p class="text-[10px] font-semibold uppercase tracking-wider text-[#1e2924]">Proxies</p>
                                     </div>
                                     <div class="rounded-md border border-slate-200 bg-white px-3 py-2">
@@ -1065,39 +1385,25 @@ function strategyTone(item) {
                                         <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Resolved</p>
                                     </div>
                                 </div>
-                            </div>
-
-                            <div v-if="latestRun" class="mt-4 rounded-xl border border-[#8BED9A]/70 bg-[#8BED9A]/12 p-3">
-                                <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                                    <div>
-                                        <p class="text-sm font-black text-[#1e2924]">Next step</p>
-                                        <p class="mt-0.5 text-xs font-semibold text-slate-500">Review the generated routine, then approve it to activate today.</p>
-                                    </div>
-                            <Link :href="`/proxy-manager/${latestRun.id}`" class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#1e2924] px-5 text-sm font-black text-white shadow-md shadow-[#1e2924]/15 ring-2 ring-[#8BED9A]/35 transition hover:-translate-y-0.5 hover:bg-[#1e2924]/90">
-                                    Review and apply
-                                </Link>
                                 </div>
-                            </div>
 
-                            <div v-if="!latestRun" class="py-12 text-center">
-                                <ShieldCheck class="mx-auto h-9 w-9 text-slate-300" />
-                                <p class="mt-3 text-sm font-semibold text-slate-950">No proxy plan generated yet</p>
-                            </div>
+                                <div v-if="activeConflictRun && activeRun.status !== 'Approved'" class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">
+                                    Enabling this plan will automatically disable "{{ activeConflictRun.name }}" for {{ activeRun.day }}.
+                                </div>
 
-                            <div v-else class="mt-5 space-y-5">
-                                <div v-if="latestRun.adjustments?.length" class="rounded-lg border border-[#09B884]/30 bg-[#8BED9A]/15 p-4">
+                                <div v-if="activeRun.adjustments?.length" class="rounded-lg border border-[#09B884]/30 bg-[#8BED9A]/15 p-4">
                                     <div class="flex items-center gap-2 text-sm font-semibold text-[#1e2924]">
                                         <ArrowRightLeft class="h-4 w-4" />
                                         Period swaps applied
                                     </div>
                                     <div class="mt-3 space-y-2">
-                                        <div v-for="adjustment in latestRun.adjustments" :key="`${adjustment.classLabel}-${adjustment.from}-${adjustment.to}`" class="text-sm text-[#1e2924]">
+                                        <div v-for="adjustment in activeRun.adjustments" :key="`${adjustment.classLabel}-${adjustment.from}-${adjustment.to}`" class="text-sm text-[#1e2924]">
                                             {{ adjustment.classLabel }}: {{ adjustment.coverTeacher }} covers {{ adjustment.from }}, {{ adjustment.absentTeacher }} moves to {{ adjustment.to }}.
                                         </div>
                                     </div>
                                 </div>
 
-                                <div v-for="group in latestRun.assignments" :key="group.period">
+                                <div v-for="group in activeRun.assignments" :key="group.period">
                                     <div class="mb-2 flex items-center gap-2">
                                         <Clock3 class="h-4 w-4 text-slate-400" />
                                         <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">{{ group.label }}</p>
@@ -1140,8 +1446,6 @@ function strategyTone(item) {
                                 </div>
                             </div>
                         </div>
-                            </div>
-                        </div>
                     </div>
                     <div class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-stone-200 bg-white p-3 shadow-sm">
                         <button
@@ -1175,7 +1479,73 @@ function strategyTone(item) {
                         </span>
                     </div>
                     </section>
-                    </Transition>
+                </Transition>
+
+                <section class="proxy-print-export">
+                    <header class="proxy-print-header">
+                        <h1>{{ activeRun?.name ?? 'Proxy plan' }}</h1>
+                        <p>{{ activeRun?.routineName ?? activeRoutine?.name }} - {{ activeRun?.day ?? selectedDay }} - {{ activeRun?.createdAt ?? runDate }}</p>
+                    </header>
+
+                    <section v-if="activeRun" class="proxy-print-section">
+                        <h2>Summary</h2>
+                        <div class="proxy-print-stats">
+                            <div><strong>{{ activeRun.metrics?.swapCount ?? 0 }}</strong><span>Swaps</span></div>
+                            <div><strong>{{ activeRun.metrics?.proxyCount ?? 0 }}</strong><span>Proxies</span></div>
+                            <div><strong>{{ latestResolvedRate }}%</strong><span>Resolved</span></div>
+                        </div>
+                    </section>
+
+                    <section v-if="activeRun?.adjustments?.length" class="proxy-print-section">
+                        <h2>Period Swaps</h2>
+                        <table class="proxy-print-table">
+                            <thead>
+                                <tr>
+                                    <th>Class</th>
+                                    <th>Cover Teacher</th>
+                                    <th>Unavailable Teacher</th>
+                                    <th>Move</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-for="adjustment in activeRun.adjustments" :key="`print-adjustment-${adjustment.classLabel}-${adjustment.from}-${adjustment.to}`">
+                                    <td>{{ adjustment.classLabel }}</td>
+                                    <td>{{ adjustment.coverTeacher }}</td>
+                                    <td>{{ adjustment.absentTeacher }}</td>
+                                    <td>{{ adjustment.from }} to {{ adjustment.to }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </section>
+
+                    <section v-if="activeRun?.assignments?.length" class="proxy-print-section">
+                        <h2>Proxy Assignments</h2>
+                        <article v-for="group in activeRun.assignments" :key="`print-proxy-group-${group.period}`" class="proxy-print-group">
+                            <h3>{{ group.label }}</h3>
+                            <table class="proxy-print-table">
+                                <thead>
+                                    <tr>
+                                        <th>Class</th>
+                                        <th>Subject</th>
+                                        <th>Unavailable</th>
+                                        <th>Assigned</th>
+                                        <th>Strategy</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="item in group.items" :key="`print-proxy-item-${item.id}`">
+                                        <td>{{ item.classLabel }}</td>
+                                        <td>{{ item.subject }}</td>
+                                        <td>{{ item.absentTeacher }}</td>
+                                        <td>{{ item.assignedTeacher || 'Unassigned' }}</td>
+                                        <td>{{ item.strategyLabel }}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </article>
+                    </section>
+                    </section>
+                    </template>
                 </div>
 
                 <div v-else key="groups" class="surface-card overflow-visible">
@@ -1329,10 +1699,155 @@ function strategyTone(item) {
                 </Transition>
             </template>
         </div>
+
+        <Teleport to="body">
+            <Transition name="proxy-dialog">
+                <div v-if="whatsappDialog.open" class="fixed inset-0 z-50 flex items-center justify-center bg-[#1e2924]/45 px-4 py-6 backdrop-blur-sm" @click.self="closeWhatsAppDialog">
+                    <div class="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl border border-white/70 bg-white shadow-2xl shadow-[#1e2924]/25">
+                        <div class="border-b border-[#8BED9A]/50 bg-[#8BED9A]/12 p-5">
+                            <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                <div>
+                                    <p class="text-lg font-black text-[#1e2924]">WhatsApp message review</p>
+                                    <p class="mt-1 text-sm font-semibold text-slate-600">
+                                        {{ whatsappDialog.run?.name }} · {{ whatsappDialog.run?.day }} · proxy messages are shown first.
+                                    </p>
+                                </div>
+                                <button type="button" class="rounded-xl border border-stone-200 bg-white p-2 text-[#1e2924] shadow-sm transition hover:bg-stone-50" @click="closeWhatsAppDialog">
+                                    <X class="h-5 w-5" />
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="min-h-0 flex-1 overflow-y-auto p-5">
+                            <div v-if="whatsappDialog.loading" class="rounded-2xl border border-dashed border-stone-300 p-10 text-center">
+                                <RefreshCw class="mx-auto h-8 w-8 animate-spin text-[#09B884]" />
+                                <p class="mt-3 text-sm font-black text-[#1e2924]">Preparing teacher messages...</p>
+                            </div>
+
+                            <div v-else-if="whatsappDialog.error" class="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700">
+                                {{ whatsappDialog.error }}
+                            </div>
+
+                            <div v-else-if="!whatsappDialog.messages.length" class="rounded-2xl border border-dashed border-stone-300 p-10 text-center">
+                                <Send class="mx-auto h-8 w-8 text-slate-300" />
+                                <p class="mt-3 text-sm font-black text-[#1e2924]">No teacher messages available</p>
+                            </div>
+
+                            <div v-else class="space-y-4">
+                                <article
+                                    v-for="(message, index) in whatsappDialog.messages"
+                                    :key="`${message.teacherId}-${index}`"
+                                    class="rounded-2xl border bg-white p-4 shadow-sm"
+                                    :class="message.hasProxy ? 'border-[#8BED9A]/80 bg-[#8BED9A]/8' : 'border-stone-200'"
+                                >
+                                    <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                                        <div class="min-w-0">
+                                            <div class="flex flex-wrap items-center gap-2">
+                                                <p class="text-base font-black text-[#1e2924]">{{ message.teacherName }}</p>
+                                                <span v-if="message.hasProxy" class="rounded-full bg-[#8BED9A]/30 px-2.5 py-1 text-[11px] font-black uppercase text-[#1e2924]">Has proxy</span>
+                                                <span v-else class="rounded-full bg-stone-100 px-2.5 py-1 text-[11px] font-black uppercase text-slate-500">Regular</span>
+                                                <span v-if="message.whatsappEnabled === false" class="rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-black uppercase text-amber-800">Disabled in settings</span>
+                                            </div>
+                                            <p class="mt-1 text-xs font-bold text-slate-500">
+                                                WhatsApp: {{ message.displayNumber || message.whatsappNumber || 'No number saved' }}
+                                            </p>
+                                        </div>
+
+                                        <button
+                                            type="button"
+                                            class="inline-flex min-h-10 items-center justify-center rounded-xl border border-stone-200 bg-white px-3 text-xs font-black text-[#1e2924] transition hover:bg-stone-50"
+                                            @click="copyWhatsAppMessage(index)"
+                                        >
+                                            {{ whatsappDialog.copiedIndex === index ? 'Copied' : 'Copy message' }}
+                                        </button>
+                                    </div>
+
+                                    <textarea
+                                        v-model="message.message"
+                                        rows="9"
+                                        class="mt-4 w-full resize-y rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm font-semibold leading-6 text-slate-700 shadow-inner shadow-stone-100 outline-none transition focus:border-[#09B884] focus:ring-4 focus:ring-[#8BED9A]/20"
+                                        :class="message.whatsappEnabled === false ? 'opacity-60' : ''"
+                                        :disabled="message.whatsappEnabled === false"
+                                    ></textarea>
+                                </article>
+                            </div>
+                        </div>
+
+                        <div class="flex flex-col gap-3 border-t border-stone-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
+                            <p class="text-xs font-bold text-slate-500">
+                                {{ whatsappDialog.messages.filter((message) => message.hasProxy).length }} proxy updates · {{ whatsappDialog.messages.length }} total messages
+                            </p>
+                            <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                                <button type="button" class="inline-flex min-h-11 items-center justify-center rounded-xl border border-stone-200 bg-white px-5 text-sm font-black text-[#1e2924] shadow-sm transition hover:-translate-y-0.5 hover:bg-stone-50" @click="closeWhatsAppDialog">
+                                    Cancel
+                                </button>
+                                <button
+                                    type="button"
+                                    class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#1e2924] px-5 text-sm font-black text-white shadow-md shadow-[#1e2924]/15 transition hover:-translate-y-0.5 hover:bg-[#1e2924]/90 disabled:cursor-not-allowed disabled:bg-slate-300"
+                                    :disabled="whatsappDialog.loading || whatsappDialog.sending || !whatsappDialog.messages.length"
+                                    @click="submitWhatsAppMessages"
+                                >
+                                    <Send class="h-4 w-4" />
+                                    {{ whatsappDialog.sending ? 'Sending...' : 'Send edited messages' }}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </Transition>
+        </Teleport>
+
+        <Teleport to="body">
+            <Transition name="proxy-dialog">
+                <div v-if="confirmDialog.open" class="fixed inset-0 z-50 flex items-center justify-center bg-[#1e2924]/45 px-4 py-6 backdrop-blur-sm" @click.self="closeConfirmDialog">
+                    <div class="w-full max-w-md overflow-hidden rounded-3xl border border-white/70 bg-white shadow-2xl shadow-[#1e2924]/25">
+                        <div
+                            class="p-5"
+                            :class="confirmDialog.tone === 'warning' ? 'bg-amber-50/80' : 'bg-red-50/80'"
+                        >
+                            <div class="flex items-start gap-4">
+                                <div
+                                    class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border bg-white shadow-sm"
+                                    :class="confirmDialog.tone === 'warning' ? 'border-amber-200 text-amber-700' : 'border-red-200 text-red-700'"
+                                >
+                                    <AlertTriangle class="h-5 w-5" />
+                                </div>
+                                <div class="min-w-0">
+                                    <p class="text-lg font-black text-[#1e2924]">{{ confirmDialog.title }}</p>
+                                    <p class="mt-2 text-sm font-semibold leading-6 text-slate-600">{{ confirmDialog.message }}</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex flex-col-reverse gap-2 bg-white p-4 sm:flex-row sm:justify-end">
+                            <button
+                                type="button"
+                                class="inline-flex min-h-11 items-center justify-center rounded-xl border border-stone-200 bg-white px-5 text-sm font-black text-[#1e2924] shadow-sm transition hover:-translate-y-0.5 hover:bg-stone-50"
+                                @click="closeConfirmDialog"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                class="inline-flex min-h-11 items-center justify-center rounded-xl px-5 text-sm font-black text-white shadow-md transition hover:-translate-y-0.5"
+                                :class="confirmDialog.tone === 'warning' ? 'bg-[#1e2924] shadow-[#1e2924]/15 hover:bg-[#1e2924]/90' : 'bg-red-600 shadow-red-600/15 hover:bg-red-700'"
+                                @click="confirmDialogAction"
+                            >
+                                {{ confirmDialog.confirmLabel }}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </Transition>
+        </Teleport>
     </AppLayout>
 </template>
 
 <style scoped>
+.proxy-print-export {
+    display: none;
+}
+
 .proxy-manager-shell {
     animation: proxy-rise 420ms ease-out both;
 }
@@ -1340,6 +1855,27 @@ function strategyTone(item) {
 .proxy-tab-enter-active,
 .proxy-tab-leave-active {
     transition: all 220ms ease;
+}
+
+.proxy-dialog-enter-active,
+.proxy-dialog-leave-active {
+    transition: opacity 180ms ease;
+}
+
+.proxy-dialog-enter-active > div,
+.proxy-dialog-leave-active > div {
+    transition: transform 220ms ease, opacity 180ms ease;
+}
+
+.proxy-dialog-enter-from,
+.proxy-dialog-leave-to {
+    opacity: 0;
+}
+
+.proxy-dialog-enter-from > div,
+.proxy-dialog-leave-to > div {
+    opacity: 0;
+    transform: translateY(10px) scale(0.97);
 }
 
 .proxy-tab-enter-from {
@@ -1360,6 +1896,114 @@ function strategyTone(item) {
     to {
         opacity: 1;
         transform: translateY(0);
+    }
+}
+
+@media print {
+    :global(body *) {
+        visibility: hidden !important;
+    }
+
+    :global(.proxy-print-export),
+    :global(.proxy-print-export *) {
+        visibility: visible !important;
+    }
+
+    .proxy-print-export {
+        display: block !important;
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        background: #fff;
+        color: #111827;
+        padding: 18px;
+        font-family: Arial, sans-serif;
+    }
+
+    .proxy-print-header {
+        border-bottom: 2px solid #111827;
+        margin-bottom: 16px;
+        padding-bottom: 10px;
+    }
+
+    .proxy-print-header h1 {
+        margin: 0;
+        font-size: 22px;
+        font-weight: 800;
+    }
+
+    .proxy-print-header p {
+        margin: 4px 0 0;
+        color: #4b5563;
+        font-size: 12px;
+        font-weight: 600;
+    }
+
+    .proxy-print-section {
+        break-inside: avoid;
+        margin-bottom: 16px;
+    }
+
+    .proxy-print-section h2 {
+        margin: 0 0 8px;
+        font-size: 15px;
+        font-weight: 800;
+    }
+
+    .proxy-print-group {
+        break-inside: avoid;
+        margin-bottom: 12px;
+    }
+
+    .proxy-print-group h3 {
+        margin: 0 0 6px;
+        font-size: 12px;
+        font-weight: 800;
+    }
+
+    .proxy-print-stats {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+    }
+
+    .proxy-print-stats div {
+        border: 1px solid #cbd5e1;
+        padding: 8px;
+    }
+
+    .proxy-print-stats strong {
+        display: block;
+        font-size: 18px;
+    }
+
+    .proxy-print-stats span {
+        display: block;
+        color: #64748b;
+        font-size: 9px;
+        font-weight: 700;
+        text-transform: uppercase;
+    }
+
+    .proxy-print-table {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+        font-size: 10px;
+    }
+
+    .proxy-print-table th,
+    .proxy-print-table td {
+        border: 1px solid #cbd5e1;
+        padding: 6px;
+        vertical-align: top;
+        word-break: break-word;
+    }
+
+    .proxy-print-table th {
+        background: #f1f5f9;
+        font-weight: 800;
+        text-align: left;
     }
 }
 </style>

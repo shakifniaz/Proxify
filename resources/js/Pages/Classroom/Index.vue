@@ -60,8 +60,11 @@ const institutionKey = computed(() => String(props.currentUser.institutionId ?? 
 const userKey = computed(() => `${props.role}-${props.currentUser.id ?? 'guest'}`);
 const roleLabel = computed(() => props.role === 'admin' ? 'Admin' : props.role === 'teacher' ? 'Teacher' : 'Student');
 
-const selectedClassId = ref(props.classrooms[0]?.id ?? null);
-const selectedSubjectId = ref(props.classrooms[0]?.subjects?.[0]?.id ?? null);
+const initialParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
+const initialClassroom = props.classrooms.find((classroom) => String(classroom.id) === String(initialParams.get('classroom')));
+const initialSubject = initialClassroom?.subjects?.find((subject) => String(subject.id) === String(initialParams.get('subject')));
+const selectedClassId = ref(initialClassroom?.id ?? props.classrooms[0]?.id ?? null);
+const selectedSubjectId = ref(initialSubject?.id ?? initialClassroom?.subjects?.[0]?.id ?? props.classrooms[0]?.subjects?.[0]?.id ?? null);
 const search = ref('');
 const posts = ref([]);
 const submissions = ref({});

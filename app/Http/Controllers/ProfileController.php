@@ -44,7 +44,9 @@ class ProfileController extends Controller
             ]);
         }
 
-        return Redirect::route('profile.edit');
+        return str_contains((string) $request->headers->get('referer'), '/settings')
+            ? Redirect::back()
+            : Redirect::route('profile.edit');
     }
 
     /**

@@ -12,6 +12,7 @@ import {
     Layers,
     Pencil,
     Plus,
+    Printer,
     RefreshCw,
     Repeat,
     Settings2,
@@ -818,6 +819,10 @@ function approveProxyRoutine() {
         },
     });
 }
+
+function printPage() {
+    window.print();
+}
 </script>
 
 <template>
@@ -858,6 +863,10 @@ function approveProxyRoutine() {
                     </p>
                 </div>
                 <div class="flex flex-wrap items-center gap-2">
+                    <button type="button" class="btn-secondary print-hide" @click="printPage">
+                        <Printer class="h-4 w-4" />
+                        Export
+                    </button>
                     <Link v-if="!readOnly" :href="isProxyRoutine ? '/proxy-manager' : '/routines'" class="btn-secondary">
                         {{ isProxyRoutine ? 'Proxy manager' : 'All routines' }}
                     </Link>
@@ -932,7 +941,7 @@ function approveProxyRoutine() {
                             Showing {{ activeProxyNotice.name }} for {{ activeProxyNotice.day }}<span v-if="activeProxyNotice.date">, {{ activeProxyNotice.date }}</span>. The saved routine has not been permanently changed.
                         </p>
                     </div>
-                    <Link :href="`/proxy-manager/${activeProxyNotice.id}`" class="btn-secondary bg-white">
+                    <Link :href="activeProxyNotice.id ? `/proxy-manager/${activeProxyNotice.id}` : '/proxy-manager'" class="btn-secondary bg-white">
                         View proxy/original
                     </Link>
                 </div>
@@ -1507,6 +1516,78 @@ function approveProxyRoutine() {
                 </div>
             </template>
             </template>
+
+            <section class="print-export">
+                <header class="print-header">
+                    <h1>{{ isProxyRoutine ? proxyContext.name : routine.name }}</h1>
+                    <p>{{ isProxyRoutine ? `Proxy routine - ${proxyContext.day}` : 'Teacher and class routines' }}</p>
+                </header>
+
+                <section class="print-section">
+                    <h2>Teachers Routine</h2>
+                    <article v-for="day in days" :key="`print-teachers-${day}`" class="print-day">
+                        <h3>{{ dayNames[day] ?? day }}</h3>
+                        <table class="print-table">
+                            <thead>
+                                <tr>
+                                    <th>Teacher</th>
+                                    <th v-for="period in periods" :key="`print-teacher-head-${day}-${period.key}`">
+                                        {{ period.label }}<br />
+                                        <small v-if="period.time">{{ period.time }}</small>
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-for="teacher in displayedTeacherSchedule[day] ?? []" :key="`print-${day}-${teacher.id ?? teacher.name}`">
+                                    <td>
+                                        <strong>{{ teacher.name }}</strong><br />
+                                        <small>{{ teacher.subject }}</small>
+                                    </td>
+                                    <td v-for="period in periods" :key="`print-teacher-cell-${day}-${teacher.id ?? teacher.name}-${period.key}`">
+                                        <template v-if="period.type === 'break'">{{ period.label }}</template>
+                                        <template v-else-if="teacher.cells?.[period.key] && teacher.cells[period.key].type !== 'empty' && teacher.cells[period.key].type !== 'unresolved'">
+                                            <strong>{{ displaySubject(teacher.cells[period.key]) || 'Class' }}</strong><br />
+                                            <span>{{ teacher.cells[period.key].classLabel }}</span>
+                                            <em v-if="teacher.cells[period.key].type === 'proxy'">Proxy</em>
+                                        </template>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </article>
+                </section>
+
+                <section class="print-section">
+                    <h2>Class Routines</h2>
+                    <article v-for="section in visibleClassRoutineSections" :key="`print-class-${section.id ?? section.label}`" class="print-day">
+                        <h3>{{ section.label }}</h3>
+                        <table class="print-table">
+                            <thead>
+                                <tr>
+                                    <th>Day</th>
+                                    <th v-for="period in periods" :key="`print-class-head-${section.label}-${period.key}`">
+                                        {{ period.label }}<br />
+                                        <small v-if="period.time">{{ period.time }}</small>
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-for="day in days" :key="`print-class-row-${section.label}-${day}`">
+                                    <td><strong>{{ dayNames[day] ?? day }}</strong></td>
+                                    <td v-for="period in periods" :key="`print-class-cell-${section.label}-${day}-${period.key}`">
+                                        <template v-if="period.type === 'break'">{{ period.label }}</template>
+                                        <template v-else-if="isScheduledClassPeriod(section, day, period) && !isClassCellUnresolved(classCell(section, day, period.key))">
+                                            <strong>{{ displaySubject(classCell(section, day, period.key)) || 'Class' }}</strong><br />
+                                            <span>{{ teacherNameForCell(classCell(section, day, period.key)) }}</span>
+                                            <em v-if="classCell(section, day, period.key)?.type === 'proxy'">Proxy</em>
+                                        </template>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </article>
+                </section>
+            </section>
         </div>
 
         <Teleport to="body">
@@ -1538,3 +1619,113 @@ function approveProxyRoutine() {
         </Teleport>
     </AppLayout>
 </template>
+
+<style scoped>
+.print-export {
+    display: none;
+}
+
+@media print {
+    :global(body *) {
+        visibility: hidden !important;
+    }
+
+    :global(.print-export),
+    :global(.print-export *) {
+        visibility: visible !important;
+    }
+
+    .print-export {
+        display: block !important;
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        background: #fff;
+        color: #111827;
+        padding: 18px;
+        font-family: Arial, sans-serif;
+    }
+
+    .print-header {
+        border-bottom: 2px solid #111827;
+        margin-bottom: 16px;
+        padding-bottom: 10px;
+    }
+
+    .print-header h1 {
+        margin: 0;
+        font-size: 22px;
+        font-weight: 800;
+    }
+
+    .print-header p {
+        margin: 4px 0 0;
+        font-size: 12px;
+        color: #4b5563;
+    }
+
+    .print-section {
+        break-after: page;
+        margin-bottom: 18px;
+    }
+
+    .print-section:last-child {
+        break-after: auto;
+    }
+
+    .print-section h2 {
+        margin: 0 0 10px;
+        font-size: 17px;
+        font-weight: 800;
+    }
+
+    .print-day {
+        break-inside: avoid;
+        margin-bottom: 14px;
+    }
+
+    .print-day h3 {
+        margin: 0 0 6px;
+        font-size: 13px;
+        font-weight: 800;
+    }
+
+    .print-table {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+        font-size: 10px;
+    }
+
+    .print-table th,
+    .print-table td {
+        border: 1px solid #cbd5e1;
+        padding: 5px;
+        vertical-align: top;
+        word-break: break-word;
+    }
+
+    .print-table th {
+        background: #f1f5f9;
+        font-weight: 800;
+        text-align: left;
+    }
+
+    .print-table small {
+        color: #64748b;
+        font-size: 8px;
+    }
+
+    .print-table em {
+        display: inline-block;
+        margin-top: 3px;
+        border: 1px solid #047857;
+        border-radius: 999px;
+        padding: 1px 4px;
+        color: #047857;
+        font-size: 8px;
+        font-style: normal;
+        font-weight: 700;
+    }
+}
+</style>

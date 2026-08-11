@@ -50,4 +50,11 @@ return [
         'appId' => env('FIREBASE_APP_ID'),
     ],
 
+    'whatsapp' => [
+        'api_version' => env('WHATSAPP_API_VERSION', 'v21.0'),
+        'phone_number_id' => env('WHATSAPP_PHONE_NUMBER_ID'),
+        'access_token' => env('WHATSAPP_ACCESS_TOKEN'),
+        'dry_run' => env('WHATSAPP_DRY_RUN', false),
+    ],
+
 ];

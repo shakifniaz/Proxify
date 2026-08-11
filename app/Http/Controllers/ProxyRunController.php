@@ -3,10 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\ProxyRun;
+use App\Models\ProxyMessageLog;
 use App\Models\ProxySubjectGroup;
 use App\Models\Routine;
 use App\Models\LeaveRequest;
 use App\Services\ProxyEngine;
+use App\Services\WhatsAppRoutineMessenger;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Database\Schema\Blueprint;
@@ -23,12 +26,11 @@ class ProxyRunController extends Controller
         $runs = ProxyRun::query()
             ->with('routine:id,name,status')
             ->latest()
-            ->take(12)
             ->get();
 
         return Inertia::render('ProxyManager/Index', [
             'activeRoutine' => $routine ? $this->routinePayload($routine) : null,
-            'runs' => $runs->map(fn (ProxyRun $run) => $this->runSummary($run))->values(),
+            'runs' => $runs->map(fn (ProxyRun $run) => $this->runPayload($run))->values(),
             'latestRun' => $runs->first() ? $this->runPayload($runs->first()) : null,
             'defaultSubjectGroups' => $routine ? $this->subjectGroupsForRoutine($routine, $subjects) : [],
             'leaveAbsences' => $routine ? $this->approvedLeaveAbsences($routine) : [],
@@ -139,12 +141,66 @@ class ProxyRunController extends Controller
 
     public function approve(ProxyRun $proxyRun): RedirectResponse
     {
+        $this->disableConflictingRuns($proxyRun);
+
         $proxyRun->update([
             'status' => 'Approved',
             'approved_at' => now(),
         ]);
 
         return back()->with('success', 'Proxy routine approved for the selected day.');
+    }
+
+    public function disable(ProxyRun $proxyRun): RedirectResponse
+    {
+        $proxyRun->update([
+            'status' => 'Draft',
+            'approved_at' => null,
+        ]);
+
+        return back()->with('success', 'Proxy routine disabled.');
+    }
+
+    public function destroy(ProxyRun $proxyRun): RedirectResponse
+    {
+        $proxyRun->delete();
+
+        return redirect()->route('proxy-manager.index')->with('success', 'Proxy routine deleted.');
+    }
+
+    public function previewWhatsAppUpdates(ProxyRun $proxyRun, WhatsAppRoutineMessenger $messenger): JsonResponse
+    {
+        abort_unless($proxyRun->status === 'Approved', 422, 'Enable the proxy plan before previewing WhatsApp updates.');
+
+        return response()->json([
+            'messages' => $messenger->previewProxyRun($proxyRun),
+        ]);
+    }
+
+    public function sendWhatsAppUpdates(Request $request, ProxyRun $proxyRun, WhatsAppRoutineMessenger $messenger): RedirectResponse
+    {
+        abort_unless($proxyRun->status === 'Approved', 422, 'Enable the proxy plan before sending WhatsApp updates.');
+
+        $data = $request->validate([
+            'messages' => ['nullable', 'array'],
+            'messages.*.teacherId' => ['nullable', 'string', 'max:80'],
+            'messages.*.teacherProfileId' => ['nullable', 'integer'],
+            'messages.*.teacherName' => ['required_with:messages', 'string', 'max:120'],
+            'messages.*.whatsappNumber' => ['nullable', 'string', 'max:40'],
+            'messages.*.displayNumber' => ['nullable', 'string', 'max:40'],
+            'messages.*.whatsappEnabled' => ['nullable', 'boolean'],
+            'messages.*.hasProxy' => ['nullable', 'boolean'],
+            'messages.*.message' => ['required_with:messages', 'string', 'max:4000'],
+        ]);
+
+        $summary = isset($data['messages'])
+            ? $messenger->sendPreparedMessages($proxyRun, $data['messages'])
+            : $messenger->sendProxyRun($proxyRun);
+
+        return back()->with(
+            'success',
+            "WhatsApp routine updates prepared: {$summary['sent']} sent, {$summary['skipped']} skipped, {$summary['failed']} failed."
+        );
     }
 
     public function saveSubjectGroups(Request $request): RedirectResponse
@@ -261,6 +317,7 @@ class ProxyRunController extends Controller
     {
         return [
             'id' => $run->id,
+            'routineId' => $run->routine_id,
             'name' => $run->name,
             'routineName' => $run->routine?->name,
             'day' => $run->day_label,
@@ -270,6 +327,7 @@ class ProxyRunController extends Controller
             'resolved' => $run->metrics['resolved'] ?? 0,
             'unresolved' => $run->metrics['unresolved'] ?? 0,
             'createdAt' => $run->created_at?->format('M j, g:i A'),
+            'messageSummary' => $this->messageSummary($run),
         ];
     }
 
@@ -282,6 +340,53 @@ class ProxyRunController extends Controller
             'adjustments' => $run->adjustments ?? [],
             'metrics' => $run->metrics ?? [],
         ]);
+    }
+
+    private function disableConflictingRuns(ProxyRun $run): void
+    {
+        ProxyRun::query()
+            ->where('routine_id', $run->routine_id)
+            ->whereKeyNot($run->id)
+            ->where('status', 'Approved')
+            ->where(function ($query) use ($run) {
+                $query->where('day_label', $run->day_label);
+
+                if ($run->date) {
+                    $query->orWhereDate('date', $run->date);
+                }
+            })
+            ->update([
+                'status' => 'Draft',
+                'approved_at' => null,
+            ]);
+    }
+
+    private function messageSummary(ProxyRun $run): array
+    {
+        if (! Schema::hasTable('proxy_message_logs')) {
+            return ['total' => 0, 'sent' => 0, 'failed' => 0, 'skipped' => 0, 'lastSentAt' => null];
+        }
+
+        $lastLog = ProxyMessageLog::query()
+            ->where('proxy_run_id', $run->id)
+            ->latest()
+            ->first();
+        $latestBatchId = $lastLog?->send_batch_id;
+        $logsQuery = ProxyMessageLog::query()->where('proxy_run_id', $run->id);
+
+        if ($latestBatchId) {
+            $logsQuery->where('send_batch_id', $latestBatchId);
+        }
+
+        $logs = $logsQuery->get();
+
+        return [
+            'total' => $logs->count(),
+            'sent' => $logs->where('status', 'sent')->count(),
+            'failed' => $logs->where('status', 'failed')->count(),
+            'skipped' => $logs->whereIn('status', ['skipped', 'dry_run'])->count(),
+            'lastSentAt' => optional($lastLog?->created_at)->format('M j, g:i A'),
+        ];
     }
 
     private function proxyGridForRun(Routine $routine, string $day, array $assignments): array

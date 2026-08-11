@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Notice;
 use App\Models\TeacherProfile;
+use App\Models\Institution;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -51,6 +52,10 @@ class NoticeController extends Controller
             || ($data['board'] === 'staff' && in_array($role, ['admin', 'teacher'], true)),
             403
         );
+        $institution = $request->user()?->institution_id
+            ? Institution::find($request->user()->institution_id)
+            : null;
+        $defaultVisibility = $institution?->settings['defaultNoticeVisibility'] ?? 'Teachers';
 
         Notice::create([
             'institution_id' => $request->user()?->institution_id,
@@ -59,7 +64,7 @@ class NoticeController extends Controller
             'title' => $data['title'],
             'message' => $data['message'],
             'urgency' => $data['urgency'],
-            'visibility' => $data['board'] === 'institutional' ? ($data['visibility'] ?? 'Teachers') : null,
+            'visibility' => $data['board'] === 'institutional' ? ($data['visibility'] ?? $defaultVisibility) : null,
             'acknowledged_by' => [],
         ]);
 

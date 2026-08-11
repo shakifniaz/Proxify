@@ -49,7 +49,7 @@ const activeStep = ref(canEdit.value ? 'Details' : 'Schedule');
 const classMode = ref('all');
 const selectedClasses = ref([]);
 const classSearch = ref('');
-const teacherViewMode = ref('all');
+const teacherViewMode = ref(props.role === 'teacher' ? 'mine' : 'all');
 const openMenuId = ref(null);
 const halls = ref(props.halls.map((hall, index) => ({
     id: hall.id ?? `hall-${index + 1}`,
@@ -150,6 +150,29 @@ const visibleScheduledCells = computed(() => {
         return scheduledCells.value.filter((cell) => (cell.guards ?? []).includes(props.currentTeacherName));
     }
     return scheduledCells.value;
+});
+const viewerScheduleDays = computed(() => {
+    const days = [];
+    for (const date of examDateOptions.value) {
+        const entries = [];
+        for (const slot of timeSlots.value) {
+            for (const hall of halls.value) {
+                const cell = cellAt(hall.name, date.value, slot.key);
+                if (!cell || !cellHasActiveClass(cell)) continue;
+                if (props.role === 'teacher' && teacherViewMode.value === 'mine' && !(cell.guards ?? []).includes(props.currentTeacherName)) continue;
+                entries.push({
+                    ...cell,
+                    exams: examsForViewer(cell),
+                    hallName: hall.name,
+                    examDate: date.value,
+                    slotKey: slot.key,
+                    slotLabel: slotDisplayLabel(slot),
+                });
+            }
+        }
+        if (entries.length) days.push({ value: date.value, label: date.label, weekday: formatWeekday(date.value), entries });
+    }
+    return days;
 });
 const guardDuties = computed(() => {
     const map = new Map();
@@ -270,6 +293,14 @@ function cellSubtitle(cell) {
     if (!exams.length) return '';
     if (exams.length === 1) return exams[0].classLabel;
     return exams.map((exam) => `${exam.classLabel} - ${exam.subject}`).join(', ');
+}
+
+function examsForViewer(cell) {
+    const exams = cell?.exams ?? [];
+    if (props.role === 'student') {
+        return exams.filter((exam) => activeClasses.value.includes(exam.classLabel));
+    }
+    return exams;
 }
 
 function isConflict(hallName, date, slotKey) {
@@ -475,6 +506,12 @@ function formatDate(value) {
     return `${day}/${month}/${year.slice(-2)}`;
 }
 
+function formatWeekday(value) {
+    const date = parseLocalDate(value);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleDateString('en-US', { weekday: 'short' });
+}
+
 function formatTimeLabel(value) {
     const [hourValue, minuteValue = '00'] = String(value || '').trim().split(':');
     const hour = Number(hourValue);
@@ -626,7 +663,7 @@ function slotDisplayLabel(slot) {
             <section v-if="isViewer" class="surface-card overflow-hidden">
                 <div class="flex flex-wrap items-center justify-between gap-3 bg-white p-5">
                     <div class="flex items-center gap-4">
-                        <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-[#1e2924] text-[#8BED9A]">
+                        <div class="flex h-12 w-12 items-center justify-center rounded-xl border border-[#8BED9A]/70 bg-white text-[#09B884] shadow-sm">
                             <ClipboardList class="h-6 w-6" />
                         </div>
                         <div>
@@ -637,8 +674,8 @@ function slotDisplayLabel(slot) {
                         </div>
                     </div>
                     <div v-if="role === 'teacher'" class="grid rounded-2xl border border-[#8BED9A]/50 bg-[#8BED9A]/10 p-1 sm:grid-cols-2">
-                        <button type="button" class="rounded-xl px-4 py-2 text-sm font-black transition" :class="teacherViewMode === 'all' ? 'bg-[#1e2924] text-white shadow-md shadow-[#1e2924]/15' : 'text-[#1e2924] hover:bg-white/80'" @click="teacherViewMode = 'all'">Full routine</button>
                         <button type="button" class="rounded-xl px-4 py-2 text-sm font-black transition" :class="teacherViewMode === 'mine' ? 'bg-[#1e2924] text-white shadow-md shadow-[#1e2924]/15' : 'text-[#1e2924] hover:bg-white/80'" @click="teacherViewMode = 'mine'">My duties</button>
+                        <button type="button" class="rounded-xl px-4 py-2 text-sm font-black transition" :class="teacherViewMode === 'all' ? 'bg-[#1e2924] text-white shadow-md shadow-[#1e2924]/15' : 'text-[#1e2924] hover:bg-white/80'" @click="teacherViewMode = 'all'">Full schedule</button>
                     </div>
                 </div>
             </section>
@@ -667,7 +704,114 @@ function slotDisplayLabel(slot) {
                 </div>
             </section>
 
-            <Transition v-else name="exam-step" mode="out-in">
+            <section v-else-if="isViewer && role === 'teacher' && teacherViewMode === 'all'" class="surface-card overflow-hidden">
+                <div class="flex flex-col gap-3 border-b border-stone-200 bg-white p-5 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                        <p class="text-base font-black text-[#1e2924]">Exam routine</p>
+                        <p class="text-xs font-semibold text-slate-500">Full published hall schedule</p>
+                    </div>
+                    <button type="button" class="flex min-h-10 items-center justify-center gap-2 rounded-xl border border-stone-200 bg-white px-4 text-sm font-black text-[#1e2924] transition hover:bg-stone-50" @click="printPage">
+                        <Printer class="h-4 w-4" />
+                        Print
+                    </button>
+                </div>
+
+                <div class="border-b border-stone-200 bg-stone-50 p-4">
+                    <div class="flex gap-2 overflow-x-auto pb-1">
+                        <button v-for="date in examDateOptions" :key="date.value" type="button" class="shrink-0 rounded-xl border px-4 py-2 text-sm font-black transition" :class="currentExamDate === date.value ? 'border-[#1e2924] bg-[#1e2924] text-white shadow-md shadow-[#1e2924]/15' : 'border-stone-200 bg-white text-[#1e2924] hover:border-[#8BED9A]/70 hover:bg-[#8BED9A]/15'" @click="activeExamDate = date.value">
+                            {{ date.label }}
+                        </button>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <div class="min-w-[880px]">
+                        <div class="grid border-b border-stone-200 bg-stone-50" :style="gridStyle">
+                            <div class="px-4 py-3 text-xs font-black uppercase tracking-[0.14em] text-slate-500">Hall</div>
+                            <div v-for="slot in timeSlots" :key="slot.key" class="border-l border-stone-200 px-3 py-3 text-center text-xs font-black uppercase tracking-[0.14em] text-slate-500">{{ slotDisplayLabel(slot) }}</div>
+                        </div>
+
+                        <div v-for="hall in halls" :key="hall.id" class="grid border-b border-stone-200 last:border-b-0" :style="gridStyle">
+                            <div class="bg-white px-4 py-4">
+                                <p class="text-sm font-black text-[#1e2924]">{{ hall.name }}</p>
+                                <p class="text-xs font-semibold text-slate-500">Capacity {{ hall.capacity }}</p>
+                            </div>
+                            <div v-for="slot in timeSlots" :key="slot.key" class="border-l border-stone-200 bg-white p-2">
+                                <div v-if="cellAt(hall.name, currentExamDate, slot.key) && cellHasActiveClass(cellAt(hall.name, currentExamDate, slot.key))" class="min-h-28 w-full rounded-xl border p-3 text-left" :class="cellClasses(hall.name, currentExamDate, slot.key)">
+                                    <div class="flex items-start justify-between gap-2">
+                                        <p class="text-sm font-black">{{ cellTitle(cellAt(hall.name, currentExamDate, slot.key)) }}</p>
+                                    </div>
+                                    <p class="mt-1 line-clamp-2 text-xs font-bold">{{ cellSubtitle(cellAt(hall.name, currentExamDate, slot.key)) }}</p>
+                                    <div class="mt-3 flex flex-wrap gap-1.5">
+                                        <span v-for="guard in cellAt(hall.name, currentExamDate, slot.key).guards" :key="`${hall.name}-${currentExamDate}-${slot.key}-${guard}`" class="rounded-full bg-white/80 px-2 py-1 text-[11px] font-bold">{{ guard }}</span>
+                                    </div>
+                                </div>
+                                <div v-else class="min-h-28 rounded-xl border border-dashed border-stone-200 bg-stone-50/70"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section v-else-if="isViewer" class="surface-card overflow-hidden">
+                <div class="border-b border-stone-200 bg-white p-5">
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                            <p class="text-base font-black text-[#1e2924]">{{ role === 'teacher' && teacherViewMode === 'mine' ? 'My exam duties' : 'Exam schedule' }}</p>
+                            <p class="mt-1 text-xs font-semibold text-slate-500">{{ viewerScheduleDays.reduce((total, day) => total + day.entries.length, 0) }} scheduled slot{{ viewerScheduleDays.reduce((total, day) => total + day.entries.length, 0) === 1 ? '' : 's' }}</p>
+                        </div>
+                        <button type="button" class="flex min-h-10 items-center justify-center gap-2 rounded-xl border border-stone-200 bg-white px-4 text-sm font-black text-[#1e2924] transition hover:bg-stone-50" @click="printPage">
+                            <Printer class="h-4 w-4" />
+                            Print
+                        </button>
+                    </div>
+                </div>
+
+                <div v-if="viewerScheduleDays.length" class="space-y-4 bg-stone-50 p-4">
+                    <section v-for="day in viewerScheduleDays" :key="day.value" class="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
+                        <div class="flex flex-wrap items-center justify-between gap-2 border-b border-stone-200 bg-[#8BED9A]/12 px-4 py-3">
+                            <div class="flex items-center gap-3">
+                                <span class="flex h-10 w-10 items-center justify-center rounded-xl border border-[#8BED9A]/70 bg-white text-sm font-black text-[#09B884] shadow-sm">{{ day.weekday }}</span>
+                                <div>
+                                    <p class="text-sm font-black text-[#1e2924]">{{ day.label }}</p>
+                                    <p class="text-xs font-semibold text-slate-500">{{ day.entries.length }} exam slot{{ day.entries.length === 1 ? '' : 's' }}</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="divide-y divide-stone-100">
+                            <article v-for="entry in day.entries" :key="`${day.value}-${entry.hallName}-${entry.slotKey}`" class="grid gap-3 p-4 md:grid-cols-[9.5rem_10rem_minmax(0,1fr)_14rem] md:items-center">
+                                <div>
+                                    <p class="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Time</p>
+                                    <p class="mt-1 text-sm font-black text-[#1e2924]">{{ entry.slotLabel }}</p>
+                                </div>
+                                <div>
+                                    <p class="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Hall</p>
+                                    <p class="mt-1 text-sm font-black text-[#1e2924]">{{ entry.hallName }}</p>
+                                </div>
+                                <div>
+                                    <p class="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Exam</p>
+                                    <div class="mt-2 flex flex-wrap gap-2">
+                                        <span v-for="exam in entry.exams" :key="`${entry.hallName}-${entry.slotKey}-${exam.classLabel}-${exam.subject}`" class="rounded-full border border-[#8BED9A]/70 bg-[#8BED9A]/15 px-3 py-1 text-xs font-black text-[#1e2924]">
+                                            {{ exam.classLabel }} - {{ exam.subject }}
+                                        </span>
+                                    </div>
+                                </div>
+                                <div>
+                                    <p class="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Hall guards</p>
+                                    <p class="mt-1 text-sm font-semibold leading-6 text-slate-700">{{ (entry.guards ?? []).join(', ') }}</p>
+                                </div>
+                            </article>
+                        </div>
+                    </section>
+                </div>
+
+                <div v-else class="bg-white p-8 text-center">
+                    <p class="text-base font-black text-[#1e2924]">{{ role === 'teacher' && teacherViewMode === 'mine' ? 'No duties assigned to you yet' : 'No exams found' }}</p>
+                    <p class="mt-2 text-sm font-semibold text-slate-500">{{ role === 'teacher' && teacherViewMode === 'mine' ? 'Your assigned hall guard duties will appear here once the admin publishes them.' : 'The published schedule does not contain exams for this view.' }}</p>
+                </div>
+            </section>
+
+            <Transition v-else-if="canEdit" name="exam-step" mode="out-in">
                 <section :key="activeStep" class="space-y-5">
                     <div v-if="canEdit && activeStep === 'Details'" class="surface-card overflow-hidden">
                         <div class="grid gap-px bg-stone-200/80 lg:grid-cols-[minmax(0,1fr)_22rem]">
@@ -936,6 +1080,44 @@ function slotDisplayLabel(slot) {
                     </button>
                 </div>
             </section>
+
+            <section class="exam-print-export">
+                <header class="exam-print-header">
+                    <h1>{{ examName }}</h1>
+                    <p>{{ formatDate(examStartDate) }} to {{ formatDate(examEndDate) }}</p>
+                </header>
+
+                <section v-for="date in examDateOptions" :key="`print-exam-${date.value}`" class="exam-print-day">
+                    <h2>{{ date.label }}</h2>
+                    <table class="exam-print-table">
+                        <thead>
+                            <tr>
+                                <th>Hall</th>
+                                <th v-for="slot in timeSlots" :key="`print-exam-head-${date.value}-${slot.key}`">{{ slotDisplayLabel(slot) }}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="hall in halls" :key="`print-exam-row-${date.value}-${hall.id}`">
+                                <td>
+                                    <strong>{{ hall.name }}</strong><br />
+                                    <small>Capacity {{ hall.capacity }}</small>
+                                </td>
+                                <td v-for="slot in timeSlots" :key="`print-exam-cell-${date.value}-${hall.id}-${slot.key}`">
+                                    <template v-if="cellAt(hall.name, date.value, slot.key) && cellHasActiveClass(cellAt(hall.name, date.value, slot.key))">
+                                        <div v-for="exam in examsForViewer(cellAt(hall.name, date.value, slot.key))" :key="`print-exam-group-${date.value}-${hall.id}-${slot.key}-${exam.classLabel}-${exam.subject}`" class="exam-print-group">
+                                            <strong>{{ exam.classLabel }}</strong> - {{ exam.subject }}
+                                        </div>
+                                        <div class="exam-print-guards">
+                                            <strong>Hall guards:</strong>
+                                            {{ (cellAt(hall.name, date.value, slot.key).guards ?? []).join(', ') }}
+                                        </div>
+                                    </template>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </section>
+            </section>
         </div>
 
         <Teleport to="body">
@@ -1013,6 +1195,10 @@ function slotDisplayLabel(slot) {
 </template>
 
 <style scoped>
+.exam-print-export {
+    display: none;
+}
+
 .exam-step-enter-active,
 .exam-step-leave-active {
     transition: opacity 220ms ease, transform 220ms ease;
@@ -1026,5 +1212,99 @@ function slotDisplayLabel(slot) {
 .exam-step-leave-to {
     opacity: 0;
     transform: translateY(-8px);
+}
+
+@media print {
+    :global(body *) {
+        visibility: hidden !important;
+    }
+
+    :global(.exam-print-export),
+    :global(.exam-print-export *) {
+        visibility: visible !important;
+    }
+
+    .exam-print-export {
+        display: block !important;
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        background: #fff;
+        color: #111827;
+        padding: 18px;
+        font-family: Arial, sans-serif;
+    }
+
+    .exam-print-header {
+        border-bottom: 2px solid #111827;
+        margin-bottom: 16px;
+        padding-bottom: 10px;
+    }
+
+    .exam-print-header h1 {
+        margin: 0;
+        font-size: 22px;
+        font-weight: 800;
+    }
+
+    .exam-print-header p {
+        margin: 4px 0 0;
+        color: #4b5563;
+        font-size: 12px;
+        font-weight: 600;
+    }
+
+    .exam-print-day {
+        break-inside: avoid;
+        margin-bottom: 18px;
+    }
+
+    .exam-print-day:not(:last-child) {
+        break-after: page;
+    }
+
+    .exam-print-day h2 {
+        margin: 0 0 8px;
+        font-size: 15px;
+        font-weight: 800;
+    }
+
+    .exam-print-table {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+        font-size: 10px;
+    }
+
+    .exam-print-table th,
+    .exam-print-table td {
+        border: 1px solid #cbd5e1;
+        padding: 6px;
+        vertical-align: top;
+        word-break: break-word;
+    }
+
+    .exam-print-table th {
+        background: #f1f5f9;
+        font-weight: 800;
+        text-align: left;
+    }
+
+    .exam-print-table small {
+        color: #64748b;
+        font-size: 8px;
+    }
+
+    .exam-print-group {
+        margin-bottom: 4px;
+    }
+
+    .exam-print-guards {
+        border-top: 1px solid #e2e8f0;
+        margin-top: 6px;
+        padding-top: 5px;
+        color: #334155;
+        font-size: 9px;
+    }
 }
 </style>

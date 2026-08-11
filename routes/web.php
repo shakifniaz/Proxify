@@ -2,12 +2,17 @@
 
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\AnalyticsController;
 use App\Http\Controllers\ClassSectionController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ExamScheduleController;
 use App\Http\Controllers\LeaveRequestController;
 use App\Http\Controllers\NoticeController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProxyRunController;
 use App\Http\Controllers\RoutineController;
+use App\Http\Controllers\SearchController;
+use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\StaffRoomController;
 use App\Http\Controllers\TeacherController;
 use App\Models\ClassSection;
@@ -22,68 +27,10 @@ Route::get('/', function () {
 });
 
 Route::middleware(['auth', 'verified'])->group(function () {
-    Route::get('/dashboard', function (\Illuminate\Http\Request $request) {
-        $role = strtolower($request->user()?->role ?? 'admin');
-
-        if ($role === 'teacher') {
-            return Inertia::render('TeacherDashboard', [
-                'teacherName' => $request->user()?->name ?? 'Teacher',
-                'dateLabel' => now()->format('l, F j, Y'),
-                'stats' => [
-                    'classesToday' => 0,
-                    'proxiesToday' => 0,
-                    'pendingLeaveDays' => 0,
-                ],
-                'urgentNotices' => [],
-                'proxyAssignments' => [],
-                'todaySchedule' => [],
-                'tomorrowSchedule' => [],
-            ]);
-        }
-
-        if ($role === 'student') {
-            return Inertia::render('StudentDashboard', [
-                'studentName' => $request->user()?->name ?? 'Student',
-                'classLabel' => '',
-                'dateLabel' => now()->format('l, F j, Y'),
-                'stats' => [
-                    'classesToday' => 0,
-                    'notices' => 0,
-                    'assignments' => 0,
-                ],
-                'todayRoutine' => [],
-                'notices' => [],
-                'classroomUpdates' => [],
-            ]);
-        }
-
-        return Inertia::render('Dashboard', [
-            'alerts' => [],
-            'routineSummary' => [
-                'days' => 0,
-                'classes' => 0,
-                'teachers' => 0,
-                'termLabel' => 'No active routine',
-            ],
-            'proxySummary' => [
-                'absentToday' => 0,
-                'assignedToday' => 0,
-                'unresolvedToday' => 0,
-            ],
-            'weekStats' => [],
-            'today' => [
-                'status' => 'No proxy plan generated',
-                'absentCount' => 0,
-                'proxiesAssigned' => 0,
-                'unresolvedPeriods' => 0,
-                'ackRate' => 0,
-            ],
-            'monthStats' => [],
-            'liveActivity' => [],
-            'todaysAbsences' => [],
-            'quickActions' => [],
-        ]);
-    })->name('dashboard');
+    Route::get('/dashboard', DashboardController::class)->name('dashboard');
+    Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
+    Route::post('/notifications/read', [NotificationController::class, 'markRead'])->name('notifications.read');
+    Route::get('/search/features', SearchController::class)->name('search.features');
 
     Route::get('/routines', [RoutineController::class, 'index'])->name('routines.index');
     Route::get('/routines/create', [RoutineController::class, 'create'])->name('routines.create');
@@ -101,6 +48,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/proxy-manager/{proxyRun}', [ProxyRunController::class, 'show'])->name('proxy-manager.show');
     Route::put('/proxy-manager/{proxyRun}/routine', [ProxyRunController::class, 'updateRoutine'])->name('proxy-manager.routine.update');
     Route::post('/proxy-manager/{proxyRun}/approve', [ProxyRunController::class, 'approve'])->name('proxy-manager.approve');
+    Route::post('/proxy-manager/{proxyRun}/disable', [ProxyRunController::class, 'disable'])->name('proxy-manager.disable');
+    Route::get('/proxy-manager/{proxyRun}/whatsapp-preview', [ProxyRunController::class, 'previewWhatsAppUpdates'])->name('proxy-manager.whatsapp.preview');
+    Route::post('/proxy-manager/{proxyRun}/whatsapp', [ProxyRunController::class, 'sendWhatsAppUpdates'])->name('proxy-manager.whatsapp.send');
+    Route::delete('/proxy-manager/{proxyRun}', [ProxyRunController::class, 'destroy'])->name('proxy-manager.destroy');
 
     Route::get('/exam-schedule', [ExamScheduleController::class, 'index'])->name('exam-schedule.index');
     Route::get('/exam-schedule/new', [ExamScheduleController::class, 'create'])->name('exam-schedule.create');
@@ -281,22 +232,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
 
 
-    Route::get('/analytics', function () {
-        return Inertia::render('Analytics/Index', [
-            'stats' => [
-                'totalAbsences' => ['value' => 0, 'delta' => 'No data yet'],
-                'proxyClasses' => ['value' => 0, 'delta' => 'No data yet'],
-                'unresolved' => ['value' => 0, 'delta' => 'No data yet'],
-                'ackRate' => ['value' => 0, 'delta' => 'No data yet'],
-            ],
-            'rangeOptions' => ['This week', 'This month', 'This term', 'Custom range'],
-            'chartLabel' => 'No analytics data yet',
-            'dailyAbsences' => [],
-            'proxyLoad' => [],
-            'heatmapDays' => [],
-            'heatmap' => [],
-        ]);
-    })->name('analytics.index');
+    Route::get('/analytics', [AnalyticsController::class, 'index'])->name('analytics.index');
     
     Route::get('/teachers', [TeacherController::class, 'index'])->name('teachers.index');
     Route::post('/teachers', [TeacherController::class, 'store'])->name('teachers.store');
@@ -304,21 +240,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('/teachers/{teacher}', [TeacherController::class, 'destroy'])->name('teachers.destroy');
 
 
-    Route::get('/settings', function () {
-        return Inertia::render('Settings/Index', [
-            'general' => [
-                'schoolName' => '',
-                'contactPhone' => '',
-                'contactEmail' => '',
-                'termLabel' => '',
-                'weekStartDay' => 'Sunday',
-                'academicYear' => '',
-            ],
-            'periods' => [],
-            'notifications' => [],
-            'weekStartOptions' => ['Sunday', 'Monday'],
-        ]);
-    })->name('settings.index');
+    Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
+    Route::put('/settings/general', [SettingsController::class, 'updateGeneral'])->name('settings.general.update');
+    Route::put('/settings/notifications', [SettingsController::class, 'updateNotifications'])->name('settings.notifications.update');
+    Route::delete('/settings/data', [SettingsController::class, 'clearData'])->name('settings.data.clear');
 });
 
 Route::middleware('auth')->group(function () {

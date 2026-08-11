@@ -103,6 +103,7 @@ const teacherNavGroups = [
         label: 'Academic',
         items: [
             { name: 'My Classrooms', href: '/classrooms', icon: School },
+            { name: 'Settings', href: '/settings', icon: Settings },
         ],
     },
 ];
@@ -116,6 +117,7 @@ const studentNavGroups = [
             { name: 'Exam Schedule', href: '/exam-schedule', icon: ClipboardList },
             { name: 'Noticeboard', href: '/noticeboard', icon: Megaphone },
             { name: 'Classroom', href: '/classroom', icon: BookOpenCheck },
+            { name: 'Settings', href: '/settings', icon: Settings },
         ],
     },
 ];

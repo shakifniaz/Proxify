@@ -158,13 +158,18 @@ class RoutineController extends Controller
         }
 
         $days = $routine->days ?? [];
-        $activeProxy = ProxyRun::where('routine_id', $routine->id)
+        $activeProxies = ProxyRun::where('routine_id', $routine->id)
             ->where('status', 'Approved')
             ->whereDate('date', '>=', now()->toDateString())
             ->orderBy('date')
-            ->first();
-        $generatedGrid = $activeProxy?->proxy_generated_grid ?: ($routine->generated_grid ?? []);
-        $teacherSchedule = $activeProxy?->proxy_teacher_schedule ?: ($routine->teacher_schedule ?? []);
+            ->get();
+        $generatedGrid = $routine->generated_grid ?? [];
+        $teacherSchedule = $routine->teacher_schedule ?? [];
+        [$generatedGrid, $teacherSchedule] = $this->applyActiveProxyRuns(
+            $activeProxies,
+            $generatedGrid,
+            $teacherSchedule
+        );
         $classes = $routine->classes ?? [];
         $requestUser = $request->user();
         $teacherNames = collect($routine->teachers ?? [])->pluck('name')->filter()->values();
@@ -215,11 +220,18 @@ class RoutineController extends Controller
             'generationRules' => $routine->generation_rules ?? [],
             'generatedGrid' => $generatedGrid,
             'metrics' => $routine->metrics ?? [],
-            'activeProxyNotice' => $activeProxy ? [
-                'id' => $activeProxy->id,
-                'name' => $activeProxy->name,
-                'date' => optional($activeProxy->date)->toDateString(),
-                'day' => $activeProxy->day_label,
+            'activeProxyNotice' => $activeProxies->isNotEmpty() ? [
+                'id' => $activeProxies->count() === 1 ? $activeProxies->first()->id : null,
+                'name' => $activeProxies->count() === 1 ? $activeProxies->first()->name : $activeProxies->count().' proxy plans',
+                'date' => $activeProxies->count() === 1 ? optional($activeProxies->first()->date)->toDateString() : null,
+                'day' => $activeProxies->pluck('day_label')->filter()->unique()->values()->join(', '),
+                'count' => $activeProxies->count(),
+                'items' => $activeProxies->map(fn (ProxyRun $proxy) => [
+                    'id' => $proxy->id,
+                    'name' => $proxy->name,
+                    'date' => optional($proxy->date)->toDateString(),
+                    'day' => $proxy->day_label,
+                ])->values(),
             ] : null,
         ]);
     }
@@ -316,6 +328,34 @@ class RoutineController extends Controller
     private function ensureAdmin(Request $request): void
     {
         abort_unless(($request->user()?->role ?? 'admin') === 'admin', 403);
+    }
+
+    private function applyActiveProxyRuns($activeProxies, array $generatedGrid, array $teacherSchedule): array
+    {
+        foreach ($activeProxies as $proxy) {
+            $day = (string) $proxy->day_label;
+            if ($day === '') {
+                continue;
+            }
+
+            $proxyGrid = $proxy->proxy_generated_grid ?? [];
+            foreach ($proxyGrid as $sectionKey => $section) {
+                if (! isset($section['days'][$day])) {
+                    continue;
+                }
+
+                $generatedGrid[$sectionKey] ??= $section;
+                $generatedGrid[$sectionKey]['days'] ??= [];
+                $generatedGrid[$sectionKey]['days'][$day] = $section['days'][$day];
+            }
+
+            $proxySchedule = $proxy->proxy_teacher_schedule ?? [];
+            if (isset($proxySchedule[$day])) {
+                $teacherSchedule[$day] = $proxySchedule[$day];
+            }
+        }
+
+        return [$generatedGrid, $teacherSchedule];
     }
 
     private function validatedPayload(Request $request, bool $nameRequired = true): array
