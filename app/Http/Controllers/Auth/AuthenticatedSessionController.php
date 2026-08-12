@@ -8,6 +8,7 @@ use App\Services\FirebaseTokenVerifier;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -22,7 +23,14 @@ class AuthenticatedSessionController extends Controller
     {
         return Inertia::render('Auth/Login', [
             'canResetPassword' => Route::has('password.request'),
-            'firebaseConfig' => config('services.firebase'),
+            'firebaseConfig' => app()->environment('local') ? [] : config('services.firebase'),
+            'legacyLoginEmails' => app()->environment('local')
+                ? User::query()
+                    ->whereNull('firebase_uid')
+                    ->pluck('email')
+                    ->map(fn (string $email) => strtolower($email))
+                    ->values()
+                : [],
             'status' => session('status'),
         ]);
     }
@@ -34,9 +42,35 @@ class AuthenticatedSessionController extends Controller
     {
         $request->validate([
             'email' => ['required', 'email'],
-            'id_token' => ['required', 'string'],
+            'password' => ['nullable', 'string'],
+            'id_token' => ['nullable', 'string'],
             'remember' => ['nullable', 'boolean'],
         ]);
+
+        if (! $request->filled('id_token')) {
+            if (! app()->environment('local')) {
+                throw ValidationException::withMessages(['email' => 'Firebase sign-in is required.']);
+            }
+
+            if (! $request->filled('password')) {
+                throw ValidationException::withMessages(['password' => 'Enter your password.']);
+            }
+
+            $user = User::query()
+                ->where('email', strtolower($request->string('email')->toString()))
+                ->whereNull('firebase_uid')
+                ->first();
+
+            if (! $user || ! Hash::check($request->string('password')->toString(), $user->password)) {
+                throw ValidationException::withMessages(['password' => 'These credentials do not match an existing local account.']);
+            }
+
+            Auth::login($user, $request->boolean('remember'));
+
+            $request->session()->regenerate();
+
+            return redirect()->intended(route('dashboard', absolute: false));
+        }
 
         $payload = $firebase->verify($request->string('id_token')->toString());
         $email = strtolower((string) ($payload['email'] ?? ''));
@@ -54,7 +88,7 @@ class AuthenticatedSessionController extends Controller
             ->first();
 
         if (! $user) {
-            throw ValidationException::withMessages(['email' => 'No Campulse account is connected to this Firebase user.']);
+            throw ValidationException::withMessages(['email' => 'No Scholarly account is connected to this Firebase user.']);
         }
 
         if (! $user->firebase_uid) {

@@ -235,7 +235,7 @@ class ProxyEngine
             if ($manualTeacherId !== (string) ($target['teacherId'] ?? '') && $this->teacherFree($day, $manualTeacherId, (string) ($target['periodKey'] ?? ''))) {
                 $this->applyProxy($day, $target, $manualTeacherId);
                 $this->assignments[] = $this->assignment($assignmentId, $target, 'resolved', 'manual_proxy', $manualTeacherId, [
-                    'strategyLabel' => 'Manual proxy',
+                    'strategyLabel' => 'Manual substitution',
                     'reason' => 'Selected manually by the admin before auto generation.',
                 ]);
                 return;
@@ -270,7 +270,7 @@ class ProxyEngine
         if ($sameClass = $this->bestFreeTeacher($day, $target, fn ($teacherId) => $this->teachesSameSectionOrClass($teacherId, $target), 'same-class')) {
             $this->applyProxy($day, $target, $sameClass['teacherId']);
             $this->assignments[] = $this->assignment($assignmentId, $target, 'resolved', 'same_class_proxy', $sameClass['teacherId'], [
-                'strategyLabel' => 'Same class proxy',
+                'strategyLabel' => 'Same class substitution',
                 'reason' => 'No clean swap found. Assigned a free teacher already connected to this class.',
                 'score' => $sameClass['score'],
             ]);
@@ -280,7 +280,7 @@ class ProxyEngine
         if ($groupTeacher = $this->bestSubjectGroupTeacher($day, $target, $subjectGroups)) {
             $this->applyProxy($day, $target, $groupTeacher['teacherId']);
             $this->assignments[] = $this->assignment($assignmentId, $target, 'resolved', 'subject_group_proxy', $groupTeacher['teacherId'], [
-                'strategyLabel' => 'Similar subject proxy',
+                'strategyLabel' => 'Similar subject substitution',
                 'reason' => 'Assigned a free teacher from a matching subject group.',
                 'subjectGroup' => $groupTeacher['group'],
                 'score' => $groupTeacher['score'],
@@ -291,7 +291,7 @@ class ProxyEngine
         if ($nearby = $this->bestFreeTeacher($day, $target, fn () => true, 'nearby-class')) {
             $this->applyProxy($day, $target, $nearby['teacherId']);
             $this->assignments[] = $this->assignment($assignmentId, $target, 'resolved', 'nearby_class_proxy', $nearby['teacherId'], [
-                'strategyLabel' => 'Nearby class proxy',
+                'strategyLabel' => 'Nearby class substitution',
                 'reason' => 'Assigned the least-loaded free teacher with the closest class-level experience.',
                 'score' => $nearby['score'],
             ]);

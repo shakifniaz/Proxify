@@ -79,7 +79,7 @@ const noticeTone = {
                         <div class="rounded-2xl border border-amber-300/25 bg-amber-300/10 p-4 backdrop-blur transition duration-300 hover:-translate-y-1 hover:bg-amber-300/15">
                             <Repeat2 class="h-5 w-5 text-amber-300" />
                             <p class="mt-3 text-3xl font-black">{{ stats.proxiesToday ?? 0 }}</p>
-                            <p class="text-[10px] font-black uppercase tracking-[0.16em] text-white/55">Proxy classes</p>
+                            <p class="text-[10px] font-black uppercase tracking-[0.16em] text-white/55">Substitution classes</p>
                         </div>
                         <div class="rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur transition duration-300 hover:-translate-y-1 hover:bg-white/15">
                             <CalendarDays class="h-5 w-5 text-[#8BED9A]" />
@@ -131,7 +131,7 @@ const noticeTone = {
                             <div>
                                 <div class="flex flex-wrap items-center gap-2">
                                     <p class="text-base font-black text-slate-950">{{ period.subject }}</p>
-                                    <span v-if="period.isProxy" class="rounded-full border border-amber-300 bg-amber-100 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-amber-900">Proxy class</span>
+                                    <span v-if="period.isProxy" class="rounded-full border border-amber-300 bg-amber-100 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-amber-900">Substitution class</span>
                                 </div>
                                 <div class="mt-1.5 flex flex-wrap items-center gap-3 text-xs font-bold text-slate-500">
                                     <span class="inline-flex items-center gap-1"><GraduationCap class="h-3.5 w-3.5" />{{ period.classLabel || 'Class' }}</span>

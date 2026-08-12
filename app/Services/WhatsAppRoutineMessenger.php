@@ -5,6 +5,8 @@ namespace App\Services;
 use App\Models\ProxyMessageLog;
 use App\Models\ProxyRun;
 use App\Models\TeacherProfile;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 
@@ -153,7 +155,7 @@ class WhatsAppRoutineMessenger
             $class = $cell['classLabel'] ?? 'Class';
             $subject = $cell['subject'] ?? 'Subject';
             $proxySuffix = ! empty($cell['proxyChanged']) || ($cell['type'] ?? '') === 'proxy'
-                ? ' (PROXY CLASS)'
+                ? ' (SUBSTITUTION CLASS)'
                 : '';
 
             $lines[] = $label.': '.$class.' - '.$subject.$proxySuffix;
@@ -176,23 +178,49 @@ class WhatsAppRoutineMessenger
             return ['ok' => false, 'dryRun' => false, 'error' => 'WhatsApp Cloud API is not configured.'];
         }
 
-        $response = Http::withToken($token)
-            ->acceptJson()
-            ->post("https://graph.facebook.com/{$apiVersion}/{$phoneNumberId}/messages", [
-                'messaging_product' => 'whatsapp',
-                'to' => $phone,
-                'type' => 'text',
-                'text' => [
-                    'preview_url' => false,
-                    'body' => $message,
-                ],
-            ]);
-
-        if ($response->failed()) {
+        try {
+            $response = Http::withToken($token)
+                ->acceptJson()
+                ->connectTimeout(10)
+                ->timeout(25)
+                ->retry(2, 500, throw: false)
+                ->post("https://graph.facebook.com/{$apiVersion}/{$phoneNumberId}/messages", [
+                    'messaging_product' => 'whatsapp',
+                    'to' => $phone,
+                    'type' => 'text',
+                    'text' => [
+                        'preview_url' => false,
+                        'body' => $message,
+                    ],
+                ]);
+        } catch (ConnectionException $error) {
             return [
                 'ok' => false,
                 'dryRun' => false,
-                'error' => $response->json('error.message') ?? $response->body(),
+                'error' => 'Could not connect to WhatsApp Cloud API: '.$error->getMessage(),
+            ];
+        } catch (RequestException $error) {
+            $response = $error->response;
+            $apiError = $response?->json('error');
+
+            return [
+                'ok' => false,
+                'dryRun' => false,
+                'error' => $apiError
+                    ? trim(($apiError['message'] ?? 'WhatsApp Cloud API request failed').' '.($apiError['code'] ?? '').' '.($apiError['type'] ?? ''))
+                    : 'WhatsApp Cloud API request failed: '.$error->getMessage(),
+            ];
+        }
+
+        if ($response->failed()) {
+            $error = $response->json('error');
+
+            return [
+                'ok' => false,
+                'dryRun' => false,
+                'error' => $error
+                    ? trim(($error['message'] ?? 'WhatsApp Cloud API request failed').' '.($error['code'] ?? '').' '.($error['type'] ?? ''))
+                    : $response->body(),
             ];
         }
 
@@ -211,7 +239,7 @@ class WhatsAppRoutineMessenger
         }
 
         if (str_starts_with($digits, '0')) {
-            $digits = '88'.substr($digits, 1);
+            $digits = '880'.substr($digits, 1);
         }
 
         return $digits;

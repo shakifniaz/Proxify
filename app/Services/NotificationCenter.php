@@ -169,12 +169,12 @@ class NotificationCenter
                 ->map(fn (ProxyRun $run) => $this->item(
                     key: "proxy:admin:{$run->id}:{$run->updated_at?->timestamp}",
                     type: 'proxy',
-                    title: $run->status === 'Approved' ? 'Proxy plan approved' : 'Proxy plan ready for review',
+                    title: $run->status === 'Approved' ? 'Substitution plan approved' : 'Substitution plan ready for review',
                     message: $run->name.' for '.$run->day_label,
                     href: '/proxy-manager',
                     at: $run->approved_at ?? $run->updated_at,
                     tone: $run->status === 'Approved' ? 'green' : 'amber',
-                    eyebrow: 'Proxy manager',
+                    eyebrow: 'Class Coverage',
                 ));
         }
 
@@ -201,12 +201,12 @@ class NotificationCenter
                     ->map(fn ($assignment, int $index) => $this->item(
                         key: "proxy:teacher:{$run->id}:{$index}:{$run->updated_at?->timestamp}",
                         type: 'proxy',
-                        title: 'New proxy assignment',
+                        title: 'New substitution assignment',
                         message: trim(($assignment['subject'] ?? 'Class').' - '.($assignment['sectionLabel'] ?? $assignment['classLabel'] ?? '').' '.$run->day_label),
                         href: '/proxy-manager',
                         at: $run->approved_at ?? $run->updated_at,
                         tone: 'green',
-                        eyebrow: 'Proxy duty',
+                        eyebrow: 'Substitution duty',
                     ));
             });
     }

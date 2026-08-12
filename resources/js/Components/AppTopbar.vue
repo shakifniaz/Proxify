@@ -90,7 +90,7 @@ const featureMap = computed(() => {
     }
 
     return shared.concat([
-        feature('Proxy Manager', '/proxy-manager', 'Proxy, substitute, absent teachers, approvals'),
+        feature('Class Coverage', '/proxy-manager', 'Proxy, substitute, absent teachers, approvals'),
         feature('Leave Requests', '/leave-requests', 'Leave approval, rejection, balance'),
         feature('Staffroom', '/staffroom', 'Staffroom, staff discussion'),
         feature('Analytics', '/analytics', 'Analytics, reports, charts, insights'),
@@ -423,18 +423,18 @@ function iconFor(type) {
 
 <template>
     <header
-        class="sticky top-0 z-10 flex h-16 items-center justify-between border-b border-[#8BED9A]/40 bg-white/95 px-4 backdrop-blur sm:px-6"
+        class="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-[#8BED9A]/40 bg-white/95 px-3 backdrop-blur sm:h-16 sm:px-6"
     >
-        <h1 class="truncate text-lg font-semibold text-[#1e2924]">{{ title }}</h1>
+        <h1 class="min-w-0 truncate text-base font-black text-[#1e2924] sm:text-lg sm:font-semibold">{{ title }}</h1>
 
-        <div class="flex items-center gap-3">
+        <div class="flex shrink-0 items-center gap-2 sm:gap-3">
             <span class="hidden text-sm text-[#1e2924]/60 sm:inline">{{ today }}</span>
 
             <div class="relative">
                 <button
                     ref="bellRef"
                     type="button"
-                    class="relative flex h-9 w-9 items-center justify-center rounded-lg border border-[#8BED9A]/60 bg-white text-[#1e2924]/70 shadow-sm transition hover:border-[#09B884] hover:bg-[#8BED9A]/15 hover:text-[#1e2924]"
+                    class="relative flex h-10 w-10 items-center justify-center rounded-xl border border-[#8BED9A]/60 bg-white text-[#1e2924]/70 shadow-sm transition hover:border-[#09B884] hover:bg-[#8BED9A]/15 hover:text-[#1e2924] sm:h-9 sm:w-9 sm:rounded-lg"
                     :aria-expanded="open"
                     aria-label="Open notifications"
                     @click.stop="toggleNotifications"
@@ -451,7 +451,7 @@ function iconFor(type) {
                 <div
                     v-if="open"
                     ref="panelRef"
-                    class="absolute right-0 top-12 z-50 w-[min(92vw,24rem)] overflow-hidden rounded-lg border border-stone-200 bg-white shadow-xl shadow-slate-900/10"
+                    class="fixed inset-x-3 top-16 z-50 max-h-[calc(100vh-6rem)] overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-xl shadow-slate-900/10 sm:absolute sm:inset-auto sm:right-0 sm:top-12 sm:w-[min(92vw,24rem)] sm:rounded-lg"
                 >
                     <div class="flex items-center justify-between border-b border-stone-200 px-4 py-3">
                         <div>
@@ -473,7 +473,7 @@ function iconFor(type) {
                         Loading notifications
                     </div>
 
-                    <div v-else class="max-h-[28rem] overflow-y-auto">
+                    <div v-else class="max-h-[calc(100vh-12rem)] overflow-y-auto sm:max-h-[28rem]">
                         <p v-if="error" class="border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs font-semibold text-amber-700">{{ error }}</p>
 
                         <Link
@@ -503,7 +503,7 @@ function iconFor(type) {
                         <div v-if="!items.length" class="px-4 py-10 text-center">
                             <Bell class="mx-auto h-6 w-6 text-slate-300" />
                             <p class="mt-3 text-sm font-bold text-slate-600">No notifications yet</p>
-                            <p class="mt-1 text-xs font-semibold text-slate-400">New notices, classroom activity, proxy work, and leave updates will appear here.</p>
+                            <p class="mt-1 text-xs font-semibold text-slate-400">New notices, classroom activity, substitution work, and leave updates will appear here.</p>
                         </div>
                     </div>
                 </div>
@@ -513,7 +513,7 @@ function iconFor(type) {
                 <button
                     ref="searchButtonRef"
                     type="button"
-                    class="flex h-9 w-9 items-center justify-center rounded-lg border border-[#8BED9A]/60 bg-white text-[#1e2924]/70 shadow-sm transition hover:border-[#09B884] hover:bg-[#8BED9A]/15 hover:text-[#1e2924]"
+                    class="flex h-10 w-10 items-center justify-center rounded-xl border border-[#8BED9A]/60 bg-white text-[#1e2924]/70 shadow-sm transition hover:border-[#09B884] hover:bg-[#8BED9A]/15 hover:text-[#1e2924] sm:h-9 sm:w-9 sm:rounded-lg"
                     :aria-expanded="searchOpen"
                     aria-label="Search features"
                     @click.stop="toggleSearch"
@@ -524,7 +524,7 @@ function iconFor(type) {
                 <div
                     v-if="searchOpen"
                     ref="searchPanelRef"
-                    class="absolute right-0 top-12 z-50 w-[min(92vw,24rem)] overflow-hidden rounded-lg border border-stone-200 bg-white shadow-xl shadow-slate-900/10"
+                    class="fixed inset-x-3 top-16 z-50 max-h-[calc(100vh-6rem)] overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-xl shadow-slate-900/10 sm:absolute sm:inset-auto sm:right-0 sm:top-12 sm:w-[min(92vw,24rem)] sm:rounded-lg"
                 >
                     <div class="border-b border-stone-200 p-3">
                         <div class="flex items-center gap-2 rounded-lg border border-stone-200 bg-stone-50 px-3 py-2">
@@ -541,7 +541,7 @@ function iconFor(type) {
                         <p v-if="searchError" class="mt-2 text-xs font-semibold text-amber-700">{{ searchError }}</p>
                     </div>
 
-                    <div class="max-h-80 overflow-y-auto py-1">
+                    <div class="max-h-[calc(100vh-12rem)] overflow-y-auto py-1 sm:max-h-80">
                         <div v-if="searchLoading" class="flex items-center gap-2 px-4 py-3 text-xs font-semibold text-slate-500">
                             <Loader2 class="h-3.5 w-3.5 animate-spin" />
                             Loading classrooms

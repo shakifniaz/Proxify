@@ -509,7 +509,7 @@ selectedLeavePeriodKeys.value = [...periodKeys.value];
                                 </div>
                                 <div>
                                     <p class="text-base font-black text-[#1e2924]">Approved leaves</p>
-                                    <p class="text-xs font-semibold text-slate-500">{{ approvedProxyLeaves.length }} ready for proxy manager</p>
+                                    <p class="text-xs font-semibold text-slate-500">{{ approvedProxyLeaves.length }} ready for class coverage</p>
                                 </div>
                             </div>
 

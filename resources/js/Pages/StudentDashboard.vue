@@ -100,7 +100,7 @@ const urgencyClass = {
                             <div>
                                 <div class="flex flex-wrap items-center gap-2">
                                     <p class="text-sm font-bold text-slate-950">{{ item.subject }}</p>
-                                    <span v-if="item.isProxy" class="rounded-full border border-amber-300 bg-amber-100 px-2 py-0.5 text-[9px] font-black uppercase text-amber-900">Proxy teacher</span>
+                                    <span v-if="item.isProxy" class="rounded-full border border-amber-300 bg-amber-100 px-2 py-0.5 text-[9px] font-black uppercase text-amber-900">Substitute teacher</span>
                                 </div>
                                 <p v-if="item.teacher" class="mt-0.5 text-xs font-medium text-slate-500">{{ item.teacher }}<span v-if="item.coveringFor"> · covering for {{ item.coveringFor }}</span></p>
                             </div>

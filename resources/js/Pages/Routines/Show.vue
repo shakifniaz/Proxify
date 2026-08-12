@@ -53,10 +53,10 @@ const routinePageTitle = computed(() => {
     if (isStudentViewer.value) return 'My Routine';
     if (isTeacherViewer.value) return 'Routine';
     if (props.noActiveRoutine) return 'Routine';
-    return props.proxyContext ? `${props.proxyContext.name} - Proxy Routine` : props.routine.name;
+    return props.proxyContext ? `${props.proxyContext.name} - Substitution Schedule` : props.routine.name;
 });
 const proxySourceTabs = [
-    { key: 'proxy', label: 'Proxy routine', icon: Repeat },
+    { key: 'proxy', label: 'Substitution schedule', icon: Repeat },
     { key: 'original', label: 'Original routine', icon: CalendarDays },
 ];
 
@@ -868,7 +868,7 @@ function printPage() {
                         Export
                     </button>
                     <Link v-if="!readOnly" :href="isProxyRoutine ? '/proxy-manager' : '/routines'" class="btn-secondary">
-                        {{ isProxyRoutine ? 'Proxy manager' : 'All routines' }}
+                        {{ isProxyRoutine ? 'Class Coverage' : 'All routines' }}
                     </Link>
                     <template v-if="isProxyRoutine && !readOnly">
                         <button type="button" class="btn-secondary" :disabled="isOriginalRoutineSource" @click="saveProxyRoutine">Save proxy draft</button>
@@ -880,7 +880,7 @@ function printPage() {
                             @click="approveProxyRoutine"
                         >
                             <CheckCircle2 class="h-4 w-4" />
-                            {{ proxyContext.approvedAt ? 'Approved' : 'Approve proxy routine' }}
+                            {{ proxyContext.approvedAt ? 'Approved' : 'Approve substitution schedule' }}
                         </button>
                     </template>
                     <template v-else-if="!readOnly">
@@ -893,8 +893,8 @@ function printPage() {
             <div v-if="isProxyRoutine && !proxyContext.approvedAt && !readOnly" class="rounded-2xl border border-[#8BED9A]/70 bg-[#8BED9A]/14 p-4 shadow-sm">
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                        <p class="text-sm font-black text-[#1e2924]">Approve to apply this proxy routine</p>
-                        <p class="mt-1 text-sm font-semibold text-slate-600">Until this is approved, the active routine will not use these proxy changes.</p>
+                        <p class="text-sm font-black text-[#1e2924]">Approve to apply this substitution schedule</p>
+                        <p class="mt-1 text-sm font-semibold text-slate-600">Until this is approved, the active routine will not use these substitution changes.</p>
                     </div>
                     <button
                         type="button"
@@ -903,7 +903,7 @@ function printPage() {
                         @click="approveProxyRoutine"
                     >
                         <CheckCircle2 class="h-4 w-4" />
-                        Approve proxy routine
+                        Approve substitution schedule
                     </button>
                 </div>
             </div>
@@ -936,7 +936,7 @@ function printPage() {
             <div v-if="activeProxyNotice && !isProxyRoutine" class="surface-card border-[#8BED9A]/70 bg-[#8BED9A]/15 p-4">
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                        <p class="text-sm font-semibold text-[#1e2924]">Temporary proxy routine active</p>
+                        <p class="text-sm font-semibold text-[#1e2924]">Temporary substitution schedule active</p>
                         <p class="mt-1 text-sm text-[#04795a]">
                             Showing {{ activeProxyNotice.name }} for {{ activeProxyNotice.day }}<span v-if="activeProxyNotice.date">, {{ activeProxyNotice.date }}</span>. The saved routine has not been permanently changed.
                         </p>
@@ -1137,7 +1137,7 @@ function printPage() {
                         <p class="text-2xl font-bold text-slate-950">
                             {{ currentTeacherRows.reduce((sum, row) => sum + Object.values(row.cells ?? {}).filter((cell) => cell?.type === 'proxy').length, 0) }}
                         </p>
-                        <p class="text-sm text-slate-500">proxy updates</p>
+                        <p class="text-sm text-slate-500">substitution updates</p>
                     </div>
                 </div>
 
@@ -1520,7 +1520,7 @@ function printPage() {
             <section class="print-export">
                 <header class="print-header">
                     <h1>{{ isProxyRoutine ? proxyContext.name : routine.name }}</h1>
-                    <p>{{ isProxyRoutine ? `Proxy routine - ${proxyContext.day}` : 'Teacher and class routines' }}</p>
+                    <p>{{ isProxyRoutine ? `Substitution schedule - ${proxyContext.day}` : 'Teacher and class routines' }}</p>
                 </header>
 
                 <section class="print-section">

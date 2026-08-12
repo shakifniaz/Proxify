@@ -302,7 +302,7 @@ function clearData() {
                         <span class="min-w-0">
                             <span class="block text-sm font-semibold text-slate-950">WhatsApp routine updates</span>
                             <span class="mt-1 block text-xs leading-5 text-slate-500">
-                                When this is off, your WhatsApp number is ignored for proxy routine and schedule messages until you enable it again.
+                                When this is off, your WhatsApp number is ignored for substitution schedule and schedule messages until you enable it again.
                             </span>
                         </span>
                     </span>

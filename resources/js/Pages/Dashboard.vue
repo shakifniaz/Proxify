@@ -175,7 +175,7 @@ function toneClass(tone) {
                                 </div>
                             </div>
                             <span v-if="row.proxy" class="mt-3 inline-flex rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-black text-amber-800">
-                                {{ row.proxy }} proxy change{{ row.proxy === 1 ? '' : 's' }}
+                                {{ row.proxy }} substitution change{{ row.proxy === 1 ? '' : 's' }}
                             </span>
                         </div>
                         <div v-if="!todaySchedule.length" class="p-8 text-center text-sm font-bold text-slate-500">

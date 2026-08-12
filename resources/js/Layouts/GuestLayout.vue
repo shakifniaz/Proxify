@@ -1,27 +1,11 @@
-<script setup>
-import { Link } from '@inertiajs/vue3';
-</script>
-
 <template>
-    <div class="auth-shell relative min-h-screen overflow-hidden bg-white text-slate-900">
-        <div class="pointer-events-none absolute inset-0 auth-grid opacity-80"></div>
-        <div class="pointer-events-none absolute -left-28 top-16 h-80 w-80 rounded-full bg-[#8BED9A]/35 blur-3xl"></div>
-        <div class="pointer-events-none absolute -right-24 bottom-10 h-96 w-96 rounded-full bg-[#09B884]/15 blur-3xl"></div>
-        <div class="pointer-events-none absolute left-1/2 top-1/2 h-[34rem] w-[34rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#1e2924]/5 blur-3xl"></div>
+    <div class="auth-shell relative min-h-screen overflow-x-hidden bg-[#f7fbf8] text-slate-900">
+        <div class="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_20%_18%,rgba(139,237,154,0.34),transparent_34%),radial-gradient(ellipse_at_78%_72%,rgba(9,184,132,0.16),transparent_38%),linear-gradient(135deg,rgba(255,255,255,0.96)_0%,rgba(232,255,240,0.78)_42%,rgba(30,41,36,0.08)_100%)]"></div>
+        <div class="pointer-events-none absolute inset-x-0 bottom-0 h-[72vh] auth-grid"></div>
+        <div class="pointer-events-none absolute inset-x-0 bottom-0 h-36 bg-gradient-to-t from-white/70 via-white/30 to-transparent"></div>
 
-        <div class="relative flex min-h-screen items-center justify-center px-4 py-10 sm:px-6">
-            <div class="w-full max-w-6xl">
-                <div class="mb-6 flex items-center justify-between gap-4">
-                    <Link href="/" class="inline-flex items-center gap-3">
-                        <span class="brand-wordmark text-3xl text-[#1e2924]">Campulse</span>
-                    </Link>
-                    <div class="hidden rounded-full border border-[#8BED9A]/55 bg-white/80 px-3 py-1.5 text-xs font-bold text-[#1e2924] shadow-sm backdrop-blur sm:block">
-                        School management workspace
-                    </div>
-                </div>
-
-                <slot />
-            </div>
+        <div class="relative flex min-h-screen items-center justify-center px-4 py-6 sm:px-6 lg:py-10">
+            <slot />
         </div>
     </div>
 </template>
@@ -29,9 +13,9 @@ import { Link } from '@inertiajs/vue3';
 <style scoped>
 .auth-grid {
     background-image:
-        linear-gradient(rgba(9, 184, 132, 0.08) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(9, 184, 132, 0.08) 1px, transparent 1px);
+        linear-gradient(rgba(9, 184, 132, 0.22) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(9, 184, 132, 0.22) 1px, transparent 1px);
     background-size: 34px 34px;
-    mask-image: radial-gradient(circle at center, black, transparent 78%);
+    mask-image: linear-gradient(to top, black 0%, rgba(0, 0, 0, 0.92) 28%, rgba(0, 0, 0, 0.48) 62%, transparent 100%);
 }
 </style>

@@ -66,7 +66,7 @@ class ProxyRunController extends Controller
         ProxyRun::create([
             'routine_id' => $routine->id,
             'user_id' => $request->user()?->id,
-            'name' => $data['name'] ?: 'Proxy run - '.$data['day'],
+            'name' => $data['name'] ?: 'Substitution plan - '.$data['day'],
             'date' => $data['date'] ?? null,
             'day_label' => $generated['day'],
             'status' => ($generated['metrics']['unresolved'] ?? 0) > 0 ? 'Needs Review' : 'Draft',
@@ -79,7 +79,7 @@ class ProxyRunController extends Controller
             'metrics' => $generated['metrics'],
         ]);
 
-        return redirect()->route('proxy-manager.index')->with('success', 'Proxy run generated.');
+        return redirect()->route('proxy-manager.index')->with('success', 'Substitution plan generated.');
     }
 
     public function show(ProxyRun $proxyRun): Response
@@ -136,7 +136,7 @@ class ProxyRunController extends Controller
             'status' => $proxyRun->approved_at ? 'Approved' : 'Draft',
         ]);
 
-        return back()->with('success', 'Proxy routine draft saved.');
+        return back()->with('success', 'Substitution schedule draft saved.');
     }
 
     public function approve(ProxyRun $proxyRun): RedirectResponse
@@ -148,7 +148,7 @@ class ProxyRunController extends Controller
             'approved_at' => now(),
         ]);
 
-        return back()->with('success', 'Proxy routine approved for the selected day.');
+        return back()->with('success', 'Substitution schedule approved for the selected day.');
     }
 
     public function disable(ProxyRun $proxyRun): RedirectResponse
@@ -158,19 +158,19 @@ class ProxyRunController extends Controller
             'approved_at' => null,
         ]);
 
-        return back()->with('success', 'Proxy routine disabled.');
+        return back()->with('success', 'Substitution schedule disabled.');
     }
 
     public function destroy(ProxyRun $proxyRun): RedirectResponse
     {
         $proxyRun->delete();
 
-        return redirect()->route('proxy-manager.index')->with('success', 'Proxy routine deleted.');
+        return redirect()->route('proxy-manager.index')->with('success', 'Substitution schedule deleted.');
     }
 
     public function previewWhatsAppUpdates(ProxyRun $proxyRun, WhatsAppRoutineMessenger $messenger): JsonResponse
     {
-        abort_unless($proxyRun->status === 'Approved', 422, 'Enable the proxy plan before previewing WhatsApp updates.');
+        abort_unless($proxyRun->status === 'Approved', 422, 'Enable the substitution plan before previewing WhatsApp updates.');
 
         return response()->json([
             'messages' => $messenger->previewProxyRun($proxyRun),
@@ -179,7 +179,7 @@ class ProxyRunController extends Controller
 
     public function sendWhatsAppUpdates(Request $request, ProxyRun $proxyRun, WhatsAppRoutineMessenger $messenger): RedirectResponse
     {
-        abort_unless($proxyRun->status === 'Approved', 422, 'Enable the proxy plan before sending WhatsApp updates.');
+        abort_unless($proxyRun->status === 'Approved', 422, 'Enable the substitution plan before sending WhatsApp updates.');
 
         $data = $request->validate([
             'messages' => ['nullable', 'array'],
@@ -433,7 +433,7 @@ class ProxyRunController extends Controller
                     'proxyForTeacherName' => $assignment['absentTeacher'] ?? null,
                     'proxyChanged' => true,
                     'proxyChangeKind' => 'unresolved',
-                    'proxyChangeLabel' => 'Needs proxy',
+                    'proxyChangeLabel' => 'Needs substitution',
                 ]);
                 continue;
             }

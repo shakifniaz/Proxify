@@ -161,7 +161,7 @@ class SettingsController extends Controller
             ],
             'routines' => [
                 'label' => 'Routines',
-                'description' => 'Deletes routines, proxy runs, proxy message logs, and subject grouping attached to those routines.',
+                'description' => 'Deletes routines, substitution plans, proxy message logs, and subject grouping attached to those routines.',
                 'count' => fn (int $institutionId): int => Routine::where('institution_id', $institutionId)->count(),
                 'delete' => function (int $institutionId): int {
                     $routineIds = Routine::where('institution_id', $institutionId)->pluck('id');
@@ -171,8 +171,8 @@ class SettingsController extends Controller
                 },
             ],
             'proxy' => [
-                'label' => 'Proxy runs',
-                'description' => 'Deletes generated proxy plans and WhatsApp send logs while keeping routines.',
+                'label' => 'Substitution plans',
+                'description' => 'Deletes generated substitution plans and WhatsApp send logs while keeping routines.',
                 'count' => fn (int $institutionId): int => ProxyRun::whereHas('routine', fn ($query) => $query->where('institution_id', $institutionId))->count(),
                 'delete' => function (int $institutionId): int {
                     $runIds = ProxyRun::whereHas('routine', fn ($query) => $query->where('institution_id', $institutionId))->pluck('id');

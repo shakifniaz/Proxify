@@ -222,7 +222,7 @@ class RoutineController extends Controller
             'metrics' => $routine->metrics ?? [],
             'activeProxyNotice' => $activeProxies->isNotEmpty() ? [
                 'id' => $activeProxies->count() === 1 ? $activeProxies->first()->id : null,
-                'name' => $activeProxies->count() === 1 ? $activeProxies->first()->name : $activeProxies->count().' proxy plans',
+                'name' => $activeProxies->count() === 1 ? $activeProxies->first()->name : $activeProxies->count().' substitution plans',
                 'date' => $activeProxies->count() === 1 ? optional($activeProxies->first()->date)->toDateString() : null,
                 'day' => $activeProxies->pluck('day_label')->filter()->unique()->values()->join(', '),
                 'count' => $activeProxies->count(),

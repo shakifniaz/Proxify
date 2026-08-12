@@ -1,6 +1,7 @@
 <script setup>
 import { computed, nextTick, onMounted, ref } from 'vue';
 import { Link, usePage } from '@inertiajs/vue3';
+import ApplicationLogo from '@/Components/ApplicationLogo.vue';
 import {
     LayoutDashboard,
     CalendarDays,
@@ -18,6 +19,8 @@ import {
     ChevronsLeft,
     ChevronsRight,
     LogOut,
+    Menu,
+    X,
 } from 'lucide-vue-next';
 
 defineProps({
@@ -29,7 +32,8 @@ defineEmits(['toggle']);
 const page = usePage();
 const currentUrl = computed(() => page.url.split('?')[0]);
 const navEl = ref(null);
-const sidebarScrollKey = 'campulse_sidebar_scroll_top';
+const mobileMenuOpen = ref(false);
+const sidebarScrollKey = 'scholarly_sidebar_scroll_top';
 
 const authUser = computed(() => ({
     name: page.props.auth?.user?.name ?? 'User',
@@ -50,7 +54,7 @@ const adminNavGroups = [
         items: [
             { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
             { name: 'Routines', href: '/routines', icon: CalendarDays },
-            { name: 'Proxy Manager', href: '/proxy-manager', icon: Repeat },
+            { name: 'Class Coverage', href: '/proxy-manager', icon: Repeat },
             { name: 'Exam Schedule', href: '/exam-schedule', icon: ClipboardList },
         ],
     },
@@ -129,6 +133,11 @@ const activeNavGroups = computed(() => {
     return teacherNavGroups;
 });
 
+const activeNavItems = computed(() => activeNavGroups.value.flatMap((group) => group.items));
+const mobilePrimaryItems = computed(() => activeNavItems.value.slice(0, 4));
+const mobileSecondaryItems = computed(() => activeNavItems.value.slice(4));
+const mobileMoreActive = computed(() => mobileSecondaryItems.value.some((item) => isActive(item.href)));
+
 function isActive(href) {
     if (href === '/routines') {
         return currentUrl.value === '/routines' || (currentUrl.value !== '/routines/create' && /^\/routines\/[^/]+$/.test(currentUrl.value));
@@ -152,46 +161,72 @@ onMounted(() => {
 
 <template>
     <aside
-        class="sticky top-0 hidden h-screen flex-col border-r border-[#09B884]/25 bg-[#1e2924] shadow-[1px_0_0_rgba(30,41,36,0.24)] transition-all duration-200 sm:flex"
-        :class="collapsed ? 'w-16 overflow-hidden' : 'w-64'"
+        class="sticky top-0 z-40 hidden h-screen flex-col overflow-visible bg-[#1e2924] shadow-[12px_0_36px_rgba(15,23,20,0.22)] transition-all duration-200 sm:flex"
+        :class="collapsed ? 'w-[4.75rem]' : 'w-[17rem]'"
     >
-        <div class="flex h-16 items-center" :class="collapsed ? 'justify-center px-2' : 'justify-start px-6'">
-            <span v-if="!collapsed" class="brand-wordmark block translate-y-1 pb-1 text-left text-[2.05rem] leading-tight text-white">Campulse</span>
-            <span v-else class="brand-wordmark text-lg font-bold text-white">C</span>
+        <div class="pointer-events-none absolute inset-0 bg-[linear-gradient(160deg,#1e2924_0%,#173a2f_48%,#0f211c_100%)]"></div>
+        <div class="pointer-events-none absolute inset-x-0 top-0 h-40 bg-[linear-gradient(180deg,rgba(139,237,154,0.16),transparent)]"></div>
+        <div class="pointer-events-none absolute inset-y-0 right-0 w-px bg-gradient-to-b from-transparent via-[#8BED9A]/35 to-transparent"></div>
+
+        <button
+            type="button"
+            class="absolute -right-2 top-5 z-50 grid h-4 w-4 place-items-center rounded-full bg-[#1e2924] text-gray-300 shadow-[0_5px_14px_rgba(0,0,0,0.2)] ring-1 ring-white/15 transition-colors hover:bg-[#263830] hover:text-white"
+            :title="collapsed ? 'Expand menu' : 'Collapse menu'"
+            @click="$emit('toggle')"
+        >
+            <ChevronsLeft v-if="!collapsed" class="h-2.5 w-2.5" />
+            <ChevronsRight v-else class="h-2.5 w-2.5" />
+        </button>
+
+        <div class="relative flex items-center" :class="collapsed ? 'h-[clamp(4.5rem,9vh,5rem)] justify-center px-0' : 'h-20 justify-start px-5 pr-10'">
+            <div class="flex min-w-0 items-center" :class="collapsed ? 'justify-center' : 'gap-2.5'">
+                <span
+                    class="grid shrink-0 place-items-center"
+                    :class="collapsed ? 'h-11 w-11' : 'h-11 w-12'"
+                >
+                    <ApplicationLogo class="h-full w-full" />
+                </span>
+                <div v-if="!collapsed" class="min-w-0">
+                    <span class="brand-wordmark block text-left text-[1.9rem] leading-none text-white">Scholarly</span>
+                </div>
+            </div>
         </div>
 
         <nav
             ref="navEl"
-            class="flex-1"
-            :class="collapsed ? 'space-y-2 overflow-hidden px-2 py-2' : 'space-y-5 overflow-y-auto px-3 py-4'"
+            class="relative flex-1"
+            :class="collapsed ? (isAdmin ? 'flex flex-col justify-between overflow-hidden px-3 py-2' : 'flex flex-col gap-2 overflow-hidden px-3 py-2') : 'space-y-5 overflow-y-auto px-3 py-4'"
             @scroll="rememberSidebarScroll"
         >
-            <div v-for="group in activeNavGroups" :key="group.label">
+            <div v-for="group in activeNavGroups" :key="group.label" :class="collapsed ? 'contents' : ''">
                 <p
                     v-if="!collapsed"
-                    class="px-3 text-[10px] font-bold uppercase tracking-widest text-[#D8FFE0]/65"
+                    class="px-3 text-[10px] font-black uppercase tracking-[0.18em] text-white/55"
                 >
                     {{ group.label }}
                 </p>
-                <div :class="collapsed ? 'mt-0 space-y-2' : 'mt-2 space-y-1'">
+                <div :class="collapsed ? 'contents' : 'mt-2 space-y-1'">
                     <Link
                         v-for="item in group.items"
                         :key="item.name"
                         :href="item.href"
                         :title="collapsed ? item.name : undefined"
-                        class="group relative flex items-center rounded-xl border text-sm font-semibold transition-all"
+                        class="group relative flex items-center text-sm font-bold transition-all"
                         :class="[
-                            collapsed ? 'h-10 justify-center px-0' : 'gap-3 px-3 py-2',
+                            collapsed ? 'h-[clamp(2.35rem,5.15vh,2.75rem)] justify-center rounded-xl px-0' : 'h-11 gap-3 rounded-2xl px-3',
                             isActive(item.href)
-                                ? 'border-[#8BED9A]/45 bg-white/14 text-[#BDF8C8] shadow-sm shadow-black/10 before:absolute before:left-0 before:top-2 before:h-6 before:w-1 before:rounded-r-full before:bg-[#8BED9A]'
-                                : 'border-transparent text-white hover:border-[#8BED9A]/25 hover:bg-[#8BED9A]/14 hover:text-[#BDF8C8] hover:shadow-sm'
+                                ? 'bg-white/[0.13] text-white shadow-[0_12px_30px_rgba(139,237,154,0.16),inset_0_1px_0_rgba(255,255,255,0.08)]'
+                                : 'text-gray-300/75 hover:bg-white/[0.08] hover:text-white'
                         ]"
                     >
                         <span
-                            class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-colors"
-                            :class="isActive(item.href) ? 'bg-[#8BED9A]/22 text-[#BDF8C8]' : 'bg-white/10 text-white group-hover:bg-[#8BED9A]/22 group-hover:text-[#BDF8C8]'"
+                            class="grid shrink-0 place-items-center rounded-lg transition-colors"
+                            :class="[
+                                collapsed ? 'h-[clamp(2rem,4.5vh,2.25rem)] w-[clamp(2rem,4.5vh,2.25rem)]' : 'h-9 w-9',
+                                isActive(item.href) ? 'text-white' : 'text-gray-300/75 group-hover:text-white'
+                            ]"
                         >
-                            <component :is="item.icon" class="h-[17px] w-[17px] stroke-[1.9]" />
+                            <component :is="item.icon" :class="collapsed ? 'h-[1.15rem] w-[1.15rem]' : 'h-5 w-5'" class="stroke-[2.35]" />
                         </span>
                         <span v-if="!collapsed" class="flex-1 truncate">{{ item.name }}</span>
                     </Link>
@@ -199,30 +234,20 @@ onMounted(() => {
             </div>
         </nav>
 
-        <button
-            type="button"
-            class="mx-3 mb-3 flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/8 text-xs font-semibold text-[#E8FFF0]/75 shadow-sm transition-colors hover:border-[#8BED9A]/45 hover:bg-[#8BED9A]/16 hover:text-white"
-            :title="collapsed ? 'Expand menu' : 'Collapse menu'"
-            @click="$emit('toggle')"
-        >
-            <ChevronsLeft v-if="!collapsed" class="h-4 w-4" />
-            <ChevronsRight v-else class="h-4 w-4" />
-            <span v-if="!collapsed">Collapse Menu</span>
-        </button>
-
         <div
-            class="border-t border-white/10 bg-white/[0.04]"
-            :class="collapsed ? 'flex flex-col items-center gap-2 px-2 py-3' : 'm-3 flex items-center justify-between gap-2 rounded-xl border border-white/10 px-3 py-3 shadow-sm shadow-black/10'"
+            class="relative bg-white/[0.05]"
+            :class="collapsed ? 'flex flex-col items-center gap-1 px-3 py-2' : 'm-3 flex items-center justify-between gap-2 rounded-2xl px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_14px_28px_rgba(0,0,0,0.12)]'"
         >
             <div class="flex min-w-0 items-center" :class="collapsed ? 'justify-center' : 'gap-3'" :title="collapsed ? `${authUser.name} - ${authUser.role}` : undefined">
                 <div
-                    class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[#8BED9A]/35 bg-[#8BED9A]/18 text-xs font-bold text-[#8BED9A]"
+                    class="flex shrink-0 items-center justify-center bg-[#8BED9A]/16 text-xs font-black text-[#8BED9A]"
+                    :class="collapsed ? 'h-9 w-9 rounded-lg' : 'h-9 w-9 rounded-xl'"
                 >
                     {{ initials }}
                 </div>
                 <div v-if="!collapsed" class="min-w-0">
                     <p class="truncate text-xs font-bold text-white">{{ authUser.name }}</p>
-                    <p class="truncate text-[11px] font-medium capitalize text-[#D8FFE0]/70">{{ authUser.role }}</p>
+                    <p class="truncate text-[11px] font-medium capitalize text-white/70">{{ authUser.role }}</p>
                 </div>
             </div>
 
@@ -232,11 +257,113 @@ onMounted(() => {
                 method="post"
                 as="button"
                 type="button"
-                class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-transparent text-[#D8FFE0]/65 transition-colors hover:border-[#8BED9A]/30 hover:bg-[#8BED9A]/16 hover:text-white"
+                class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-white/65 transition-colors hover:bg-[#8BED9A]/16 hover:text-white"
                 title="Log out session"
             >
                 <LogOut class="h-4 w-4" />
             </Link>
         </div>
     </aside>
+
+    <nav class="fixed inset-x-0 bottom-0 z-50 border-t border-[#8BED9A]/35 bg-[#1e2924]/96 px-2 pb-[max(env(safe-area-inset-bottom),0.35rem)] pt-2 shadow-[0_-18px_36px_rgba(15,23,20,0.22)] backdrop-blur sm:hidden">
+        <div class="mx-auto grid max-w-md grid-cols-5 gap-1">
+            <Link
+                v-for="item in mobilePrimaryItems"
+                :key="item.name"
+                :href="item.href"
+                class="flex min-w-0 flex-col items-center justify-center gap-1 rounded-xl px-1 py-2 text-[10px] font-black leading-none transition"
+                :class="isActive(item.href) ? 'bg-white/[0.13] text-white' : 'text-gray-300/75 active:bg-white/[0.08]'"
+            >
+                <component :is="item.icon" class="h-5 w-5 shrink-0 stroke-[2.35]" />
+                <span class="max-w-full truncate">{{ item.name.replace('My ', '') }}</span>
+            </Link>
+
+            <button
+                type="button"
+                class="flex min-w-0 flex-col items-center justify-center gap-1 rounded-xl px-1 py-2 text-[10px] font-black leading-none transition"
+                :class="mobileMoreActive || mobileMenuOpen ? 'bg-white/[0.13] text-white' : 'text-gray-300/75 active:bg-white/[0.08]'"
+                aria-label="Open full menu"
+                :aria-expanded="mobileMenuOpen"
+                @click="mobileMenuOpen = true"
+            >
+                <Menu class="h-5 w-5 shrink-0 stroke-[2.35]" />
+                <span>Menu</span>
+            </button>
+        </div>
+    </nav>
+
+    <Teleport to="body">
+        <div v-if="mobileMenuOpen" class="fixed inset-0 z-[60] sm:hidden">
+            <button
+                type="button"
+                class="absolute inset-0 bg-[#10211b]/55 backdrop-blur-[2px]"
+                aria-label="Close menu"
+                @click="mobileMenuOpen = false"
+            ></button>
+
+            <section class="absolute inset-x-0 bottom-0 max-h-[82vh] overflow-hidden rounded-t-3xl bg-[#1e2924] text-white shadow-2xl shadow-black/30">
+                <div class="pointer-events-none absolute inset-0 bg-[linear-gradient(160deg,#1e2924_0%,#173a2f_48%,#0f211c_100%)]"></div>
+                <div class="relative flex items-center justify-between border-b border-white/10 px-4 py-4">
+                    <div class="flex min-w-0 items-center gap-3">
+                        <ApplicationLogo class="h-9 w-10 shrink-0" />
+                        <div class="min-w-0">
+                            <p class="brand-wordmark truncate text-2xl leading-none">Scholarly</p>
+                            <p class="mt-1 truncate text-xs font-bold capitalize text-white/55">{{ authUser.role }} menu</p>
+                        </div>
+                    </div>
+                    <button
+                        type="button"
+                        class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white/10 text-white/75 transition active:bg-white/15"
+                        aria-label="Close menu"
+                        @click="mobileMenuOpen = false"
+                    >
+                        <X class="h-5 w-5" />
+                    </button>
+                </div>
+
+                <div class="relative max-h-[calc(82vh-9rem)] overflow-y-auto px-3 py-3">
+                    <div v-for="group in activeNavGroups" :key="group.label" class="py-2">
+                        <p class="px-2 text-[10px] font-black uppercase tracking-[0.18em] text-white/45">{{ group.label }}</p>
+                        <div class="mt-2 grid grid-cols-2 gap-2">
+                            <Link
+                                v-for="item in group.items"
+                                :key="item.name"
+                                :href="item.href"
+                                class="flex min-h-14 items-center gap-3 rounded-2xl px-3 text-sm font-black transition"
+                                :class="isActive(item.href) ? 'bg-white/[0.14] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]' : 'bg-white/[0.06] text-gray-300 active:bg-white/[0.1]'"
+                                @click="mobileMenuOpen = false"
+                            >
+                                <span class="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white/[0.07]">
+                                    <component :is="item.icon" class="h-5 w-5 stroke-[2.35]" />
+                                </span>
+                                <span class="min-w-0 truncate">{{ item.name }}</span>
+                            </Link>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="relative flex items-center justify-between gap-3 border-t border-white/10 px-4 pb-[max(env(safe-area-inset-bottom),1rem)] pt-3">
+                    <div class="flex min-w-0 items-center gap-3">
+                        <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#8BED9A]/16 text-xs font-black text-[#8BED9A]">
+                            {{ initials }}
+                        </div>
+                        <div class="min-w-0">
+                            <p class="truncate text-sm font-black">{{ authUser.name }}</p>
+                            <p class="truncate text-xs font-bold capitalize text-white/50">{{ authUser.role }}</p>
+                        </div>
+                    </div>
+                    <Link
+                        href="/logout"
+                        method="post"
+                        as="button"
+                        type="button"
+                        class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white/10 text-white/70 transition active:bg-white/15"
+                        title="Log out session"
+                    >
+                        <LogOut class="h-5 w-5" />
+                    </Link>
+                </div>
+            </section>
+        </div>
+    </Teleport>
 </template>

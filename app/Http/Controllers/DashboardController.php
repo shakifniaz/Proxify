@@ -70,7 +70,7 @@ class DashboardController extends Controller
             'stats' => [
                 ['label' => 'Classes', 'value' => $sections, 'sub' => 'active sections', 'tone' => 'green'],
                 ['label' => 'Teachers', 'value' => count($teachers), 'sub' => 'in routine pool', 'tone' => 'dark'],
-                ['label' => 'Proxy changes', 'value' => $proxyCount, 'sub' => $approvedProxy ? $approvedProxy->name : 'none active today', 'tone' => 'mint'],
+                ['label' => 'Substitution changes', 'value' => $proxyCount, 'sub' => $approvedProxy ? $approvedProxy->name : 'none active today', 'tone' => 'mint'],
                 ['label' => 'Leaves today', 'value' => $leaveCount, 'sub' => 'approved absences', 'tone' => 'amber'],
             ],
             'routineHealth' => [
@@ -569,7 +569,7 @@ class DashboardController extends Controller
     {
         return collect([
             $proxy ? ['text' => $proxy->name.' is active for '.$proxy->day_label, 'time' => $proxy->approved_at?->format('g:i A') ?? 'Today', 'tone' => 'green'] : null,
-            $leaveCount ? ['text' => $leaveCount.' approved leave handoff'.($leaveCount === 1 ? '' : 's').' ready for proxy planning', 'time' => 'Today', 'tone' => 'amber'] : null,
+            $leaveCount ? ['text' => $leaveCount.' approved leave handoff'.($leaveCount === 1 ? '' : 's').' ready for substitution planning', 'time' => 'Today', 'tone' => 'amber'] : null,
             $notices->first() ? ['text' => 'Latest notice: '.$notices->first()['title'], 'time' => $notices->first()['date'], 'tone' => 'mint'] : null,
             $exam ? ['text' => $exam->name.' is the active exam schedule', 'time' => $exam->start_date?->format('d M'), 'tone' => 'dark'] : null,
         ])->filter()->values()->all();

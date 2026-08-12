@@ -12,13 +12,13 @@ const props = defineProps({
 });
 
 const sidebarCollapsed = ref(
-    typeof localStorage !== 'undefined' && localStorage.getItem('campulse_sidebar_collapsed') === '1'
+    typeof localStorage !== 'undefined' && localStorage.getItem('scholarly_sidebar_collapsed') === '1'
 );
 
 function toggleSidebar() {
     sidebarCollapsed.value = !sidebarCollapsed.value;
     if (typeof localStorage !== 'undefined') {
-        localStorage.setItem('campulse_sidebar_collapsed', sidebarCollapsed.value ? '1' : '0');
+        localStorage.setItem('scholarly_sidebar_collapsed', sidebarCollapsed.value ? '1' : '0');
     }
 }
 
@@ -69,7 +69,7 @@ onUnmounted(() => {
         <div class="flex min-w-0 flex-1 flex-col">
             <AppTopbar :title="title" />
 
-            <main class="flex-1 overflow-y-auto bg-white" :class="flush ? 'p-0' : 'p-4 sm:p-6'">
+            <main class="min-w-0 flex-1 overflow-x-hidden overflow-y-auto bg-white" :class="flush ? 'p-0 pb-24 sm:pb-0' : 'p-3 pb-24 sm:p-6'">
                 <slot />
             </main>
         </div>

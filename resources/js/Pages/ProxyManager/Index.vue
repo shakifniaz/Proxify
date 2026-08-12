@@ -59,7 +59,7 @@ const whatsappDialog = ref({
 });
 const defaultRunTarget = nextRoutineTarget(props.activeRoutine?.days ?? []);
 const selectedDay = ref(defaultRunTarget.day);
-const runName = ref(`Proxy run - ${selectedDay.value}`);
+const runName = ref(`Substitution plan - ${selectedDay.value}`);
 const runDate = ref(defaultRunTarget.date);
 const classPeriodKeys = (props.activeRoutine?.periods ?? [])
     .filter((period) => (period.type ?? 'class') === 'class')
@@ -79,7 +79,7 @@ const subjectGroups = ref(props.defaultSubjectGroups.map((group) => ({
 })));
 
 const tabs = [
-    { key: 'plan', label: 'Proxy plan', icon: UserX },
+    { key: 'plan', label: 'Substitution plan', icon: UserX },
     { key: 'groups', label: 'Subject groups', icon: SlidersHorizontal },
 ];
 
@@ -571,7 +571,7 @@ function generateProxyRun() {
 
     router.post('/proxy-manager', {
         routineId: props.activeRoutine.id,
-        name: runName.value || `Proxy run - ${selectedDay.value}`,
+        name: runName.value || `Substitution plan - ${selectedDay.value}`,
         date: runDate.value,
         day: selectedDay.value,
         absentTeachers: Array.from(selectedTeacherIds.value).map((teacherId) => ({
@@ -655,8 +655,8 @@ function enableProxyRun(run) {
     if (conflict) {
         openConfirmDialog({
             tone: 'warning',
-            title: 'Enable this proxy plan?',
-            message: `"${conflict.name}" is already enabled for ${run.day}. Enabling "${run.name}" will disable the other proxy plan for that day.`,
+            title: 'Enable this substitution plan?',
+            message: `"${conflict.name}" is already enabled for ${run.day}. Enabling "${run.name}" will disable the other substitution plan for that day.`,
             confirmLabel: 'Enable and disable other',
             onConfirm: submit,
         });
@@ -676,7 +676,7 @@ function disableProxyRun(run) {
 function deleteProxyRun(run) {
     openConfirmDialog({
         tone: 'danger',
-        title: 'Delete proxy plan?',
+        title: 'Delete substitution plan?',
         message: `"${run.name}" will be permanently removed. If it is currently enabled, it will also stop affecting the active routine.`,
         confirmLabel: 'Delete proxy',
         onConfirm: () => router.delete(`/proxy-manager/${run.id}`, {
@@ -779,7 +779,7 @@ function printPage() {
 </script>
 
 <template>
-    <AppLayout title="Proxy Manager">
+    <AppLayout title="Class Coverage">
         <div class="proxy-manager-shell space-y-5">
             <div v-if="!activeRoutine" class="surface-card p-8 text-center">
                 <AlertTriangle class="mx-auto h-8 w-8 text-amber-600" />
@@ -834,8 +834,8 @@ function printPage() {
                     <section v-if="!showProxyBuilder" class="surface-card overflow-hidden">
                         <div class="flex flex-col gap-4 border-b border-stone-200 bg-white p-5 lg:flex-row lg:items-center lg:justify-between">
                             <div>
-                                <p class="text-lg font-black text-[#1e2924]">Proxy plan library</p>
-                                <p class="mt-1 text-sm font-semibold text-slate-500">Review previous proxy plans, enable one for its day, or create a new plan.</p>
+                                <p class="text-lg font-black text-[#1e2924]">Substitution plan library</p>
+                                <p class="mt-1 text-sm font-semibold text-slate-500">Review previous substitution plans, enable one for its day, or create a new plan.</p>
                             </div>
                             <button type="button" class="btn-primary min-h-11" @click="startNewProxy">
                                 <Plus class="h-4 w-4" />
@@ -845,8 +845,8 @@ function printPage() {
 
                         <div v-if="!runs.length" class="p-8 text-center">
                             <Layers3 class="mx-auto h-8 w-8 text-slate-300" />
-                            <p class="mt-3 text-sm font-black text-[#1e2924]">No proxy plans yet</p>
-                            <p class="mt-1 text-sm font-semibold text-slate-500">Create a proxy plan when a teacher is unavailable.</p>
+                            <p class="mt-3 text-sm font-black text-[#1e2924]">No substitution plans yet</p>
+                            <p class="mt-1 text-sm font-semibold text-slate-500">Create a substitution plan when a teacher is unavailable.</p>
                         </div>
 
                         <div v-else class="grid gap-4 p-5 lg:grid-cols-2 2xl:grid-cols-3">
@@ -923,9 +923,9 @@ function printPage() {
 
                     <template v-else>
                     <div class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-stone-200 bg-white p-3 shadow-sm">
-                        <button type="button" class="btn-secondary min-h-10" @click="backToProxyLibrary">All proxy plans</button>
+                        <button type="button" class="btn-secondary min-h-10" @click="backToProxyLibrary">All substitution plans</button>
                         <p class="text-sm font-black text-[#1e2924]">
-                            {{ activeRun ? activeRun.name : 'Create new proxy plan' }}
+                            {{ activeRun ? activeRun.name : 'Create new substitution plan' }}
                         </p>
                         <button v-if="activeRun" type="button" class="btn-secondary min-h-10" @click="printPage">
                             <Printer class="h-4 w-4" />
@@ -968,7 +968,7 @@ function printPage() {
                                     <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#8BED9A]/70 bg-white text-[#09B884] shadow-sm">
                                         <CalendarDays class="h-4 w-4" />
                                     </div>
-                                    <p class="text-base font-black text-slate-950">Create a proxy plan</p>
+                                    <p class="text-base font-black text-slate-950">Create a substitution plan</p>
                                 </div>
                                 <div class="flex flex-wrap gap-2">
                                     <span class="inline-flex items-center rounded-full bg-white px-3 py-1.5 text-xs font-black text-[#1e2924] shadow-sm">
@@ -986,7 +986,7 @@ function printPage() {
 
                         <div class="grid gap-3 p-4 xl:grid-cols-[minmax(13rem,1fr)_10rem_10rem] xl:items-end">
                                         <div>
-                                            <label class="section-title">Proxy run name</label>
+                                            <label class="section-title">Substitution plan name</label>
                                             <input v-model="runName" type="text" class="field-control mt-1 w-full bg-white" />
                                         </div>
                                             <div>
@@ -1302,7 +1302,7 @@ function printPage() {
                                     @click="generateProxyRun"
                                 >
                                     <RefreshCw class="h-4 w-4" :class="{ 'animate-spin': isSubmitting }" />
-                                    {{ isSubmitting ? 'Generating...' : 'Generate proxy plan' }}
+                                    {{ isSubmitting ? 'Generating...' : 'Generate substitution plan' }}
                                 </button>
                             </div>
                         </div>
@@ -1311,9 +1311,9 @@ function printPage() {
                     <div v-if="activeProxyStep === 'Generate'" class="surface-card overflow-hidden">
                         <div class="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
                             <div>
-                                <p class="text-sm font-black text-[#1e2924]">Generated proxy plan</p>
+                                <p class="text-sm font-black text-[#1e2924]">Generated substitution plan</p>
                                 <p class="mt-1 text-xs font-semibold text-slate-500">
-                                    {{ activeRun ? `${activeRun.routineName} - ${activeRun.day} - ${activeRun.createdAt}` : 'Generate a plan to review proxy changes here.' }}
+                                    {{ activeRun ? `${activeRun.routineName} - ${activeRun.day} - ${activeRun.createdAt}` : 'Generate a plan to review substitution changes here.' }}
                                 </p>
                             </div>
                             <div class="flex items-center gap-2">
@@ -1351,22 +1351,22 @@ function printPage() {
                                     :href="`/proxy-manager/${activeRun.id}`"
                                     class="inline-flex min-h-9 items-center justify-center rounded-xl border border-[#8BED9A]/70 bg-[#8BED9A]/15 px-3 text-xs font-black text-[#1e2924] transition hover:bg-[#8BED9A]/25"
                                 >
-                                    Open proxy routine
+                                    Open substitution schedule
                                 </Link>
                             </div>
                         </div>
                         <div class="border-t border-stone-200 p-5">
                             <div v-if="!activeRun" class="rounded-xl border border-dashed border-stone-300 p-10 text-center">
                                 <ShieldCheck class="mx-auto h-9 w-9 text-slate-300" />
-                                <p class="mt-3 text-sm font-semibold text-slate-950">No proxy plan selected</p>
-                                <p class="mt-1 text-sm text-slate-500">Create a new proxy plan or open one from the library.</p>
+                                <p class="mt-3 text-sm font-semibold text-slate-950">No substitution plan selected</p>
+                                <p class="mt-1 text-sm text-slate-500">Create a new substitution plan or open one from the library.</p>
                             </div>
 
                             <div v-else class="space-y-5">
                                 <div class="flex flex-col gap-3 rounded-xl border border-stone-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
                                     <div>
                                         <p class="text-sm font-black text-[#1e2924]">{{ activeRun.name }}</p>
-                                        <p class="mt-1 text-xs font-semibold text-slate-500">{{ activeRun.status === 'Approved' ? 'Enabled on the active routine' : 'Saved as a draft proxy plan' }}</p>
+                                        <p class="mt-1 text-xs font-semibold text-slate-500">{{ activeRun.status === 'Approved' ? 'Enabled on the active routine' : 'Saved as a draft substitution plan' }}</p>
                                         <p v-if="activeRun.messageSummary?.total" class="mt-2 text-xs font-bold text-slate-500">
                                             WhatsApp updates: {{ activeRun.messageSummary.sent }} sent, {{ activeRun.messageSummary.skipped }} skipped, {{ activeRun.messageSummary.failed }} failed
                                         </p>
@@ -1483,7 +1483,7 @@ function printPage() {
 
                 <section class="proxy-print-export">
                     <header class="proxy-print-header">
-                        <h1>{{ activeRun?.name ?? 'Proxy plan' }}</h1>
+                        <h1>{{ activeRun?.name ?? 'Substitution plan' }}</h1>
                         <p>{{ activeRun?.routineName ?? activeRoutine?.name }} - {{ activeRun?.day ?? selectedDay }} - {{ activeRun?.createdAt ?? runDate }}</p>
                     </header>
 
@@ -1519,7 +1519,7 @@ function printPage() {
                     </section>
 
                     <section v-if="activeRun?.assignments?.length" class="proxy-print-section">
-                        <h2>Proxy Assignments</h2>
+                        <h2>Substitution Assignments</h2>
                         <article v-for="group in activeRun.assignments" :key="`print-proxy-group-${group.period}`" class="proxy-print-group">
                             <h3>{{ group.label }}</h3>
                             <table class="proxy-print-table">
@@ -1744,7 +1744,7 @@ function printPage() {
                                         <div class="min-w-0">
                                             <div class="flex flex-wrap items-center gap-2">
                                                 <p class="text-base font-black text-[#1e2924]">{{ message.teacherName }}</p>
-                                                <span v-if="message.hasProxy" class="rounded-full bg-[#8BED9A]/30 px-2.5 py-1 text-[11px] font-black uppercase text-[#1e2924]">Has proxy</span>
+                                                <span v-if="message.hasProxy" class="rounded-full bg-[#8BED9A]/30 px-2.5 py-1 text-[11px] font-black uppercase text-[#1e2924]">Has substitution</span>
                                                 <span v-else class="rounded-full bg-stone-100 px-2.5 py-1 text-[11px] font-black uppercase text-slate-500">Regular</span>
                                                 <span v-if="message.whatsappEnabled === false" class="rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-black uppercase text-amber-800">Disabled in settings</span>
                                             </div>
@@ -1775,7 +1775,7 @@ function printPage() {
 
                         <div class="flex flex-col gap-3 border-t border-stone-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
                             <p class="text-xs font-bold text-slate-500">
-                                {{ whatsappDialog.messages.filter((message) => message.hasProxy).length }} proxy updates · {{ whatsappDialog.messages.length }} total messages
+                                {{ whatsappDialog.messages.filter((message) => message.hasProxy).length }} substitution updates · {{ whatsappDialog.messages.length }} total messages
                             </p>
                             <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                                 <button type="button" class="inline-flex min-h-11 items-center justify-center rounded-xl border border-stone-200 bg-white px-5 text-sm font-black text-[#1e2924] shadow-sm transition hover:-translate-y-0.5 hover:bg-stone-50" @click="closeWhatsAppDialog">

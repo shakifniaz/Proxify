@@ -143,7 +143,7 @@ function analyticsTableSections() {
             ]),
         },
         {
-            title: 'Proxy engine',
+            title: 'Class coverage',
             headers: ['Metric', 'Value'],
             rows: [
                 ['Approved runs', props.proxy.approvedRuns ?? 0],
@@ -154,7 +154,7 @@ function analyticsTableSections() {
             ],
         },
         {
-            title: 'Proxy load by teacher',
+            title: 'Substitution load by teacher',
             headers: ['Teacher', 'Assignments'],
             rows: (props.proxy.teacherLoad ?? []).map((item) => [
                 item.teacher,
@@ -175,7 +175,7 @@ function analyticsTableSections() {
             rows: [
                 ['Approved days', props.leaves.approvedDays ?? 0],
                 ['Pending requests', props.leaves.pending ?? 0],
-                ['Proxy relevant', props.leaves.proxyRelevant ?? 0],
+                ['Needs coverage', props.leaves.proxyRelevant ?? 0],
             ],
         },
         {
@@ -365,7 +365,7 @@ function exportAnalyticsTablesPdf() {
                         <div class="min-w-0">
                             <p class="eyebrow text-[#09B884]">Institution analytics</p>
                             <p class="mt-1 truncate text-2xl font-black leading-tight text-[#1e2924]">{{ activeRoutineName || 'No active routine' }}</p>
-                            <p class="mt-1 max-w-3xl text-sm font-semibold leading-5 text-slate-600">A live snapshot of routine coverage, proxy pressure, leaves, notices, and exam readiness.</p>
+                            <p class="mt-1 max-w-3xl text-sm font-semibold leading-5 text-slate-600">A live snapshot of routine coverage, coverage pressure, leaves, notices, and exam readiness.</p>
                         </div>
                     </div>
 
@@ -483,7 +483,7 @@ function exportAnalyticsTablesPdf() {
                         <div class="flex min-w-0 items-center gap-3">
                             <span class="panel-icon dark"><RotateCw class="h-5 w-5" /></span>
                             <div class="min-w-0">
-                                <p class="panel-title">Proxy engine</p>
+                                <p class="panel-title">Class coverage</p>
                                 <p class="panel-subtitle">{{ proxy.approvedRuns ?? 0 }} approved runs</p>
                             </div>
                         </div>
@@ -499,7 +499,7 @@ function exportAnalyticsTablesPdf() {
                                 </div>
                                 <div class="min-w-0 flex-1">
                                     <p class="text-sm font-black text-[#1e2924]">Daily substitution pressure</p>
-                                    <p class="mt-1 text-xs font-bold leading-5 text-slate-600">Tracks approved proxy runs, unresolved periods, and teacher coverage balance.</p>
+                                    <p class="mt-1 text-xs font-bold leading-5 text-slate-600">Tracks approved substitution plans, unresolved periods, and teacher coverage balance.</p>
                                 </div>
                             </div>
                             <div class="mt-4 grid grid-cols-3 gap-2">
@@ -510,7 +510,7 @@ function exportAnalyticsTablesPdf() {
                         </div>
 
                         <div class="chart-card elevated mt-3">
-                            <p class="chart-title">Proxy load by teacher</p>
+                            <p class="chart-title">Substitution load by teacher</p>
                             <div class="mt-4 space-y-3">
                                 <div v-for="item in proxy.teacherLoad" :key="item.teacher" class="bar-row">
                                     <div class="flex items-center justify-between gap-3 text-xs font-bold">
@@ -521,7 +521,7 @@ function exportAnalyticsTablesPdf() {
                                         <div class="animated-bar h-2.5 rounded-full bg-[#1e2924]" :style="{ width: barWidth(item.count, maxProxyLoad) }"></div>
                                     </div>
                                 </div>
-                                <p v-if="!proxy.teacherLoad?.length" class="empty-note">No proxy assignments recorded yet.</p>
+                                <p v-if="!proxy.teacherLoad?.length" class="empty-note">No substitution assignments recorded yet.</p>
                             </div>
                         </div>
                     </div>
@@ -535,7 +535,7 @@ function exportAnalyticsTablesPdf() {
                             <span class="panel-icon"><CalendarCheck class="h-5 w-5" /></span>
                             <div class="min-w-0">
                                 <p class="panel-title">Leave activity</p>
-                                <p class="panel-subtitle">{{ leaves.approvedDays ?? 0 }} approved days, {{ leaves.proxyRelevant ?? 0 }} proxy relevant</p>
+                                <p class="panel-subtitle">{{ leaves.approvedDays ?? 0 }} approved days, {{ leaves.proxyRelevant ?? 0 }} needs coverage</p>
                             </div>
                         </div>
                     </div>
@@ -584,7 +584,7 @@ function exportAnalyticsTablesPdf() {
                             <span class="panel-icon amber"><Activity class="h-5 w-5" /></span>
                             <div class="min-w-0">
                                 <p class="panel-title">Absence pressure</p>
-                                <p class="panel-subtitle">From proxy runs</p>
+                                <p class="panel-subtitle">From substitution plans</p>
                             </div>
                         </div>
                     </div>

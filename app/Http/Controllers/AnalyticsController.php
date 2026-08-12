@@ -83,7 +83,7 @@ class AnalyticsController extends Controller
                     'tone' => $routineAnalytics['coverage'] >= 95 ? 'good' : ($routineAnalytics['coverage'] >= 80 ? 'warn' : 'bad'),
                 ],
                 [
-                    'label' => 'Proxy resolution',
+                    'label' => 'Coverage resolution',
                     'value' => $proxyAnalytics['resolutionRate'].'%',
                     'detail' => $proxyAnalytics['resolved'].' resolved, '.$proxyAnalytics['unresolved'].' unresolved',
                     'tone' => $proxyAnalytics['unresolved'] === 0 ? 'good' : 'warn',
