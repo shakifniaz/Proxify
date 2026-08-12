@@ -22,7 +22,6 @@ const props = defineProps({
     canResetPassword: { type: Boolean, default: false },
     status: { type: String, default: null },
     firebaseConfig: { type: Object, default: () => ({}) },
-    legacyLoginEmails: { type: Array, default: () => [] },
 });
 
 const form = useForm({
@@ -51,27 +50,8 @@ async function submit() {
     form.clearErrors();
     form.id_token = '';
 
-    const legacyUser = props.legacyLoginEmails.includes(form.email.trim().toLowerCase());
-
-    if (legacyUser) {
-        firebaseLoading.value = true;
-        form.post('/login', {
-            onFinish: () => {
-                firebaseLoading.value = false;
-                form.reset('password', 'id_token');
-            },
-        });
-        return;
-    }
-
     if (!hasFirebaseConfig.value) {
-        firebaseLoading.value = true;
-        form.post('/login', {
-            onFinish: () => {
-                firebaseLoading.value = false;
-                form.reset('password', 'id_token');
-            },
-        });
+        firebaseError.value = 'Firebase is not configured yet. Add the Firebase keys to .env and clear Laravel config.';
         return;
     }
 
@@ -83,13 +63,10 @@ async function submit() {
         form.id_token = await credential.user.getIdToken();
     } catch (error) {
         if (error?.code?.startsWith('auth/')) {
-            form.id_token = '';
-            form.post('/login', {
-                onFinish: () => {
-                    firebaseLoading.value = false;
-                    form.reset('password', 'id_token');
-                },
-            });
+            firebaseError.value = error?.code === 'auth/invalid-credential'
+                ? 'Email or password is incorrect.'
+                : `Firebase sign-in failed: ${error.code}`;
+            firebaseLoading.value = false;
             return;
         }
 

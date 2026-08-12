@@ -8,7 +8,6 @@ use App\Services\FirebaseTokenVerifier;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -23,14 +22,7 @@ class AuthenticatedSessionController extends Controller
     {
         return Inertia::render('Auth/Login', [
             'canResetPassword' => Route::has('password.request'),
-            'firebaseConfig' => app()->environment('local') ? [] : config('services.firebase'),
-            'legacyLoginEmails' => app()->environment('local')
-                ? User::query()
-                    ->whereNull('firebase_uid')
-                    ->pluck('email')
-                    ->map(fn (string $email) => strtolower($email))
-                    ->values()
-                : [],
+            'firebaseConfig' => config('services.firebase'),
             'status' => session('status'),
         ]);
     }
@@ -48,28 +40,7 @@ class AuthenticatedSessionController extends Controller
         ]);
 
         if (! $request->filled('id_token')) {
-            if (! app()->environment('local')) {
-                throw ValidationException::withMessages(['email' => 'Firebase sign-in is required.']);
-            }
-
-            if (! $request->filled('password')) {
-                throw ValidationException::withMessages(['password' => 'Enter your password.']);
-            }
-
-            $user = User::query()
-                ->where('email', strtolower($request->string('email')->toString()))
-                ->whereNull('firebase_uid')
-                ->first();
-
-            if (! $user || ! Hash::check($request->string('password')->toString(), $user->password)) {
-                throw ValidationException::withMessages(['password' => 'These credentials do not match an existing local account.']);
-            }
-
-            Auth::login($user, $request->boolean('remember'));
-
-            $request->session()->regenerate();
-
-            return redirect()->intended(route('dashboard', absolute: false));
+            throw ValidationException::withMessages(['email' => 'Firebase sign-in is required.']);
         }
 
         $payload = $firebase->verify($request->string('id_token')->toString());

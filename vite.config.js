@@ -4,11 +4,11 @@ import vue from '@vitejs/plugin-vue';
 
 export default defineConfig({
     server: {
-        host: '0.0.0.0',
+        host: '127.0.0.1',
         port: 5174,
-        origin: 'http://192.168.0.103:5174',
+        origin: 'http://127.0.0.1:5174',
         hmr: {
-            host: '192.168.0.103',
+            host: '127.0.0.1',
             clientPort: 5174,
         },
     },

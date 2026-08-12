@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500">
+  <rect width="500" height="500" rx="100" fill="#1e2924"/>
+  <g transform="translate(42 26) scale(.832)">
+    <polygon
+      points="250 467.52 8.34 391.87 8.34 103.56 250 179.21 250 467.52"
+      fill="#8BED9A"
+      opacity=".68"
+    />
+    <polyline
+      points="250 467.52 66.43 320.79 66.43 32.48 250 179.21"
+      fill="#04795A"
+    />
+    <polygon
+      points="250 467.52 491.66 391.87 491.66 103.56 250 179.21 250 467.52"
+      fill="#BDF8C8"
+      opacity=".72"
+    />
+    <polyline
+      points="250 467.52 433.57 320.79 433.57 32.48 250 179.21"
+      fill="#09B884"
+    />
+  </g>
+</svg>
